@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Active Round - Guesser</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-tertiary": "#ffffff",
+                    "primary-container": "#ff6b6b",
+                    "tertiary-container": "#00b179",
+                    "on-background": "#1b1c15",
+                    "surface-bright": "#fbfaee",
+                    "on-secondary-fixed": "#00201e",
+                    "on-secondary-container": "#006f69",
+                    "on-primary-fixed-variant": "#8c1520",
+                    "tertiary": "#006c48",
+                    "inverse-primary": "#ffb3b0",
+                    "surface": "#fbfaee",
+                    "error-container": "#ffdad6",
+                    "on-primary": "#ffffff",
+                    "on-primary-fixed": "#410006",
+                    "on-primary-container": "#6d0010",
+                    "secondary": "#006a65",
+                    "tertiary-fixed-dim": "#52dea2",
+                    "primary-fixed-dim": "#ffb3b0",
+                    "on-error-container": "#93000a",
+                    "on-tertiary-fixed-variant": "#005236",
+                    "background": "#fbfaee",
+                    "on-surface": "#1b1c15",
+                    "secondary-fixed": "#7cf6ec",
+                    "on-secondary": "#ffffff",
+                    "outline-variant": "#e0bfbd",
+                    "inverse-surface": "#303129",
+                    "surface-variant": "#e4e3d7",
+                    "secondary-container": "#79f3ea",
+                    "surface-container-highest": "#e4e3d7",
+                    "primary": "#ae2f34",
+                    "on-surface-variant": "#584140",
+                    "surface-container-lowest": "#ffffff",
+                    "surface-container-high": "#e9e9dd",
+                    "on-error": "#ffffff",
+                    "primary-fixed": "#ffdad8",
+                    "outline": "#8c706f",
+                    "surface-container": "#efeee3",
+                    "surface-dim": "#dbdbcf",
+                    "surface-container-low": "#f5f4e8",
+                    "on-tertiary-container": "#003b26",
+                    "tertiary-fixed": "#72fbbc",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed": "#002113",
+                    "on-secondary-fixed-variant": "#00504c",
+                    "surface-tint": "#ae2f34",
+                    "inverse-on-surface": "#f2f1e5",
+                    "secondary-fixed-dim": "#5dd9d0"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "gutter": "16px",
+                    "unit": "8px",
+                    "stack-sm": "8px",
+                    "stack-lg": "32px",
+                    "stack-md": "16px",
+                    "container-margin": "24px"
+            },
+            "fontFamily": {
+                    "display-lg": ["Rubik"],
+                    "headline-lg-mobile": ["Rubik"],
+                    "body-lg": ["Rubik"],
+                    "label-xl": ["Rubik"],
+                    "headline-lg": ["Rubik"],
+                    "body-md": ["Rubik"]
+            },
+            "fontSize": {
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "body-lg": ["20px", {"lineHeight": "30px", "fontWeight": "400"}],
+                    "label-xl": ["18px", {"lineHeight": "22px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        /* Ambient shadows and tactile helpers */
+        .ambient-shadow {
+            box-shadow: 0 -4px 20px -4px rgba(0,0,0,0.08), 0 8px 24px -4px rgba(0,0,0,0.08);
+        }
+        .btn-glow {
+            box-shadow: inset 0 2px 0 0 rgba(255,255,255,0.2), 0 8px 16px -4px rgba(174,47,52,0.3);
+        }
+        .timer-glow {
+            box-shadow: 0 0 12px 0 rgba(0,177,121,0.4);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-lg text-body-lg h-[884px] flex flex-col overflow-hidden antialiased selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- TopAppBar (Shared Component) -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-container-margin h-16 bg-surface dark:bg-surface flat no shadows">
+<button aria-label="Information" class="text-primary dark:text-primary-fixed-dim hover:opacity-80 active:scale-95 transition-transform duration-100 flex items-center justify-center w-12 h-12 -ml-3 rounded-full">
+<span class="material-symbols-outlined" data-icon="info">info</span>
+</button>
+<h1 class="text-headline-lg-mobile font-headline-lg-mobile font-bold text-primary dark:text-primary-fixed-dim tracking-tight">
+            Round 1: Role
+        </h1>
+<button aria-label="Settings" class="text-primary dark:text-primary-fixed-dim hover:opacity-80 active:scale-95 transition-transform duration-100 flex items-center justify-center w-12 h-12 -mr-3 rounded-full">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</header>
+<!-- Main Game Canvas -->
+<!-- Navigation shell (BottomNavBar) is explicitly suppressed here due to Task-Focused/Linear journey rules. -->
+<main class="mt-16 flex-1 flex flex-col justify-between w-full max-w-lg mx-auto relative z-10">
+<!-- Timer Section -->
+<section aria-label="Game Timer" class="px-container-margin pt-stack-sm pb-stack-md w-full">
+<div class="h-3 w-full bg-surface-container-high rounded-full overflow-hidden shadow-inner flex relative">
+<!-- Fluid Timer Track (Teal transitioning slightly to indicate live state) -->
+<div class="h-full bg-tertiary-container w-[65%] rounded-full timer-glow relative">
+<!-- Subtle inner highlight for 3D feel -->
+<div class="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent rounded-full"></div>
+</div>
+</div>
+</section>
+<!-- Center Stage: The Card -->
+<section class="flex-1 flex flex-col items-center justify-center px-container-margin py-stack-lg relative w-full">
+<!-- Category Chip -->
+<div class="bg-surface-container-high text-on-surface-variant px-6 py-2 rounded-full flex items-center gap-2 mb-stack-lg border border-surface-dim ambient-shadow z-20 transform -translate-y-4">
+<span class="material-symbols-outlined text-[20px]" data-icon="category">category</span>
+<span class="text-label-xl font-label-xl uppercase tracking-wider">Category: Animals</span>
+</div>
+<!-- Main Sentence Card -->
+<div class="w-full bg-surface-container-lowest rounded-xl border border-surface-dim ambient-shadow p-8 min-h-[280px] flex flex-col items-center justify-center relative">
+<!-- Decorative background elements for tactile feel -->
+<div class="absolute top-4 left-4 w-3 h-3 rounded-full bg-surface-container-high border border-surface-dim"></div>
+<div class="absolute top-4 right-4 w-3 h-3 rounded-full bg-surface-container-high border border-surface-dim"></div>
+<div class="absolute bottom-4 left-4 w-3 h-3 rounded-full bg-surface-container-high border border-surface-dim"></div>
+<div class="absolute bottom-4 right-4 w-3 h-3 rounded-full bg-surface-container-high border border-surface-dim"></div>
+<!-- The Sentence -->
+<div class="flex flex-wrap justify-center items-center gap-x-3 gap-y-4 text-headline-lg-mobile font-headline-lg-mobile text-on-surface text-center leading-tight">
+<span>It</span>
+<span>has</span>
+<!-- Highlighted recent word -->
+<span class="relative inline-block">
+<span class="absolute inset-0 bg-primary-fixed rounded-lg transform -skew-x-6 scale-110"></span>
+<span class="relative text-primary font-bold px-1 z-10">a</span>
+</span>
+<!-- Placeholder for next word -->
+<span class="w-12 h-1 border-b-4 border-dotted border-surface-dim inline-block self-end mb-2 opacity-50"></span>
+</div>
+</div>
+<!-- Status Indicator -->
+<div class="mt-stack-lg flex items-center gap-3 bg-surface text-on-surface-variant px-5 py-3 rounded-full border border-surface-dim shadow-sm">
+<!-- Breathing animation substitute using CSS pulsing class would normally go here, using static representation -->
+<div class="w-3 h-3 bg-secondary rounded-full"></div>
+<span class="text-body-md font-body-md italic tracking-wide">Sam is typing...</span>
+</div>
+</section>
+<!-- Bottom Action Area -->
+<section class="px-container-margin pb-container-margin pt-stack-sm w-full bg-gradient-to-t from-background via-background to-transparent relative z-20">
+<button class="w-full h-[60px] bg-primary text-on-primary rounded-full flex items-center justify-center gap-3 btn-glow active:scale-[0.98] transition-all duration-150 ease-out group">
+<span class="material-symbols-outlined text-[28px] group-active:-rotate-12 transition-transform" data-icon="lightbulb">lightbulb</span>
+<span class="text-headline-lg-mobile font-headline-lg-mobile font-bold tracking-wide mt-1">Guess</span>
+</button>
+</section>
+</main>
+</body></html>

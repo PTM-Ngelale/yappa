@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Active Round - Player Disconnected</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#72fbbc",
+                        "primary-fixed": "#ffdad8",
+                        "surface-container": "#efeee3",
+                        "secondary": "#006a65",
+                        "outline-variant": "#e0bfbd",
+                        "primary-container": "#ff6b6b",
+                        "on-primary-fixed-variant": "#8c1520",
+                        "surface-container-high": "#e9e9dd",
+                        "inverse-surface": "#303129",
+                        "on-tertiary-container": "#003b26",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-container": "#6d0010",
+                        "on-background": "#1b1c15",
+                        "on-surface-variant": "#584140",
+                        "on-surface": "#1b1c15",
+                        "surface-tint": "#ae2f34",
+                        "on-error": "#ffffff",
+                        "background": "#fbfaee",
+                        "on-tertiary-fixed": "#002113",
+                        "inverse-primary": "#ffb3b0",
+                        "outline": "#8c706f",
+                        "error-container": "#ffdad6",
+                        "surface-dim": "#dbdbcf",
+                        "surface-bright": "#fbfaee",
+                        "on-secondary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-secondary-fixed-variant": "#00504c",
+                        "tertiary-fixed-dim": "#52dea2",
+                        "surface-container-highest": "#e4e3d7",
+                        "inverse-on-surface": "#f2f1e5",
+                        "on-secondary-container": "#006f69",
+                        "secondary-fixed": "#7cf6ec",
+                        "tertiary-container": "#00b179",
+                        "tertiary": "#006c48",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f5f4e8",
+                        "secondary-fixed-dim": "#5dd9d0",
+                        "surface": "#fbfaee",
+                        "on-primary-fixed": "#410006",
+                        "primary-fixed-dim": "#ffb3b0",
+                        "on-secondary-fixed": "#00201e",
+                        "primary": "#ae2f34",
+                        "surface-variant": "#e4e3d7",
+                        "secondary-container": "#79f3ea"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "stack-md": "16px",
+                        "container-margin": "24px",
+                        "stack-sm": "8px",
+                        "gutter": "16px",
+                        "stack-lg": "32px"
+                    },
+                    "fontFamily": {
+                        "label-xl": ["Rubik"],
+                        "headline-lg-mobile": ["Rubik"],
+                        "display-lg": ["Rubik"],
+                        "headline-lg": ["Rubik"],
+                        "body-md": ["Rubik"],
+                        "body-lg": ["Rubik"]
+                    },
+                    "fontSize": {
+                        "label-xl": ["18px", {"lineHeight": "22px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "600"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-lg": ["20px", {"lineHeight": "30px", "fontWeight": "400"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen relative overflow-hidden">
+<!-- Background Context (Dimmed Active Game) -->
+<div class="absolute inset-0 z-0 flex flex-col blur-[4px] opacity-40 pointer-events-none">
+<!-- TopAppBar (Blurred) -->
+<header class="fixed top-0 left-0 w-full z-10 flex justify-between items-center px-container-margin h-16 bg-surface">
+<button class="flex items-center justify-center text-on-surface-variant w-12 h-12">
+<span class="material-symbols-outlined text-[28px]">info</span>
+</button>
+<h1 class="text-headline-lg-mobile font-headline-lg-mobile font-bold text-primary">Round 1: Role</h1>
+<button class="flex items-center justify-center text-on-surface-variant w-12 h-12">
+<span class="material-symbols-outlined text-[28px]">settings</span>
+</button>
+</header>
+<!-- Main Content Area (Blurred) -->
+<main class="flex-1 mt-16 px-container-margin pt-stack-lg flex flex-col items-center">
+<!-- Game Card Placeholder -->
+<div class="w-full max-w-md bg-surface-container-low rounded-lg p-stack-lg flex flex-col items-center justify-center aspect-[4/5] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] border border-surface-variant mb-stack-lg">
+<p class="text-label-xl font-label-xl text-on-surface-variant mb-unit">Current Word</p>
+<h2 class="text-display-lg font-display-lg text-primary text-center">BICYCLE</h2>
+<div class="w-full mt-auto">
+<div class="h-3 w-full bg-surface-variant rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-2/3 rounded-full"></div>
+</div>
+</div>
+</div>
+<!-- Action Buttons Placeholder -->
+<div class="w-full max-w-md grid grid-cols-2 gap-gutter mt-auto pb-stack-lg">
+<button class="h-[60px] bg-surface-variant text-on-surface rounded-full flex items-center justify-center text-label-xl font-label-xl">Pass</button>
+<button class="h-[60px] bg-primary text-on-primary rounded-full flex items-center justify-center text-label-xl font-label-xl">Got It!</button>
+</div>
+</main>
+</div>
+<!-- Disconnected Overlay (Active Layer) -->
+<div class="fixed inset-0 z-50 bg-background/80 backdrop-blur-md flex flex-col items-center justify-center p-container-margin">
+<!-- Center Content -->
+<div class="flex flex-col items-center max-w-sm w-full bg-surface-container-lowest p-stack-lg rounded-xl shadow-[0_8px_32px_-4px_rgba(0,0,0,0.1)] border border-surface-variant relative overflow-hidden">
+<!-- Decorative Accent -->
+<div class="absolute top-0 left-0 w-full h-2 bg-error"></div>
+<!-- Avatar -->
+<div class="relative w-24 h-24 mb-stack-md">
+<img alt="Avatar of Alex" class="w-full h-full rounded-full object-cover border-4 border-surface" data-alt="A close-up profile picture of a young man with short dark hair, smiling warmly. The lighting is soft and natural, emphasizing a friendly and approachable mood. The background is a slightly blurred, warm-toned indoor setting, fitting a modern, premium light-mode UI aesthetic with soft contrasts." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgEHSTDGFjmeFJuW04XIrQdoOVtiN97jEa29Tygt-Vjes5f01ounh01JTYr9p7xuhMAhkCBQp1sraGaCV1qVgv2a2Ju1jrwb_0Cuaij3nQMCioYWYax7p6wmHOToZOyVx1YKWOj4A6LyPUiyVVEih0Q1_do3Ytu6YX5cmAA_42nRiqRVKpOewAHw3yYiOVCogTbpD8dpKGytEOd1ZoliCNb574bB78oXGLKK7_D4me44Zk9zCe_YuABjNqXlYUvTJw4jyNwubTLm5r"/>
+<!-- Disconnect Icon Badge -->
+<div class="absolute bottom-0 right-0 w-8 h-8 bg-error rounded-full flex items-center justify-center border-2 border-surface">
+<span class="material-symbols-outlined text-on-error text-[18px]">wifi_off</span>
+</div>
+</div>
+<!-- Message -->
+<h2 class="text-headline-lg-mobile font-headline-lg-mobile text-on-surface text-center mb-unit">Alex disconnected</h2>
+<p class="text-body-md font-body-md text-on-surface-variant text-center mb-stack-lg">
+                Waiting for them to return...
+            </p>
+<!-- Timer -->
+<div class="w-32 h-32 rounded-full border-8 border-surface-variant relative flex items-center justify-center mb-stack-lg">
+<!-- Faux Progress Ring (Static for UI) -->
+<svg class="absolute inset-0 w-full h-full transform -rotate-90" viewbox="0 0 100 100">
+<circle cx="50" cy="50" fill="transparent" r="46" stroke="#ff6b6b" stroke-dasharray="289" stroke-dashoffset="72" stroke-linecap="round" stroke-width="8"></circle>
+</svg>
+<span class="text-display-lg font-display-lg text-primary relative z-10">30</span>
+</div>
+<!-- Action Area -->
+<div class="w-full flex flex-col items-center gap-stack-sm mt-stack-md">
+<p class="text-body-md font-body-md text-on-surface-variant text-center mb-stack-sm">
+                    The game will automatically pause until they reconnect.
+                </p>
+<button class="px-6 py-3 text-label-xl font-label-xl text-outline hover:text-on-surface-variant transition-colors bg-transparent mt-4">
+                    End game now
+                </button>
+</div>
+</div>
+</div>
+</body></html>

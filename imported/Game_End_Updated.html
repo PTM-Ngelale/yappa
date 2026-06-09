@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Game End - Victory!</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#93000a",
+                        "tertiary-fixed": "#72fbbc",
+                        "primary-fixed": "#ffdad8",
+                        "surface-container": "#efeee3",
+                        "secondary": "#006a65",
+                        "outline-variant": "#e0bfbd",
+                        "primary-container": "#ff6b6b",
+                        "on-primary-fixed-variant": "#8c1520",
+                        "surface-container-high": "#e9e9dd",
+                        "inverse-surface": "#303129",
+                        "on-tertiary-container": "#003b26",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "on-primary-container": "#6d0010",
+                        "on-background": "#1b1c15",
+                        "on-surface-variant": "#584140",
+                        "on-surface": "#1b1c15",
+                        "surface-tint": "#ae2f34",
+                        "on-error": "#ffffff",
+                        "background": "#fbfaee",
+                        "on-tertiary-fixed": "#002113",
+                        "inverse-primary": "#ffb3b0",
+                        "outline": "#8c706f",
+                        "error-container": "#ffdad6",
+                        "surface-dim": "#dbdbcf",
+                        "surface-bright": "#fbfaee",
+                        "on-secondary": "#ffffff",
+                        "error": "#ba1a1a",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-secondary-fixed-variant": "#00504c",
+                        "tertiary-fixed-dim": "#52dea2",
+                        "surface-container-highest": "#e4e3d7",
+                        "inverse-on-surface": "#f2f1e5",
+                        "on-secondary-container": "#006f69",
+                        "secondary-fixed": "#7cf6ec",
+                        "tertiary-container": "#00b179",
+                        "tertiary": "#006c48",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f5f4e8",
+                        "secondary-fixed-dim": "#5dd9d0",
+                        "surface": "#fbfaee",
+                        "on-primary-fixed": "#410006",
+                        "primary-fixed-dim": "#ffb3b0",
+                        "on-secondary-fixed": "#00201e",
+                        "primary": "#ae2f34",
+                        "surface-variant": "#e4e3d7",
+                        "secondary-container": "#79f3ea"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "unit": "8px",
+                        "stack-md": "16px",
+                        "container-margin": "24px",
+                        "stack-sm": "8px",
+                        "gutter": "16px",
+                        "stack-lg": "32px"
+                    },
+                    "fontFamily": {
+                        "label-xl": ["Rubik"],
+                        "headline-lg-mobile": ["Rubik"],
+                        "display-lg": ["Rubik"],
+                        "headline-lg": ["Rubik"],
+                        "body-md": ["Rubik"],
+                        "body-lg": ["Rubik"]
+                    },
+                    "fontSize": {
+                        "label-xl": ["18px", { "lineHeight": "22px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "36px", "fontWeight": "600" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-lg": ["20px", { "lineHeight": "30px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style type="text/tailwindcss">
+        body {
+            @apply bg-background text-on-background font-body-md;
+            /* Added smooth scrolling for the breakdown list */
+            scroll-behavior: smooth;
+        }
+        
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Custom scrollbar for round list */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            @apply bg-surface-container-low rounded-full;
+        }
+        ::-webkit-scrollbar-thumb {
+            @apply bg-surface-variant rounded-full;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex flex-col pt-16 pb-32"> <!-- Added padding for fixed navs if any, and bottom actions -->
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-container-margin h-16 bg-surface dark:bg-surface flat no shadows">
+<button class="w-12 h-12 flex items-center justify-center text-primary dark:text-primary-fixed-dim hover:opacity-80 transition-opacity rounded-full">
+<span class="material-symbols-outlined" data-icon="close">close</span>
+</button>
+<h1 class="text-headline-lg-mobile font-headline-lg-mobile font-bold text-primary dark:text-primary-fixed-dim truncate px-4">Match Results</h1>
+<button class="w-12 h-12 flex items-center justify-center text-primary dark:text-primary-fixed-dim hover:opacity-80 transition-opacity rounded-full">
+<span class="material-symbols-outlined" data-icon="share">share</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-grow flex flex-col px-container-margin pt-stack-lg gap-stack-lg relative overflow-hidden">
+<!-- Confetti/Celebratory Background Element (CSS only, abstract) -->
+<div class="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-primary-container/20 to-transparent pointer-events-none -z-10 rounded-b-[4rem]"></div>
+<!-- Hero Section: Victory & Score -->
+<section class="flex flex-col items-center text-center gap-stack-sm pt-stack-md z-10 relative">
+<div class="w-24 h-24 bg-tertiary-container rounded-full flex items-center justify-center mb-stack-sm shadow-[0_8px_30px_-4px_rgba(0,177,121,0.4)] relative">
+<span class="material-symbols-outlined text-on-tertiary-container text-5xl" style="font-variation-settings: 'FILL' 1;">trophy</span>
+<!-- Sparkles -->
+<span class="material-symbols-outlined text-tertiary absolute -top-2 -right-2 rotate-12" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<h2 class="text-display-lg font-display-lg text-primary">Victory!</h2>
+<p class="text-headline-lg-mobile font-headline-lg-mobile text-on-surface-variant">You won 7 of 9 rounds!</p>
+<!-- Overall Stats Pills -->
+<div class="flex gap-gutter mt-stack-md">
+<div class="bg-surface-container-high px-4 py-2 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary" style="font-size: 20px;">timer</span>
+<span class="text-body-md font-body-md text-on-surface">Avg 14s</span>
+</div>
+<div class="bg-surface-container-high px-4 py-2 rounded-full flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary" style="font-size: 20px;">link</span>
+<span class="text-body-md font-body-md text-on-surface">Max Chain: 8</span>
+</div>
+</div>
+</section>
+<!-- Round Breakdown Title -->
+<div class="flex items-center justify-between w-full border-b border-surface-variant pb-2 mt-stack-md">
+<h3 class="text-headline-lg-mobile font-headline-lg-mobile text-on-background">Round Breakdown</h3>
+<span class="text-label-xl font-label-xl text-on-surface-variant">9 Rounds</span>
+</div>
+<!-- Scrollable Round List (Bento-ish Grid layout for items) -->
+<section class="flex-grow overflow-y-auto w-full flex flex-col gap-stack-sm -mx-container-margin px-container-margin pb-stack-lg" style="max-height: 50vh;">
+<!-- Round Item: WON -->
+<article class="bg-surface-container rounded-DEFAULT p-4 flex flex-col gap-stack-sm shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-surface-variant">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-2">
+<span class="bg-surface-variant text-on-surface-variant text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider">Round 1</span>
+<h4 class="text-headline-lg-mobile font-headline-lg-mobile text-on-background">GIRAFFE</h4>
+</div>
+<div class="flex items-center gap-1 bg-tertiary-fixed-dim/20 text-tertiary px-3 py-1 rounded-full">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-label-xl font-label-xl font-bold">WON</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-2">
+<!-- Guesser Info -->
+<div class="flex items-center gap-2 bg-surface p-2 rounded-lg border border-surface-variant/50">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold text-sm">
+                            A
+                        </div>
+<div class="flex flex-col">
+<span class="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">Guesser</span>
+<span class="text-body-md font-body-md leading-none">Alex</span>
+</div>
+</div>
+<!-- Chain Info -->
+<div class="flex items-center gap-2 bg-surface p-2 rounded-lg border border-surface-variant/50">
+<span class="material-symbols-outlined text-secondary ml-1">route</span>
+<div class="flex flex-col">
+<span class="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">Chain</span>
+<span class="text-body-md font-body-md leading-none">4 words</span>
+</div>
+</div>
+</div>
+<!-- Word Path Visualization (Mini) -->
+<div class="flex items-center gap-2 mt-2 text-sm text-on-surface-variant bg-surface-container-lowest p-2 rounded-lg overflow-x-auto whitespace-nowrap">
+<span>Neck</span>
+<span class="material-symbols-outlined text-xs text-outline">arrow_forward_ios</span>
+<span>Long</span>
+<span class="material-symbols-outlined text-xs text-outline">arrow_forward_ios</span>
+<span>Animal</span>
+<span class="material-symbols-outlined text-xs text-outline">arrow_forward_ios</span>
+<span class="font-bold text-primary">GIRAFFE</span>
+</div>
+</article>
+<!-- Round Item: WON -->
+<article class="bg-surface-container rounded-DEFAULT p-4 flex flex-col gap-stack-sm shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-surface-variant">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-2">
+<span class="bg-surface-variant text-on-surface-variant text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider">Round 2</span>
+<h4 class="text-headline-lg-mobile font-headline-lg-mobile text-on-background">PYRAMID</h4>
+</div>
+<div class="flex items-center gap-1 bg-tertiary-fixed-dim/20 text-tertiary px-3 py-1 rounded-full">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-label-xl font-label-xl font-bold">WON</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-2">
+<div class="flex items-center gap-2 bg-surface p-2 rounded-lg border border-surface-variant/50">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-sm">
+                            S
+                        </div>
+<div class="flex flex-col">
+<span class="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">Guesser</span>
+<span class="text-body-md font-body-md leading-none">Sam</span>
+</div>
+</div>
+<div class="flex items-center gap-2 bg-surface p-2 rounded-lg border border-surface-variant/50">
+<span class="material-symbols-outlined text-secondary ml-1">route</span>
+<div class="flex flex-col">
+<span class="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">Chain</span>
+<span class="text-body-md font-body-md leading-none">3 words</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Round Item: LOST -->
+<article class="bg-surface-container rounded-DEFAULT p-4 flex flex-col gap-stack-sm shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-error-container relative overflow-hidden">
+<!-- Subtle red tint for lost round -->
+<div class="absolute inset-0 bg-error-container/10 pointer-events-none"></div>
+<div class="flex justify-between items-start relative z-10">
+<div class="flex items-center gap-2">
+<span class="bg-surface-variant text-on-surface-variant text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider">Round 3</span>
+<h4 class="text-headline-lg-mobile font-headline-lg-mobile text-on-background opacity-70 line-through">ASTRONAUT</h4>
+</div>
+<div class="flex items-center gap-1 bg-error-container/50 text-error px-3 py-1 rounded-full">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">cancel</span>
+<span class="text-label-xl font-label-xl font-bold">LOST</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-2 relative z-10">
+<div class="flex items-center gap-2 bg-surface p-2 rounded-lg border border-surface-variant/50">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold text-sm">
+                            A
+                        </div>
+<div class="flex flex-col">
+<span class="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">Guesser</span>
+<span class="text-body-md font-body-md leading-none">Alex</span>
+</div>
+</div>
+<div class="flex items-center gap-2 bg-surface p-2 rounded-lg border border-surface-variant/50">
+<span class="material-symbols-outlined text-error ml-1">timer_off</span>
+<div class="flex flex-col">
+<span class="text-xs text-error uppercase tracking-wider font-semibold">Reason</span>
+<span class="text-body-md font-body-md leading-none">Time Up</span>
+</div>
+</div>
+</div>
+</article>
+<!-- Round Item: WON -->
+<article class="bg-surface-container rounded-DEFAULT p-4 flex flex-col gap-stack-sm shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-surface-variant">
+<div class="flex justify-between items-start">
+<div class="flex items-center gap-2">
+<span class="bg-surface-variant text-on-surface-variant text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wider">Round 4</span>
+<h4 class="text-headline-lg-mobile font-headline-lg-mobile text-on-background">WINDMILL</h4>
+</div>
+<div class="flex items-center gap-1 bg-tertiary-fixed-dim/20 text-tertiary px-3 py-1 rounded-full">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="text-label-xl font-label-xl font-bold">WON</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mt-2">
+<div class="flex items-center gap-2 bg-surface p-2 rounded-lg border border-surface-variant/50">
+<div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary-container font-bold text-sm">
+                            J
+                        </div>
+<div class="flex flex-col">
+<span class="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">Guesser</span>
+<span class="text-body-md font-body-md leading-none">Jordan</span>
+</div>
+</div>
+<div class="flex items-center gap-2 bg-surface p-2 rounded-lg border border-surface-variant/50">
+<span class="material-symbols-outlined text-secondary ml-1">route</span>
+<div class="flex flex-col">
+<span class="text-xs text-on-surface-variant uppercase tracking-wider font-semibold">Chain</span>
+<span class="text-body-md font-body-md leading-none">5 words</span>
+</div>
+</div>
+</div>
+</article>
+</section>
+</main>
+<!-- Fixed Bottom Actions -->
+<div class="fixed bottom-0 left-0 w-full z-50 bg-surface/90 backdrop-blur-md px-container-margin py-stack-md flex flex-col gap-stack-sm border-t border-surface-variant/30 shadow-[0_-8px_30px_-4px_rgba(0,0,0,0.05)]">
+<button class="w-full h-16 bg-primary text-on-primary rounded-full text-label-xl font-label-xl shadow-lg active:scale-95 transition-all duration-200 flex items-center justify-center gap-2 border-t-2 border-primary-fixed/30">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">replay</span>
+            Play Again
+        </button>
+<button class="w-full h-14 bg-surface-container-high text-on-surface rounded-full text-label-xl font-label-xl hover:bg-surface-variant active:scale-95 transition-all duration-200">
+            Back to Home
+        </button>
+</div>
+</body></html>

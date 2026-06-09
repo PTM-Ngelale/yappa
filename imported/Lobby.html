@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Round 1: Role - Lobby</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#ffb3b0",
+                        "surface-variant": "#e4e3d7",
+                        "background": "#fbfaee",
+                        "on-tertiary-container": "#003b26",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed-variant": "#8c1520",
+                        "on-background": "#1b1c15",
+                        "surface-tint": "#ae2f34",
+                        "error": "#ba1a1a",
+                        "inverse-on-surface": "#f2f1e5",
+                        "on-primary-container": "#6d0010",
+                        "outline-variant": "#e0bfbd",
+                        "secondary-fixed-dim": "#5dd9d0",
+                        "on-error": "#ffffff",
+                        "on-secondary-container": "#006f69",
+                        "surface-container-highest": "#e4e3d7",
+                        "surface-container": "#efeee3",
+                        "primary-fixed": "#ffdad8",
+                        "on-tertiary-fixed": "#002113",
+                        "on-primary-fixed": "#410006",
+                        "inverse-surface": "#303129",
+                        "tertiary-container": "#00b179",
+                        "on-surface": "#1b1c15",
+                        "surface-container-lowest": "#ffffff",
+                        "on-secondary-fixed": "#00201e",
+                        "error-container": "#ffdad6",
+                        "surface-container-low": "#f5f4e8",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "secondary-container": "#79f3ea",
+                        "tertiary-fixed-dim": "#52dea2",
+                        "surface-container-high": "#e9e9dd",
+                        "outline": "#8c706f",
+                        "primary": "#ae2f34",
+                        "on-tertiary": "#ffffff",
+                        "surface-dim": "#dbdbcf",
+                        "secondary": "#006a65",
+                        "on-secondary-fixed-variant": "#00504c",
+                        "tertiary-fixed": "#72fbbc",
+                        "on-error-container": "#93000a",
+                        "tertiary": "#006c48",
+                        "secondary-fixed": "#7cf6ec",
+                        "primary-container": "#ff6b6b",
+                        "surface": "#fbfaee",
+                        "inverse-primary": "#ffb3b0",
+                        "surface-bright": "#fbfaee",
+                        "on-surface-variant": "#584140"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "stack-sm": "8px",
+                        "stack-lg": "32px",
+                        "unit": "8px",
+                        "stack-md": "16px",
+                        "gutter": "16px",
+                        "container-margin": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Rubik"],
+                        "body-lg": ["Rubik"],
+                        "label-xl": ["Rubik"],
+                        "headline-lg-mobile": ["Rubik"],
+                        "body-md": ["Rubik"],
+                        "display-lg": ["Rubik"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "600" }],
+                        "body-lg": ["20px", { "lineHeight": "30px", "fontWeight": "400" }],
+                        "label-xl": ["18px", { "lineHeight": "22px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "36px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    },
+                    "boxShadow": {
+                        "ambient": "0 -4px 20px -4px rgba(0,0,0,0.08)",
+                        "card": "0 4px 20px -4px rgba(0,0,0,0.08)"
+                    }
+                }
+            }
+        }
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .material-symbols-outlined {
+                font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            }
+            .material-symbols-outlined.fill-icon {
+                font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md overflow-x-hidden pt-16 pb-24">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-container-margin h-16 bg-surface">
+<button class="text-on-surface-variant hover:opacity-80 flex items-center justify-center p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-surface">
+<span class="material-symbols-outlined" data-icon="info">info</span>
+</button>
+<h1 class="text-headline-lg-mobile font-headline-lg-mobile font-bold text-primary text-center flex-1">Round 1: Role</h1>
+<button class="text-on-surface-variant hover:opacity-80 flex items-center justify-center p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-surface">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</header>
+<main class="flex-1 flex flex-col px-container-margin py-stack-lg gap-stack-lg w-full max-w-md mx-auto">
+<!-- Room Code Section -->
+<section class="flex flex-col items-center gap-stack-sm bg-surface-container-lowest p-stack-md rounded-xl shadow-card border border-surface-variant">
+<h2 class="text-label-xl font-label-xl text-on-surface-variant">Room Code</h2>
+<div class="text-display-lg font-display-lg text-primary tracking-[0.2em]">XJ4K</div>
+<button class="flex items-center gap-2 text-primary hover:bg-surface-container-low px-4 py-2 rounded-full transition-colors mt-2">
+<span class="material-symbols-outlined text-[20px]" data-icon="content_copy">content_copy</span>
+<span class="text-label-xl font-label-xl">Copy Link</span>
+</button>
+</section>
+<!-- Player Slots Section -->
+<section class="flex flex-col gap-stack-md w-full">
+<h3 class="text-label-xl font-label-xl text-on-surface-variant px-2">Players (1/3)</h3>
+<div class="flex flex-col gap-stack-sm">
+<!-- Host Player -->
+<div class="flex items-center gap-4 bg-surface-container p-4 rounded-lg shadow-sm border border-primary/20 relative overflow-hidden">
+<div class="absolute left-0 top-0 bottom-0 w-1.5 bg-primary rounded-l-lg"></div>
+<div class="w-12 h-12 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-lg flex-shrink-0">
+                        H
+                    </div>
+<div class="flex flex-col flex-1">
+<span class="text-body-lg font-body-lg text-on-surface">You <span class="text-body-md font-body-md text-primary ml-1">(Host)</span></span>
+</div>
+<span class="material-symbols-outlined text-primary fill-icon" data-icon="star" data-weight="fill">star</span>
+</div>
+<!-- Empty Slot 1 -->
+<div class="flex items-center gap-4 bg-surface-container-low p-4 rounded-lg border border-dashed border-outline-variant opacity-70">
+<div class="w-12 h-12 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined" data-icon="person_add">person_add</span>
+</div>
+<div class="flex flex-col flex-1">
+<span class="text-body-md font-body-md text-on-surface-variant italic">Waiting for player...</span>
+</div>
+</div>
+<!-- Empty Slot 2 -->
+<div class="flex items-center gap-4 bg-surface-container-low p-4 rounded-lg border border-dashed border-outline-variant opacity-70">
+<div class="w-12 h-12 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center flex-shrink-0">
+<span class="material-symbols-outlined" data-icon="person_add">person_add</span>
+</div>
+<div class="flex flex-col flex-1">
+<span class="text-body-md font-body-md text-on-surface-variant italic">Waiting for player...</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Categories Section -->
+<section class="flex flex-col gap-stack-sm mt-auto mb-stack-lg">
+<h3 class="text-label-xl font-label-xl text-on-surface-variant px-2 text-center">Selected Categories</h3>
+<div class="flex flex-wrap justify-center gap-2 mt-2">
+<span class="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full text-body-md font-body-md border border-secondary/20 shadow-sm">Objects</span>
+<span class="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full text-body-md font-body-md border border-secondary/20 shadow-sm">Animals</span>
+<span class="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full text-body-md font-body-md border border-secondary/20 shadow-sm">Places</span>
+<span class="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full text-body-md font-body-md border border-secondary/20 shadow-sm">Food</span>
+<span class="px-4 py-2 bg-secondary-container text-on-secondary-container rounded-full text-body-md font-body-md border border-secondary/20 shadow-sm">Sports</span>
+</div>
+</section>
+</main>
+<!-- Bottom Action Area -->
+<div class="fixed bottom-0 left-0 w-full bg-surface p-container-margin shadow-[0_-8px_30px_-4px_rgba(0,0,0,0.1)] rounded-t-xl z-50">
+<button class="w-full bg-surface-variant text-on-surface-variant text-label-xl font-label-xl h-[60px] rounded-full flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
+<span class="material-symbols-outlined" data-icon="play_arrow">play_arrow</span>
+            Start Game
+        </button>
+<p class="text-center text-sm text-on-surface-variant mt-2">Need 3 players to start</p>
+</div>
+</body></html>

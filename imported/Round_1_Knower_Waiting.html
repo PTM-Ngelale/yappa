@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Improv Energy - Waiting Turn</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-tertiary": "#ffffff",
+                        "primary-container": "#ff6b6b",
+                        "tertiary-container": "#00b179",
+                        "on-background": "#1b1c15",
+                        "surface-bright": "#fbfaee",
+                        "on-secondary-fixed": "#00201e",
+                        "on-secondary-container": "#006f69",
+                        "on-primary-fixed-variant": "#8c1520",
+                        "tertiary": "#006c48",
+                        "inverse-primary": "#ffb3b0",
+                        "surface": "#fbfaee",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#410006",
+                        "on-primary-container": "#6d0010",
+                        "secondary": "#006a65",
+                        "tertiary-fixed-dim": "#52dea2",
+                        "primary-fixed-dim": "#ffb3b0",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-fixed-variant": "#005236",
+                        "background": "#fbfaee",
+                        "on-surface": "#1b1c15",
+                        "secondary-fixed": "#7cf6ec",
+                        "on-secondary": "#ffffff",
+                        "outline-variant": "#e0bfbd",
+                        "inverse-surface": "#303129",
+                        "surface-variant": "#e4e3d7",
+                        "secondary-container": "#79f3ea",
+                        "surface-container-highest": "#e4e3d7",
+                        "primary": "#ae2f34",
+                        "on-surface-variant": "#584140",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-high": "#e9e9dd",
+                        "on-error": "#ffffff",
+                        "primary-fixed": "#ffdad8",
+                        "outline": "#8c706f",
+                        "surface-container": "#efeee3",
+                        "surface-dim": "#dbdbcf",
+                        "surface-container-low": "#f5f4e8",
+                        "on-tertiary-container": "#003b26",
+                        "tertiary-fixed": "#72fbbc",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed": "#002113",
+                        "on-secondary-fixed-variant": "#00504c",
+                        "surface-tint": "#ae2f34",
+                        "inverse-on-surface": "#f2f1e5",
+                        "secondary-fixed-dim": "#5dd9d0"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "16px",
+                        "unit": "8px",
+                        "stack-sm": "8px",
+                        "stack-lg": "32px",
+                        "stack-md": "16px",
+                        "container-margin": "24px"
+                    },
+                    "fontFamily": {
+                        "display-lg": ["Rubik"],
+                        "headline-lg-mobile": ["Rubik"],
+                        "body-lg": ["Rubik"],
+                        "label-xl": ["Rubik"],
+                        "headline-lg": ["Rubik"],
+                        "body-md": ["Rubik"]
+                    },
+                    "fontSize": {
+                        "display-lg": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "36px", "fontWeight": "600" }],
+                        "body-lg": ["20px", { "lineHeight": "30px", "fontWeight": "400" }],
+                        "label-xl": ["18px", { "lineHeight": "22px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "600" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-md overflow-hidden antialiased">
+<!-- TopAppBar -->
+<header class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-container-margin h-16 bg-surface">
+<button class="text-primary hover:opacity-80 transition-transform duration-100 scale-95 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-container">
+<span aria-label="Information" class="material-symbols-outlined" data-icon="info">info</span>
+</button>
+<h1 class="text-headline-lg-mobile font-headline-lg-mobile font-bold text-primary text-center flex-1">Round 1: Role</h1>
+<button class="text-on-surface-variant hover:opacity-80 p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-primary-container">
+<span aria-label="Settings" class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col pt-16 pb-24 px-container-margin relative mt-stack-md">
+<!-- Timer Bar -->
+<div class="w-full h-3 bg-surface-container-high rounded-full overflow-hidden mb-stack-lg shadow-[0_2px_4px_rgba(0,0,0,0.05)]">
+<div class="h-full bg-secondary w-3/4 rounded-full transition-all duration-1000 ease-linear"></div>
+</div>
+<!-- Game Context & Secret Word -->
+<div class="flex flex-col items-center justify-center space-y-stack-sm mb-stack-lg">
+<div class="inline-flex items-center px-4 py-1.5 rounded-full bg-surface-container-high text-on-surface-variant text-label-xl font-label-xl mb-unit">
+<span class="material-symbols-outlined mr-2 text-[20px]" data-icon="category">category</span>
+                Animals
+            </div>
+<h2 class="text-on-surface-variant text-body-lg font-body-lg text-center uppercase tracking-wider">Secret Word</h2>
+<div class="bg-primary-container text-on-primary-container px-8 py-4 rounded-xl shadow-[0_8px_24px_-8px_rgba(255,107,107,0.4)] border border-inverse-primary/30 transform scale-105">
+<span class="text-display-lg font-display-lg tracking-widest uppercase">GIRAFFE</span>
+</div>
+</div>
+<!-- The Canvas - Sentence Area -->
+<div class="flex-1 flex flex-col items-center justify-center w-full relative z-10">
+<div class="bg-surface-container-lowest w-full rounded-[2rem] p-8 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.08)] border border-surface-variant/50 min-h-[240px] flex flex-col justify-center items-center">
+<!-- Collaborative Sentence -->
+<div class="flex flex-wrap justify-center gap-x-3 gap-y-4 mb-stack-md">
+<!-- Confirmed Word -->
+<span class="text-headline-lg-mobile font-headline-lg-mobile text-on-surface opacity-70">It</span>
+<!-- Newest Word (Highlighted) -->
+<span class="text-headline-lg font-headline-lg text-primary font-bold border-b-2 border-primary-container pb-1">has</span>
+</div>
+<!-- Turn Indicator (Alex is typing) -->
+<div class="mt-stack-lg flex items-center justify-center space-x-3 bg-surface-container-low px-5 py-2.5 rounded-full border border-surface-dim">
+<div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary-container font-bold text-sm shadow-sm ring-2 ring-surface">
+                        A
+                    </div>
+<span class="text-on-surface-variant text-body-md font-body-md">Alex is typing</span>
+<div class="flex space-x-1 ml-1 opacity-60">
+<div class="w-1.5 h-1.5 bg-on-surface-variant rounded-full"></div>
+<div class="w-1.5 h-1.5 bg-on-surface-variant rounded-full opacity-70"></div>
+<div class="w-1.5 h-1.5 bg-on-surface-variant rounded-full opacity-40"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Disabled Input Area (Waiting state) -->
+<div class="mt-auto pt-stack-lg w-full flex flex-col">
+<p class="text-center text-on-surface-variant text-label-xl font-label-xl mb-unit opacity-60">Waiting for your turn...</p>
+<div class="relative w-full">
+<input aria-disabled="true" class="w-full bg-surface-container-high border-surface-dim text-on-surface-variant rounded-full py-4 px-6 text-body-lg font-body-lg cursor-not-allowed opacity-50 focus:ring-0 focus:border-surface-dim placeholder-on-surface-variant shadow-inner" disabled="" placeholder="Type your word..." type="text"/>
+<button aria-disabled="true" class="absolute right-2 top-1/2 -translate-y-1/2 w-12 h-12 bg-surface-dim text-on-surface-variant rounded-full flex items-center justify-center cursor-not-allowed opacity-50" disabled="">
+<span class="material-symbols-outlined" data-icon="send">send</span>
+</button>
+</div>
+</div>
+</main>
+</body></html>

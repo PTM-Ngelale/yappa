@@ -1,0 +1,35 @@
+{
+  "project": {
+    "name": "projects/10373134342697745559",
+    "title": "Word by Word Trio",
+    "type": "TEXT_TO_UI_PRO",
+    "device": "MOBILE",
+    "origin": "STITCH",
+    "importedAt": "2026-05-17T20:45:00Z"
+  },
+  "designSystem": {
+    "font": "Rubik",
+    "primaryColor": "#ff6b6b",
+    "secondaryColor": "#4ecdc4",
+    "background": "#fbfaee",
+    "roundness": "ROUND_FULL",
+    "colorMode": "LIGHT"
+  },
+  "screens": [
+    { "file": "Home_Screen.html", "title": "Home Screen", "id": "1b92c87e045b4ccea0c0045be218db84", "flow": "onboarding" },
+    { "file": "Lobby.html", "title": "Lobby", "id": "38531af44a36494bb8032b9972d44cb6", "flow": "pre-game" },
+    { "file": "Round_Intro.html", "title": "Round Intro", "id": "ad6f3e377d8d47e89e3b5985fbca7235", "flow": "round" },
+    { "file": "Round_1_Knower_Active.html", "title": "Round 1: Knower (Active)", "id": "20f3fd555e064d70a47c4c2fcc1bef5b", "flow": "round" },
+    { "file": "Round_1_Knower_Waiting.html", "title": "Round 1: Knower (Waiting)", "id": "6d00c30848b44d178b8c1b458b81666d", "flow": "round" },
+    { "file": "Round_1_Guesser.html", "title": "Round 1: Guesser", "id": "5c229ad950674479a15bd02195827eb1", "flow": "round" },
+    { "file": "Knower_Active_Chain.html", "title": "Round 1: Knower (Active) - Chain Update", "id": "b7af62d7a03740c0b2a282f3e23b4e6a", "flow": "round-chain" },
+    { "file": "Knower_Waiting_Chain.html", "title": "Round 1: Knower (Waiting) - Chain Update", "id": "c9b67f69339747aa85e3814449af3782", "flow": "round-chain" },
+    { "file": "Guesser_Chain.html", "title": "Round 1: Guesser - Chain Update", "id": "76831080c73b49acaf6de2b55a09b918", "flow": "round-chain" },
+    { "file": "Round_Resolution.html", "title": "Round Resolution", "id": "7cfa757a3d1c4d0c8b3cf5e36edd958e", "flow": "round-end" },
+    { "file": "Round_Resolution_Updated.html", "title": "Round Resolution (Updated)", "id": "05d56a01648f4a14b18ddc2f93fccae7", "flow": "round-end" },
+    { "file": "Game_End.html", "title": "Game End", "id": "1e928971c1a54822ade806b19354feb0", "flow": "game-end" },
+    { "file": "Game_End_Updated.html", "title": "Game End (Updated)", "id": "32eddcb16a00421da4edd699e786c6ca", "flow": "game-end" },
+    { "file": "Game_Ended_Early.html", "title": "Game Ended Early", "id": "1b717222f83f4f2982ce60c6a082e259", "flow": "game-end" },
+    { "file": "Disconnected_State.html", "title": "Disconnected State", "id": "64543f476cea46edad6bf3369dde8bc5", "flow": "error" }
+  ]
+}
