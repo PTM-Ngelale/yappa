@@ -46,6 +46,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primaryContainer },
   chipIdle: { backgroundColor: colors.surfaceContainerHigh },
   text: { ...typography.labelXl },
-  textActive: { color: colors.onPrimaryContainer, fontWeight: '700' },
+  textActive: { fontFamily: 'Rubik_700Bold', color: colors.onPrimaryContainer },
   textIdle: { color: colors.onSurfaceVariant },
 });

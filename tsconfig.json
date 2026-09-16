@@ -9,5 +9,12 @@
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "nativewind-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    // Deno-runtime Supabase Edge Functions — use Deno globals (Deno.serve) and npm: specifiers
+    // that this project's Node/React Native tsconfig can't resolve. Type-checked by Deno at
+    // deploy time instead (`supabase functions deploy`), not by this project's tsc.
+    "supabase/functions/**"
   ]
 }

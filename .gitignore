@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Supabase CLI local state (project link, pooler URL) — machine-specific, not shared
+supabase/.temp/

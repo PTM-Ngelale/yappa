@@ -10,7 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import '../global.css';
-import { FIREBASE_CONFIGURED } from '../src/firebase/config';
+import { SUPABASE_CONFIGURED } from '../src/supabase/config';
 import { colors } from '../src/theme';
 import { usePlayerStore } from '../src/store/playerStore';
 
@@ -25,8 +25,8 @@ export default function RootLayout() {
   const setUid = usePlayerStore((s) => s.setUid);
 
   useEffect(() => {
-    if (!FIREBASE_CONFIGURED) return;
-    import('../src/firebase/auth').then(({ signInAnon }) =>
+    if (!SUPABASE_CONFIGURED) return;
+    import('../src/supabase/auth').then(({ signInAnon }) =>
       signInAnon().then(setUid).catch(console.error)
     );
   }, [setUid]);

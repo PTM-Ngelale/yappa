@@ -2,7 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { colors, spacing } from '../theme';
 
-export function TypingIndicator() {
+interface TypingIndicatorProps {
+  /** False renders static, dimmed dots instead of the pulsing animation (e.g. partner is idle, not typing) */
+  active?: boolean;
+}
+
+export function TypingIndicator({ active = true }: TypingIndicatorProps) {
   const dots = [
     useRef(new Animated.Value(0)).current,
     useRef(new Animated.Value(0)).current,
@@ -10,6 +15,14 @@ export function TypingIndicator() {
   ];
 
   useEffect(() => {
+    if (!active) {
+      dots.forEach(d => d.stopAnimation());
+      Animated.parallel(
+        dots.map(d => Animated.timing(d, { toValue: 0.3, duration: 200, useNativeDriver: true }))
+      ).start();
+      return;
+    }
+
     const animations = dots.map((dot, i) =>
       Animated.loop(
         Animated.sequence([
@@ -22,12 +35,12 @@ export function TypingIndicator() {
     );
     animations.forEach(a => a.start());
     return () => animations.forEach(a => a.stop());
-  }, []);
+  }, [active]);
 
   return (
     <View
       style={styles.row}
-      accessibilityLabel="Typing"
+      accessibilityLabel={active ? 'Typing' : 'Idle'}
       accessibilityLiveRegion="polite"
     >
       {dots.map((dot, i) => (

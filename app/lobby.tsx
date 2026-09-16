@@ -8,8 +8,8 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FIREBASE_CONFIGURED } from '../src/firebase/config';
-import type { RoomData } from '../src/firebase/room';
+import { SUPABASE_CONFIGURED } from '../src/supabase/config';
+import type { RoomData } from '../src/supabase/room';
 import { useGameStore, type RoomPlayer } from '../src/store/gameStore';
 import { usePlayerStore } from '../src/store/playerStore';
 import { colors, elevation, radius, spacing, typography } from '../src/theme';
@@ -17,11 +17,11 @@ import { colors, elevation, radius, spacing, typography } from '../src/theme';
 const MAX_PLAYERS = 3;
 
 export default function LobbyScreen() {
-  const { roomCode, isHost, setPlayers } = useGameStore();
+  const { roomCode, isHost, setPlayers, reset: resetGameStore } = useGameStore();
   const { name, uid, avatarColor } = usePlayerStore();
   const [roomData, setRoomData] = useState<RoomData | null>(null);
 
-  // Build local player list for display when Firebase isn't configured
+  // Build local player list for display when Supabase isn't configured
   const localPlayer: RoomPlayer = {
     uid: uid ?? 'local',
     name: name.trim() || 'You',
@@ -35,9 +35,9 @@ export default function LobbyScreen() {
     : [localPlayer];
 
   useEffect(() => {
-    if (!FIREBASE_CONFIGURED || !roomCode) return;
+    if (!SUPABASE_CONFIGURED || !roomCode) return;
     let unsub: (() => void) | undefined;
-    import('../src/firebase/room').then(({ listenToRoom }) => {
+    import('../src/supabase/room').then(({ listenToRoom }) => {
       unsub = listenToRoom(roomCode, (data) => {
         setRoomData(data);
         if (data) setPlayers(Object.values(data.players));
@@ -54,7 +54,18 @@ export default function LobbyScreen() {
   }, [isHost, roomData?.status]);
 
   function handleStart() {
-    router.push('/game/round');
+    router.replace('/game/round');
+  }
+
+  function handleLeave() {
+    if (SUPABASE_CONFIGURED && roomCode && uid) {
+      import('../src/supabase/room').then(({ leaveRoom }) =>
+        leaveRoom(roomCode, uid).catch(console.error)
+      );
+      import('../src/supabase/presence').then(({ stopPresence }) => stopPresence());
+    }
+    resetGameStore();
+    router.back();
   }
 
   const canStart = isHost && players.length === MAX_PLAYERS;
@@ -66,7 +77,7 @@ export default function LobbyScreen() {
       <View style={styles.header}>
         <Pressable
           style={styles.backBtn}
-          onPress={() => router.back()}
+          onPress={handleLeave}
           accessibilityRole="button"
           accessibilityLabel="Leave lobby"
         >
@@ -105,9 +116,9 @@ export default function LobbyScreen() {
           <Text style={styles.waitingText}>Waiting for host to start the game…</Text>
         )}
 
-        {!FIREBASE_CONFIGURED && (
+        {!SUPABASE_CONFIGURED && (
           <Text style={styles.configNotice}>
-            Firebase not configured — other players won't appear until config is added.
+            Supabase not configured — other players won't appear until config is added.
           </Text>
         )}
       </ScrollView>

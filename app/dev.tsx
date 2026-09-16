@@ -2,7 +2,7 @@
  * Dev prototype screen — remove before ship.
  * Houses the 3-screen switcher from the original App.tsx.
  */
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { GuesserScreen } from '../src/screens/GuesserScreen';
@@ -14,6 +14,7 @@ type DevScreen = 'knower-active' | 'knower-waiting' | 'guesser';
 const SCREENS: DevScreen[] = ['knower-active', 'knower-waiting', 'guesser'];
 
 const MOCK = {
+  round: 3,
   targetWord: 'Lighthouse',
   category: 'Objects',
   chain: ['sun', 'light'],
@@ -29,10 +30,17 @@ export default function DevScreen() {
   const [screen, setScreen] = useState<DevScreen>('knower-active');
   const [chain, setChain] = useState(MOCK.chain);
 
+  // __DEV__ is false in production/release JS bundles — this screen is prototype-only
+  // and must never be reachable (directly or via deep link) once shipped.
+  if (!__DEV__) {
+    return <Redirect href="/" />;
+  }
+
   return (
     <View style={styles.root}>
       {screen === 'knower-active' && (
         <KnowerActiveScreen
+          round={MOCK.round}
           targetWord={MOCK.targetWord}
           category={MOCK.category}
           chain={chain}
@@ -46,6 +54,7 @@ export default function DevScreen() {
       )}
       {screen === 'knower-waiting' && (
         <KnowerWaitingScreen
+          round={MOCK.round}
           targetWord={MOCK.targetWord}
           category={MOCK.category}
           chain={chain}
@@ -57,13 +66,17 @@ export default function DevScreen() {
       )}
       {screen === 'guesser' && (
         <GuesserScreen
+          round={MOCK.round}
           category={MOCK.category}
           chain={chain}
           activeKnowerName={MOCK.activeKnowerName}
           knowerIsTyping={MOCK.knowerIsTyping}
           durationSeconds={MOCK.durationSeconds}
           secondsRemaining={MOCK.secondsRemaining}
-          onGuess={(g) => console.log('Guess:', g)}
+          onGuess={(g) => {
+            console.log('Guess:', g);
+            return false;
+          }}
         />
       )}
 
@@ -119,5 +132,5 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     textAlign: 'center',
   },
-  tabTextActive: { color: colors.primary, fontWeight: '700' },
+  tabTextActive: { fontFamily: 'Rubik_700Bold', color: colors.primary },
 });

@@ -1,40 +1,38 @@
 // Rubik type scale — matches Stitch Vibrant Social design system
+//
+// fontFamily names the exact loaded static font (see app/_layout.tsx's useFonts) rather than a
+// base "Rubik" + fontWeight — non-variable custom fonts commonly ignore fontWeight entirely
+// unless the family name itself is the weighted one, silently falling back to the system font.
 export const typography = {
   displayLg: {
-    fontFamily: 'Rubik',
+    fontFamily: 'Rubik_700Bold',
     fontSize: 48,
-    fontWeight: '700' as const,
     lineHeight: 56,
     letterSpacing: -0.96, // -0.02em at 48px
   },
   headlineLg: {
-    fontFamily: 'Rubik',
+    fontFamily: 'Rubik_600SemiBold',
     fontSize: 32,
-    fontWeight: '600' as const,
     lineHeight: 40,
   },
   headlineLgMobile: {
-    fontFamily: 'Rubik',
+    fontFamily: 'Rubik_600SemiBold',
     fontSize: 28,
-    fontWeight: '600' as const,
     lineHeight: 36,
   },
   bodyLg: {
-    fontFamily: 'Rubik',
+    fontFamily: 'Rubik_400Regular',
     fontSize: 20,
-    fontWeight: '400' as const,
     lineHeight: 30,
   },
   bodyMd: {
-    fontFamily: 'Rubik',
+    fontFamily: 'Rubik_400Regular',
     fontSize: 16,
-    fontWeight: '400' as const,
     lineHeight: 24,
   },
   labelXl: {
-    fontFamily: 'Rubik',
+    fontFamily: 'Rubik_500Medium',
     fontSize: 18,
-    fontWeight: '500' as const,
     lineHeight: 22,
     letterSpacing: 0.9, // 0.05em at 18px
   },

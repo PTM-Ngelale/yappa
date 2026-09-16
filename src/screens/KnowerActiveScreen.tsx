@@ -14,14 +14,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { RoleChip } from '../components/RoleChip';
 import { TimerBar } from '../components/TimerBar';
 import { WordChain } from '../components/WordChain';
+import { useShakeAnimation } from '../hooks/useShakeAnimation';
 import { colors, elevation, radius, spacing, typography } from '../theme';
 
 interface KnowerActiveScreenProps {
+  round: number;
   targetWord: string;
   category: string;
   chain: string[];
   durationSeconds: number;
   secondsRemaining: number;
+  /** Hide the timer bar entirely rather than show a frozen/misleading one. */
+  showTimer?: boolean;
   onSubmitWord: (word: string) => void;
   onTypingChange?: (isTyping: boolean) => void;
 }
@@ -49,28 +53,20 @@ function matchesTarget(candidate: string, target: string): boolean {
 }
 
 export function KnowerActiveScreen({
+  round,
   targetWord,
   category,
   chain,
   durationSeconds,
   secondsRemaining,
+  showTimer = true,
   onSubmitWord,
   onTypingChange,
 }: KnowerActiveScreenProps) {
   const [word, setWord] = useState('');
   const [validationMsg, setValidationMsg] = useState('');
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const { shakeAnim, shake } = useShakeAnimation();
   const inputRef = useRef<TextInput>(null);
-
-  const shake = () => {
-    Animated.sequence([
-      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 6, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: -6, duration: 50, useNativeDriver: true }),
-      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
-    ]).start();
-  };
 
   const handleSend = () => {
     const trimmed = word.trim();
@@ -109,17 +105,15 @@ export function KnowerActiveScreen({
 
   return (
     <SafeAreaView style={styles.safe}>
-      <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
+      {showTimer && (
+        <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
+      )}
 
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.iconBtn} accessibilityLabel="Game info" accessibilityRole="button">
-          <Text style={styles.iconText}>ℹ</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>Round 1: Role</Text>
-        <Pressable style={styles.iconBtn} accessibilityLabel="Settings" accessibilityRole="button">
-          <Text style={styles.iconText}>⚙</Text>
-        </Pressable>
+        <View style={styles.iconBtn} />
+        <Text style={styles.headerTitle}>Round {round}</Text>
+        <View style={styles.iconBtn} />
       </View>
 
       <KeyboardAvoidingView
@@ -144,13 +138,15 @@ export function KnowerActiveScreen({
           </View>
 
           {/* Chain canvas */}
-          <View style={[styles.chainCard, elevation.card]}>
-            {chain.length === 0 ? (
+          <WordChain
+            words={chain}
+            emphasiseLast
+            showPending
+            style={styles.chainCard}
+            emptyState={
               <Text style={styles.chainEmptyText}>You go first — add the opening word</Text>
-            ) : (
-              <WordChain words={chain} emphasiseLast showPending />
-            )}
-          </View>
+            }
+          />
         </ScrollView>
 
         {/* Input row */}
@@ -211,8 +207,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   headerTitle: { ...typography.headlineLgMobile, color: colors.primary },
-  iconBtn: { padding: spacing.stackSm, borderRadius: radius.full },
-  iconText: { fontSize: 20, color: colors.onSurfaceVariant },
+  // Empty spacer matching the old icon button's footprint, so the title stays centered.
+  iconBtn: { width: 40, height: 40 },
   scroll: {
     padding: spacing.containerMargin,
     paddingBottom: spacing.stackLg,
@@ -248,14 +244,7 @@ const styles = StyleSheet.create({
   },
   categoryText: { ...typography.bodyMd, color: colors.onSurface },
   chainCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.surfaceContainer,
-    minHeight: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+    minHeight: 140,
   },
   chainEmptyText: {
     ...typography.bodyLg,
@@ -303,6 +292,6 @@ const styles = StyleSheet.create({
   },
   sendBtnPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   sendBtnDisabled: { backgroundColor: colors.surfaceContainerHigh },
-  sendBtnText: { ...typography.labelXl, color: colors.onPrimaryContainer, fontWeight: '700' },
+  sendBtnText: { ...typography.labelXl, fontFamily: 'Rubik_700Bold', color: colors.onPrimaryContainer },
   sendBtnTextDisabled: { color: colors.onSurfaceVariant },
 });

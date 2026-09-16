@@ -1,13 +1,14 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RoleChip } from '../components/RoleChip';
 import { TimerBar } from '../components/TimerBar';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { WordChain } from '../components/WordChain';
-import { colors, elevation, radius, spacing, typography } from '../theme';
+import { colors, radius, spacing, typography } from '../theme';
 
 interface KnowerWaitingScreenProps {
+  round: number;
   targetWord: string;
   category: string;
   chain: string[];
@@ -16,9 +17,12 @@ interface KnowerWaitingScreenProps {
   partnerIsTyping: boolean;
   durationSeconds: number;
   secondsRemaining: number;
+  /** Hide the timer bar entirely rather than show a frozen/misleading one. */
+  showTimer?: boolean;
 }
 
 export function KnowerWaitingScreen({
+  round,
   targetWord,
   category,
   chain,
@@ -26,20 +30,19 @@ export function KnowerWaitingScreen({
   partnerIsTyping,
   durationSeconds,
   secondsRemaining,
+  showTimer = true,
 }: KnowerWaitingScreenProps) {
   return (
     <SafeAreaView style={styles.safe}>
-      <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
+      {showTimer && (
+        <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
+      )}
 
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.iconBtn} accessibilityLabel="Game info" accessibilityRole="button">
-          <Text style={styles.iconText}>ℹ</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>Round 1: Role</Text>
-        <Pressable style={styles.iconBtn} accessibilityLabel="Settings" accessibilityRole="button">
-          <Text style={styles.iconText}>⚙</Text>
-        </Pressable>
+        <View style={styles.iconBtn} />
+        <Text style={styles.headerTitle}>Round {round}</Text>
+        <View style={styles.iconBtn} />
       </View>
 
       <View style={styles.body}>
@@ -57,21 +60,19 @@ export function KnowerWaitingScreen({
         </View>
 
         {/* Chain canvas */}
-        <View style={[styles.chainCard, elevation.card]}>
-          {chain.length === 0 ? (
+        <WordChain
+          words={chain}
+          emphasiseLast
+          showPending={partnerIsTyping}
+          style={styles.chainCard}
+          emptyState={
             <Text style={styles.chainEmptyText}>Waiting for {partnerName} to start…</Text>
-          ) : (
-            <WordChain
-              words={chain}
-              emphasiseLast
-              showPending={partnerIsTyping}
-            />
-          )}
-        </View>
+          }
+        />
 
         {/* Partner status */}
         <View style={styles.partnerRow}>
-          <TypingIndicator />
+          <TypingIndicator active={partnerIsTyping} />
           <Text style={styles.partnerText}>
             {partnerIsTyping ? `${partnerName} is typing…` : `${partnerName} is thinking…`}
           </Text>
@@ -109,8 +110,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   headerTitle: { ...typography.headlineLgMobile, color: colors.primary },
-  iconBtn: { padding: spacing.stackSm, borderRadius: radius.full },
-  iconText: { fontSize: 20, color: colors.onSurfaceVariant },
+  // Empty spacer matching the old icon button's footprint, so the title stays centered.
+  iconBtn: { width: 40, height: 40 },
   body: {
     flex: 1,
     padding: spacing.containerMargin,
@@ -145,14 +146,7 @@ const styles = StyleSheet.create({
   },
   categoryText: { ...typography.bodyMd, color: colors.onSurface },
   chainCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.surfaceContainer,
-    minHeight: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+    minHeight: 140,
   },
   chainEmptyText: {
     ...typography.bodyLg,

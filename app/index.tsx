@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { FIREBASE_CONFIGURED } from "../src/firebase/config";
+import { SUPABASE_CONFIGURED } from "../src/supabase/config";
 import { generateRoomCode } from "../src/lib/roomCode";
 import { useGameStore } from "../src/store/gameStore";
 import { usePlayerStore } from "../src/store/playerStore";
@@ -31,8 +31,8 @@ export default function HomeScreen() {
   const initial = trimmedName.charAt(0).toUpperCase();
 
   async function getUid(): Promise<string | null> {
-    if (!FIREBASE_CONFIGURED) return null;
-    const { signInAnon } = await import("../src/firebase/auth");
+    if (!SUPABASE_CONFIGURED) return null;
+    const { signInAnon } = await import("../src/supabase/auth");
     const uid = await signInAnon();
     setUid(uid);
     return uid;
@@ -51,7 +51,7 @@ export default function HomeScreen() {
       setIsHost(true);
       const uid = await getUid();
       if (uid) {
-        const { createRoom } = await import("../src/firebase/room");
+        const { createRoom } = await import("../src/supabase/room");
         await createRoom(code, {
           uid,
           name: trimmedName,
@@ -59,8 +59,8 @@ export default function HomeScreen() {
           role: "knower",
           lastSeenAt: Date.now(),
         });
-        const { startHeartbeat } = await import("../src/firebase/presence");
-        startHeartbeat(code, uid);
+        const { startPresence } = await import("../src/supabase/presence");
+        startPresence(code, uid);
       }
       router.push("/lobby");
     } catch (e) {
@@ -88,7 +88,7 @@ export default function HomeScreen() {
       setIsHost(false);
       const uid = await getUid();
       if (uid) {
-        const { joinRoom } = await import("../src/firebase/room");
+        const { joinRoom } = await import("../src/supabase/room");
         await joinRoom(code, {
           uid,
           name: trimmedName,
@@ -96,12 +96,21 @@ export default function HomeScreen() {
           role: "knower",
           lastSeenAt: Date.now(),
         });
-        const { startHeartbeat } = await import("../src/firebase/presence");
-        startHeartbeat(code, uid);
+        const { startPresence } = await import("../src/supabase/presence");
+        startPresence(code, uid);
       }
       router.push("/lobby");
     } catch (e) {
-      setError("Failed to join room. Check the code and your connection.");
+      const message = e instanceof Error ? e.message : "";
+      if (message.includes("not found")) {
+        setError("No game found with that code — check it and try again.");
+      } else if (message.includes("already started")) {
+        setError("That game has already started.");
+      } else if (message.includes("is full")) {
+        setError("That room is already full.");
+      } else {
+        setError("Failed to join room. Check the code and your connection.");
+      }
       console.error(e);
     } finally {
       setLoading(false);
@@ -282,9 +291,18 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {!FIREBASE_CONFIGURED && (
+          <Pressable
+            onPress={() => router.push("/how-to-play")}
+            accessibilityRole="button"
+            accessibilityLabel="How to play"
+            style={({ pressed }) => pressed && styles.btnPressed}
+          >
+            <Text style={styles.howToPlayText}>How to Play →</Text>
+          </Pressable>
+
+          {!SUPABASE_CONFIGURED && (
             <Text style={styles.configNotice}>
-              Add databaseURL to firebase/config.ts to enable multiplayer.
+              Add Supabase env vars to .env.local to enable multiplayer.
             </Text>
           )}
         </ScrollView>
@@ -322,8 +340,7 @@ const styles = StyleSheet.create({
     letterSpacing: -2,
   },
   tagline: {
-    fontFamily: "Rubik_400Regular",
-    fontSize: 16,
+    ...typography.bodyMd,
     color: colors.onSurfaceVariant,
     letterSpacing: 0.3,
   },
@@ -346,7 +363,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
   },
-  avatarText: { fontFamily: "Rubik_700Bold", fontSize: 16, color: "#fff" },
+  avatarText: { fontFamily: "Rubik_700Bold", fontSize: 16, color: colors.onPrimary },
   input: {
     flex: 1,
     height: 44,
@@ -378,8 +395,8 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
   createBtnText: {
+    ...typography.labelXl,
     fontFamily: "Rubik_700Bold",
-    fontSize: 18,
     color: colors.onPrimary,
     letterSpacing: 0.5,
     textAlign: "center",
@@ -410,8 +427,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   joinGhostText: {
+    ...typography.labelXl,
     fontFamily: "Rubik_600SemiBold",
-    fontSize: 18,
     color: colors.onSurface,
     textAlign: "center",
   },
@@ -428,7 +445,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   joinCardLabel: {
-    fontFamily: "Rubik_500Medium",
+    ...typography.labelXl,
     fontSize: 11,
     color: colors.onSurfaceVariant,
     letterSpacing: 1.5,
@@ -459,8 +476,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerHigh,
   },
   joinSubmitText: {
+    ...typography.labelXl,
     fontFamily: "Rubik_700Bold",
-    fontSize: 17,
     color: colors.onPrimary,
     textAlign: "center",
   },
@@ -482,5 +499,11 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
     textAlign: "center",
     opacity: 0.6,
+  },
+  howToPlayText: {
+    fontFamily: "Rubik_600SemiBold",
+    fontSize: 15,
+    color: colors.primary,
+    textAlign: "center",
   },
 });
