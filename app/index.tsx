@@ -3,14 +3,15 @@ import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { Pressable } from "../src/components/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { SoundToggles } from "../src/components/SoundToggles";
 import { SUPABASE_CONFIGURED } from "../src/supabase/config";
 import { generateRoomCode } from "../src/lib/roomCode";
 import { useGameStore } from "../src/store/gameStore";
@@ -130,6 +131,10 @@ export default function HomeScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.topBar}>
+            <SoundToggles />
+          </View>
+
           {/* Hero */}
           <View style={styles.hero}>
             <View style={styles.decorRow}>
@@ -317,10 +322,11 @@ const styles = StyleSheet.create({
   body: {
     flexGrow: 1,
     paddingHorizontal: spacing.containerMargin,
-    paddingTop: 48,
+    paddingTop: spacing.stackMd,
     paddingBottom: spacing.stackLg,
     gap: spacing.stackLg,
   },
+  topBar: { alignItems: "flex-end" },
 
   // Hero
   hero: { alignItems: "center", gap: 10 },

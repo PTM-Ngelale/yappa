@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { WordChain } from '../components/WordChain';
@@ -12,6 +13,11 @@ interface RoundResolutionScreenProps {
   maxRounds: number;
   outcome: 'won' | 'lost-guess' | 'lost-timeout';
   targetWord: string;
+  /** What the Guesser typed — null on a timeout. Shown so lenient matches are visible. */
+  guess: string | null;
+  guesserName: string;
+  /** True on the Guesser's own device, to say "You guessed" instead of their name. */
+  isMyGuess: boolean;
   chain: string[];
   /** AI link-validation results keyed by chain index — advisory only, never affects score. */
   linkChecks?: Record<number, 'valid' | 'invalid'>;
@@ -26,6 +32,9 @@ export function RoundResolutionScreen({
   maxRounds,
   outcome,
   targetWord,
+  guess,
+  guesserName,
+  isMyGuess,
   chain,
   linkChecks,
   scoreSoFar,
@@ -96,6 +105,16 @@ export function RoundResolutionScreen({
 
           <Text style={styles.targetLabel}>Target Word</Text>
           <Text style={styles.targetWord}>{targetWord}</Text>
+
+          {guess && (
+            <Text style={styles.guessLine}>
+              {isMyGuess ? 'You' : guesserName} guessed{' '}
+              <Text style={[styles.guessWord, won ? styles.outcomeTextWon : styles.guessWordLost]}>
+                “{guess}”
+              </Text>
+              {won ? ' ✓' : ''}
+            </Text>
+          )}
 
           <View style={styles.scorePill}>
             <Text style={styles.scoreText}>
@@ -183,6 +202,9 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     textAlign: 'center',
   },
+  guessLine: { ...typography.bodyLg, color: colors.onSurfaceVariant, textAlign: 'center' },
+  guessWord: { fontFamily: 'Rubik_700Bold' },
+  guessWordLost: { color: colors.error },
   scorePill: {
     marginTop: spacing.stackSm,
     backgroundColor: colors.surfaceVariant,

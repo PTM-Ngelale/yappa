@@ -4,7 +4,8 @@
  */
 import { Redirect, router } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../src/components/Pressable';
 import { GuesserScreen } from '../src/screens/GuesserScreen';
 import { KnowerActiveScreen } from '../src/screens/KnowerActiveScreen';
 import { KnowerWaitingScreen } from '../src/screens/KnowerWaitingScreen';
@@ -73,7 +74,7 @@ export default function DevScreen() {
           knowerIsTyping={MOCK.knowerIsTyping}
           durationSeconds={MOCK.durationSeconds}
           secondsRemaining={MOCK.secondsRemaining}
-          onGuess={(g) => {
+          onGuess={async (g) => {
             console.log('Guess:', g);
             return false;
           }}

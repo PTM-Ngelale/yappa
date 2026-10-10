@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Pressable,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -8,6 +7,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { Pressable } from './Pressable';
 import { colors, elevation, radius, spacing, typography } from '../theme';
 
 interface WordChainProps {

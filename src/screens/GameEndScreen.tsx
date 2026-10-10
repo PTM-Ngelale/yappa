@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../components/Pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { RoundHistoryEntry } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
@@ -120,9 +121,17 @@ function RoundRow({ entry, guesser }: { entry: RoundHistoryEntry; guesser?: Room
             color={colors.onSurfaceVariant}
           />
           <View>
-            <Text style={styles.infoLabel}>{won ? 'CHAIN' : 'REASON'}</Text>
-            <Text style={styles.infoValue}>
-              {won ? `${entry.chain.length} words` : isTimeout ? "Time's up" : 'Wrong guess'}
+            <Text style={styles.infoLabel}>
+              {won ? 'CHAIN' : !isTimeout && entry.guess ? 'GUESSED' : 'REASON'}
+            </Text>
+            <Text style={styles.infoValue} numberOfLines={1}>
+              {won
+                ? `${entry.chain?.length ?? 0} words`
+                : isTimeout
+                  ? "Time's up"
+                  : entry.guess
+                    ? `“${entry.guess}”`
+                    : 'Wrong guess'}
             </Text>
           </View>
         </View>

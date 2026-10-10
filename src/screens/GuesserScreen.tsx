@@ -1,15 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { Pressable } from "../components/Pressable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TimerBar } from "../components/TimerBar";
 import { TypingIndicator } from "../components/TypingIndicator";
@@ -28,8 +29,11 @@ interface GuesserScreenProps {
   secondsRemaining: number;
   /** Hide the timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
-  /** Returns whether the guess was correct, so the screen can show immediate feedback. */
-  onGuess: (guess: string) => boolean;
+  /**
+   * Resolves to whether the guess was correct (judged server-side, may involve an AI check);
+   * rejects if the guess couldn't be submitted, in which case the Guesser can retry.
+   */
+  onGuess: (guess: string) => Promise<boolean>;
 }
 
 export function GuesserScreen({
@@ -46,12 +50,24 @@ export function GuesserScreen({
   const [guessInputVisible, setGuessInputVisible] = useState(false);
   const [guess, setGuess] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [checking, setChecking] = useState(false);
   const { shakeAnim, shake } = useShakeAnimation();
 
-  const handleSubmitGuess = () => {
+  const handleSubmitGuess = async () => {
     const trimmed = guess.trim();
-    if (trimmed.length === 0) return;
-    const correct = onGuess(trimmed);
+    if (trimmed.length === 0 || checking) return;
+    setChecking(true);
+    let correct = false;
+    try {
+      correct = await onGuess(trimmed);
+    } catch (e) {
+      // Never reached the judge — keep the guess so they can resend it.
+      console.error(e);
+      setErrorMsg("Couldn't send your guess — check your connection and try again.");
+      return;
+    } finally {
+      setChecking(false);
+    }
     if (correct) {
       setGuess("");
       setGuessInputVisible(false);
@@ -148,6 +164,7 @@ export function GuesserScreen({
                 placeholder="What's the target word?"
                 placeholderTextColor={colors.onSurfaceVariant}
                 autoFocus
+                editable={!checking}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="done"
@@ -161,17 +178,28 @@ export function GuesserScreen({
                   guess.trim().length === 0 && styles.btnDisabled,
                 ]}
                 onPress={handleSubmitGuess}
-                disabled={guess.trim().length === 0}
+                disabled={guess.trim().length === 0 || checking}
                 accessibilityRole="button"
-                accessibilityLabel="Submit guess"
+                accessibilityLabel={checking ? "Checking guess" : "Submit guess"}
+                accessibilityState={{ busy: checking }}
               >
-                <Ionicons name="checkmark" size={28} color={colors.onPrimary} />
+                {checking ? (
+                  <ActivityIndicator color={colors.onPrimary} />
+                ) : (
+                  <Ionicons name="checkmark" size={28} color={colors.onPrimary} />
+                )}
               </Pressable>
             </Animated.View>
           )}
 
           <View style={styles.guessButtonRow}>
-            {guessInputVisible ? (
+            {checking ? (
+              <View style={styles.cancelBtn}>
+                <Text style={styles.cancelBtnText} accessibilityLiveRegion="polite">
+                  Checking your guess…
+                </Text>
+              </View>
+            ) : guessInputVisible ? (
               <Pressable
                 style={styles.cancelBtn}
                 onPress={() => {

@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '../src/components/Pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WordChain } from '../src/components/WordChain';
 import { colors, elevation, radius, spacing, typography } from '../src/theme';

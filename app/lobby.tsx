@@ -1,13 +1,15 @@
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Pressable } from '../src/components/Pressable';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { playSound } from '../src/audio/sounds';
+import { SoundToggles } from '../src/components/SoundToggles';
 import { SUPABASE_CONFIGURED } from '../src/supabase/config';
 import type { RoomData } from '../src/supabase/room';
 import { useGameStore, type RoomPlayer } from '../src/store/gameStore';
@@ -17,7 +19,7 @@ import { colors, elevation, radius, spacing, typography } from '../src/theme';
 const MAX_PLAYERS = 3;
 
 export default function LobbyScreen() {
-  const { roomCode, isHost, setPlayers, reset: resetGameStore } = useGameStore();
+  const { roomCode, isHost: createdRoom, setPlayers, reset: resetGameStore } = useGameStore();
   const { name, uid, avatarColor } = usePlayerStore();
   const [roomData, setRoomData] = useState<RoomData | null>(null);
 
@@ -29,6 +31,10 @@ export default function LobbyScreen() {
     role: 'knower',
     lastSeenAt: Date.now(),
   };
+
+  // Read from the room, not just who created it — the host role passes on if the host
+  // leaves (see leave_room() in migration 005).
+  const isHost = roomData ? roomData.hostUid === uid : createdRoom;
 
   const players: RoomPlayer[] = roomData
     ? Object.values(roomData.players)
@@ -45,6 +51,18 @@ export default function LobbyScreen() {
     });
     return () => unsub?.();
   }, [roomCode, setPlayers]);
+
+  // Chime when someone joins or leaves — skipping the first snapshot, which is just
+  // everyone already here.
+  const playerCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!roomData) return;
+    const count = Object.keys(roomData.players).length;
+    const before = playerCountRef.current;
+    playerCountRef.current = count;
+    if (before === null || count === before) return;
+    playSound(count > before ? 'join' : 'leave');
+  }, [roomData]);
 
   // Non-host: navigate to round screen when host starts the game
   useEffect(() => {
@@ -84,7 +102,9 @@ export default function LobbyScreen() {
           <Text style={styles.backText}>← Back</Text>
         </Pressable>
         <Text style={styles.headerTitle}>Lobby</Text>
-        <View style={styles.backBtn} />
+        <View style={[styles.backBtn, styles.headerRight]}>
+          <SoundToggles />
+        </View>
       </View>
 
       <ScrollView
@@ -186,6 +206,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { ...typography.headlineLgMobile, color: colors.primary },
   backBtn: { minWidth: 64 },
+  headerRight: { alignItems: 'flex-end' },
   backText: { ...typography.bodyMd, color: colors.primary },
   flex: { flex: 1 },
   body: {

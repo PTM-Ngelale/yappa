@@ -5,20 +5,23 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   advanceRound,
   checkLink,
-  resolveRound,
+  fetchTargetWord,
+  resolveRoundTimeout,
   setTyping,
   startGame,
+  submitGuess,
   submitWord,
   tickTimer,
 } from '../../src/supabase/round';
 import {
+  endGame,
   leaveRoom,
   listenToRoom,
   resetRoomToLobby,
-  updateRoomField,
   type RoomData,
 } from '../../src/supabase/room';
 import { onPresenceChange, stopPresence } from '../../src/supabase/presence';
+import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
 import { SyncErrorBanner } from '../../src/components/SyncErrorBanner';
 import { GameEndScreen } from '../../src/screens/GameEndScreen';
@@ -35,11 +38,16 @@ const DISCONNECT_GRACE_MS = 3000;
 const DISCONNECT_COUNTDOWN_SECONDS = 30;
 
 const ROUND_SECONDS = 30;
+/** Max seconds the host holds an expired timer for a pending guess — just above validate-guess's 5s AI timeout. */
+const GUESS_HOLD_MAX_TICKS = 8;
 
 export default function RoundScreen() {
-  const { roomCode, isHost, reset: resetGameStore } = useGameStore();
+  const { roomCode, reset: resetGameStore } = useGameStore();
   const { uid } = usePlayerStore();
   const [roomData, setRoomData] = useState<RoomData | null>(null);
+  // From the room itself, so a player promoted after the host leaves picks up host duties.
+  const isHost = !!roomData && !!uid && roomData.hostUid === uid;
+  useGameSounds(roomData, uid);
 
   // Surfaces a failed realtime write (submit, resolve, advance, ...) instead of leaving the
   // player's screen silently stuck — see the retry-wrapped call sites below. Purely cosmetic
@@ -49,7 +57,7 @@ export default function RoundScreen() {
   const [syncError, setSyncError] = useState<{ message: string; retry: () => void } | null>(null);
 
   const attemptEndGame = () => {
-    updateRoomField(roomCode!, { status: 'gameover' }).catch((e) => {
+    endGame(roomCode!).catch((e) => {
       console.error(e);
       setSyncError({ message: 'Could not end the game — check your connection.', retry: attemptEndGame });
     });
@@ -70,9 +78,8 @@ export default function RoundScreen() {
   useEffect(() => {
     if (!isHost || !roomData || roomData.status !== 'lobby' || roundInitiated.current) return;
     roundInitiated.current = true;
-    const players = Object.values(roomData.players);
     const attemptStartGame = () => {
-      startGame(roomCode!, players).catch((e) => {
+      startGame(roomCode!).catch((e) => {
         console.error(e);
         setSyncError({ message: 'Could not start the game — check your connection.', retry: attemptStartGame });
       });
@@ -167,33 +174,65 @@ export default function RoundScreen() {
   // Host: drive the timer — one interval per playing session
   useEffect(() => {
     if (!isHost || roomData?.status !== 'playing' || confirmedDisconnected) return;
+    let heldTicks = 0;
     const interval = setInterval(() => {
       const current = roomDataRef.current;
       if (!current || current.status !== 'playing') return;
       const next = Math.max(0, current.secondsRemaining - 1);
+      // A guess locked in before time ran out is still being judged — let it land rather
+      // than expiring the round under it. Capped so a stuck flag can't freeze the round.
+      if (next === 0 && current.guessPending && heldTicks < GUESS_HOLD_MAX_TICKS) {
+        heldTicks += 1;
+        return;
+      }
       if (next === 0) {
         const attemptResolve = () => {
-          resolveRound(
-            roomCode!,
-            current.round,
-            current.category,
-            current.targetWord,
-            current.chain ?? [],
-            current.guesserUid,
-            'lost-timeout',
-            current.linkChecks,
-          ).catch((e) => {
+          resolveRoundTimeout(roomCode!, current.round).catch((e) => {
             console.error(e);
             setSyncError({ message: 'Could not end the round — check your connection.', retry: attemptResolve });
           });
         };
         attemptResolve();
       } else {
-        tickTimer(roomCode!, next).catch(console.error);
+        tickTimer(roomCode!, current.round).catch(console.error);
       }
     }, 1000);
     return () => clearInterval(interval);
   }, [isHost, roomData?.status, confirmedDisconnected]);
+
+  // Knowers fetch this round's word from round_secrets. The Guesser never asks — and RLS
+  // would return nothing if they did — so the answer never reaches their device.
+  const [target, setTarget] = useState<{ round: number; word: string } | null>(null);
+
+  // The word this Knower just sent, shown at once — in the chain, with the turn passed —
+  // per the spec's "no visible lag" submit, instead of waiting for the server round-trip.
+  // It only counts while the server's chain is still at index (see `pending` below); a
+  // rejection clears it.
+  const [sentWord, setSentWord] = useState<{ round: number; index: number; word: string } | null>(null);
+  const isGuesserThisRound = !!roomData && roomData.guesserUid === uid;
+  useEffect(() => {
+    if (!roomCode || !uid || roomData?.status !== 'playing' || isGuesserThisRound) return;
+    const round = roomData.round;
+    if (target?.round === round) return;
+    let cancelled = false;
+    const attemptFetch = () => {
+      fetchTargetWord(roomCode, round)
+        .then((word) => {
+          if (cancelled) return;
+          if (!word) throw new Error(`no target word visible for round ${round}`);
+          setTarget({ round, word });
+        })
+        .catch((e) => {
+          if (cancelled) return;
+          console.error(e);
+          setSyncError({ message: 'Could not load the secret word — check your connection.', retry: attemptFetch });
+        });
+    };
+    attemptFetch();
+    return () => { cancelled = true; };
+    // Re-runs per round/role; `target` is only read to skip a redundant fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCode, uid, roomData?.status, roomData?.round, isGuesserThisRound]);
 
   // Loading — waiting for RTDB snapshot
   if (!roomData || !uid) {
@@ -241,20 +280,16 @@ export default function RoundScreen() {
         maxRounds={roomData.maxRounds}
         outcome={lastEntry.outcome}
         targetWord={lastEntry.targetWord}
-        chain={lastEntry.chain}
+        guess={lastEntry.guess ?? null}
+        guesserName={roomData.players[lastEntry.guesserUid]?.name ?? 'The Guesser'}
+        isMyGuess={lastEntry.guesserUid === uid}
+        chain={lastEntry.chain ?? []}
         linkChecks={lastEntry.linkChecks}
         scoreSoFar={scoreSoFar}
         isHost={isHost}
         onNextRound={() => {
           const attemptAdvance = () => {
-            advanceRound(
-              roomCode!,
-              roomData.round,
-              roomData.maxRounds,
-              roomData.playerOrder ?? [],
-              roomData.players,
-              roomData.gameWords ?? [],
-            ).catch((e) => {
+            advanceRound(roomCode!, roomData.round).catch((e) => {
               console.error(e);
               setSyncError({ message: 'Could not advance to the next round — check your connection.', retry: attemptAdvance });
             });
@@ -298,57 +333,82 @@ export default function RoundScreen() {
     );
   }
 
-  const chain: string[] = roomData.chain ?? [];
-  const players = Object.values(roomData.players);
-  const knowers = players.filter((p) => p.role === 'knower');
-  const nextKnowerUid =
-    knowers.find((p) => p.uid !== roomData.activeKnowerUid)?.uid ??
-    roomData.activeKnowerUid;
+  const serverChain: string[] = roomData.chain ?? [];
+  const pending =
+    sentWord && sentWord.round === roomData.round && serverChain.length === sentWord.index
+      ? sentWord
+      : null;
+  const chain = pending ? [...serverChain, pending.word] : serverChain;
   const typing = roomData.typing ?? {};
 
+  // Knower, word not fetched yet for this round
+  if (myPlayer.role === 'knower' && target?.round !== roomData.round) {
+    return renderWithDisconnectOverlay(
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={styles.statusText}>Getting the secret word…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  const targetWord = target?.word ?? '';
+
   // Active Knower — it's my turn to add a word
-  if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid) {
+  if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && !pending) {
     return renderWithDisconnectOverlay(
       <KnowerActiveScreen
         round={roomData.round}
-        targetWord={roomData.targetWord}
+        targetWord={targetWord}
         category={roomData.category}
         chain={chain}
         durationSeconds={ROUND_SECONDS}
         secondsRemaining={roomData.secondsRemaining}
         onSubmitWord={(word) => {
-          const index = chain.length;
+          const round = roomData.round;
           const attemptSubmit = () => {
-            submitWord(roomCode!, chain, word, nextKnowerUid, uid).catch((e) => {
-              console.error(e);
-              setSyncError({ message: 'Your word might not have sent — check your connection.', retry: attemptSubmit });
-            });
+            setSentWord({ round, index: serverChain.length, word });
+            submitWord(roomCode!, round, word)
+              .then((index) => {
+                if (index > 0) checkLink(roomCode!, index).catch(console.error);
+              })
+              .catch((e) => {
+                console.error(e);
+                setSentWord(null); // hand the turn back on screen
+                // Only offer a retry while it's still this player's turn in this round —
+                // otherwise the server rejected a stale move and retrying can't help.
+                const latest = roomDataRef.current;
+                if (latest?.status === 'playing' && latest.round === round && latest.activeKnowerUid === uid) {
+                  setSyncError({ message: 'Your word might not have sent — check your connection.', retry: attemptSubmit });
+                }
+              });
           };
           attemptSubmit();
-          if (chain.length > 0) {
-            checkLink(roomCode!, chain[chain.length - 1], word, index).catch(console.error);
-          }
         }}
         onTypingChange={(isTyping) => {
-          setTyping(roomCode!, uid, isTyping).catch(console.error);
+          setTyping(roomCode!, isTyping).catch(console.error);
         }}
       />
     );
   }
 
-  // Waiting Knower — partner is active
+  // Waiting Knower — partner is active (or about to be, while my sent word is in flight)
   if (myPlayer.role === 'knower') {
-    const activeKnower = roomData.players[roomData.activeKnowerUid];
+    const partnerUid = pending
+      ? Object.keys(roomData.players).find((u) => u !== uid && u !== roomData.guesserUid) ?? ''
+      : roomData.activeKnowerUid;
+    const partner = roomData.players[partnerUid];
     return renderWithDisconnectOverlay(
       <KnowerWaitingScreen
         round={roomData.round}
-        targetWord={roomData.targetWord}
+        targetWord={targetWord}
         category={roomData.category}
         chain={chain}
-        partnerName={activeKnower?.name ?? 'Partner'}
-        partnerIsTyping={!!typing[roomData.activeKnowerUid]}
+        partnerName={partner?.name ?? 'Partner'}
+        partnerIsTyping={!!typing[partnerUid]}
         durationSeconds={ROUND_SECONDS}
-        secondsRemaining={roomData.secondsRemaining}
+        // The partner's turn starts fresh; the server's countdown is still on mine until it lands.
+        secondsRemaining={pending ? ROUND_SECONDS : roomData.secondsRemaining}
       />
     );
   }
@@ -364,27 +424,8 @@ export default function RoundScreen() {
       knowerIsTyping={!!typing[roomData.activeKnowerUid]}
       durationSeconds={ROUND_SECONDS}
       secondsRemaining={roomData.secondsRemaining}
-      onGuess={(guess) => {
-        const correct =
-          guess.toLowerCase().trim() === roomData.targetWord.toLowerCase().trim();
-        const attemptResolve = () => {
-          resolveRound(
-            roomCode!,
-            roomData.round,
-            roomData.category,
-            roomData.targetWord,
-            chain,
-            roomData.guesserUid,
-            correct ? 'won' : 'lost-guess',
-            roomData.linkChecks,
-          ).catch((e) => {
-            console.error(e);
-            setSyncError({ message: 'Could not submit your guess — check your connection.', retry: attemptResolve });
-          });
-        };
-        attemptResolve();
-        return correct;
-      }}
+      // Throws if the guess couldn't be submitted — GuesserScreen lets them retry.
+      onGuess={(guess) => submitGuess(roomCode!, roomData.round, guess)}
     />
   );
 }

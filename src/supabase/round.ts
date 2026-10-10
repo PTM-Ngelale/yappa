@@ -1,156 +1,98 @@
-import type { RoomPlayer } from '../store/gameStore';
-import { generateGame } from '../lib/wordList';
 import { supabase } from './client';
-import { MAX_ROUNDS, patchRoom, type PatchOp, type RoundOutcome } from './room';
 
-interface RoundRoles {
-  guesserUid: string;
-  activeKnowerUid: string;
+// Round lifecycle (start, advance, resolve) runs server-side — see migration 004. The
+// target word lives in round_secrets, which only that round's Knowers can read, so the
+// Guesser's device never receives it.
+
+/** Host call, once, when leaving the lobby — the server shuffles play order and draws the 9 words. */
+export async function startGame(code: string): Promise<void> {
+  const { error } = await supabase.rpc('start_game', { p_code: code });
+  if (error) throw error;
 }
 
 /**
- * Guesser rotates through the fixed player order (each player guesses maxRounds/3 times).
- * The two Knowers alternate who goes first by round parity, per the locked spec rule.
+ * The current round's target word, or null if the caller is this round's Guesser (RLS
+ * returns no row) or the round hasn't been set up yet.
  */
-function computeRoundRoles(playerOrder: string[], round: number): RoundRoles {
-  const guesserIndex = (round - 1) % playerOrder.length;
-  const guesserUid = playerOrder[guesserIndex];
-  const [knowerAUid, knowerBUid] = playerOrder.filter((uid) => uid !== guesserUid);
-  const activeKnowerUid = round % 2 === 1 ? knowerAUid : knowerBUid;
-  return { guesserUid, activeKnowerUid };
-}
-
-function buildRoundOps(
-  playerOrder: string[],
-  round: number,
-  players: Record<string, RoomPlayer>,
-  word: string,
-  category: string,
-): PatchOp[] {
-  const roles = computeRoundRoles(playerOrder, round);
-
-  const updatedPlayers: Record<string, RoomPlayer> = {};
-  for (const uid of Object.keys(players)) {
-    updatedPlayers[uid] = {
-      ...players[uid],
-      role: uid === roles.guesserUid ? 'guesser' : 'knower',
-    };
-  }
-
-  return [
-    { path: ['status'], value: 'playing' },
-    { path: ['round'], value: round },
-    { path: ['targetWord'], value: word },
-    { path: ['category'], value: category },
-    { path: ['secondsRemaining'], value: 30 },
-    { path: ['activeKnowerUid'], value: roles.activeKnowerUid },
-    { path: ['guesserUid'], value: roles.guesserUid },
-    { path: ['players'], value: updatedPlayers },
-    { path: ['chain'], value: null },
-    { path: ['typing'], value: {} },
-    { path: ['linkChecks'], value: {} },
-  ];
-}
-
-/** Host call, once, when leaving the lobby — shuffles play order and draws the game's 9 words. */
-export async function startGame(code: string, players: RoomPlayer[]): Promise<void> {
-  const gameWords = generateGame(); // 3 Easy + 4 Medium + 2 Hard, spanning ≥3 categories
-  const playerOrder = [...players].map((p) => p.uid).sort(() => Math.random() - 0.5);
-  const playersByUid = Object.fromEntries(players.map((p) => [p.uid, p]));
-  const first = gameWords[0];
-
-  await patchRoom(code, [
-    ...buildRoundOps(playerOrder, 1, playersByUid, first.word, first.category),
-    { path: ['maxRounds'], value: MAX_ROUNDS },
-    { path: ['playerOrder'], value: playerOrder },
-    { path: ['gameWords'], value: gameWords.map(({ word, category }) => ({ word, category })) },
-    { path: ['history'], value: {} },
-  ]);
+export async function fetchTargetWord(code: string, round: number): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('round_secrets')
+    .select('target_word')
+    .eq('code', code)
+    .eq('round', round)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.target_word as string | undefined) ?? null;
 }
 
 /**
- * The 30-second timer is per-turn, not per-round — it resets here every time a word lands
- * and the active Knower changes, rather than counting down once across the whole round.
+ * Active Knower adds a word. The server appends it, hands the turn to the other Knower and
+ * resets the per-turn 30s timer — it also rejects the move if it isn't the caller's turn or
+ * the word is the target. Resolves to the word's index in the chain.
  */
-export async function submitWord(
-  code: string,
-  currentChain: string[],
-  newWord: string,
-  nextKnowerUid: string,
-  submitterUid: string,
-): Promise<void> {
-  const newChain = [...currentChain, newWord];
-  await patchRoom(code, [
-    { path: ['chain'], value: newChain },
-    { path: ['activeKnowerUid'], value: nextKnowerUid },
-    { path: ['secondsRemaining'], value: 30 },
-    { path: ['typing', submitterUid], value: null },
-  ]);
-}
-
-export async function setTyping(code: string, uid: string, isTyping: boolean): Promise<void> {
-  await patchRoom(code, [{ path: ['typing', uid], value: isTyping || null }]);
-}
-
-/**
- * Fire-and-forget AI check of whether `newWord` validly chains off `previousWord`.
- * Runs after the word is already in the chain — never blocks or delays submission.
- * Result lands in room.linkChecks[index] for Round Resolution to display; any
- * failure (network, edge function error) is swallowed so it can never affect
- * gameplay — silence just means no flag is shown.
- */
-export async function checkLink(
-  code: string,
-  previousWord: string,
-  newWord: string,
-  index: number,
-): Promise<void> {
-  const { data, error } = await supabase.functions.invoke('validate-link', {
-    body: { previousWord, newWord },
+export async function submitWord(code: string, round: number, word: string): Promise<number> {
+  const { data, error } = await supabase.rpc('submit_word', {
+    p_code: code,
+    p_round: round,
+    p_word: word,
   });
-  if (error || !data) return;
-  await patchRoom(code, [
-    { path: ['linkChecks', String(index)], value: data.valid ? 'valid' : 'invalid' },
-  ]);
+  if (error) throw error;
+  return data as number;
 }
 
-export async function tickTimer(code: string, seconds: number): Promise<void> {
-  await patchRoom(code, [{ path: ['secondsRemaining'], value: seconds }]);
+export async function setTyping(code: string, isTyping: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_typing', { p_code: code, p_typing: isTyping });
+  if (error) throw error;
 }
 
-/** Called when a round ends (correct guess or timer expiry) — records history and shows Resolution. */
-export async function resolveRound(
-  code: string,
-  round: number,
-  category: string,
-  targetWord: string,
-  chain: string[],
-  guesserUid: string,
-  outcome: RoundOutcome,
-  linkChecks?: Record<number, 'valid' | 'invalid'> | null,
-): Promise<void> {
-  await patchRoom(code, [
-    { path: ['status'], value: 'resolution' },
-    {
-      path: ['history', String(round)],
-      value: { round, category, targetWord, chain, guesserUid, outcome, linkChecks: linkChecks ?? {} },
-    },
-  ]);
+/**
+ * Fire-and-forget AI check of whether chain[index] validly chains off chain[index - 1].
+ * Runs after the word is already in the chain — never blocks or delays submission. The
+ * validate-link edge function reads the words and writes room.linkChecks[index] itself,
+ * for Round Resolution to display; any failure just means no flag is shown.
+ */
+export async function checkLink(code: string, index: number): Promise<void> {
+  await supabase.functions.invoke('validate-link', { body: { code, index } });
 }
 
-/** Host call from Round Resolution's "Next Round" — advances to the next round or ends the game. */
-export async function advanceRound(
-  code: string,
-  round: number,
-  maxRounds: number,
-  playerOrder: string[],
-  players: Record<string, RoomPlayer>,
-  gameWords: { word: string; category: string }[],
-): Promise<void> {
-  if (round >= maxRounds) {
-    await patchRoom(code, [{ path: ['status'], value: 'gameover' }]);
-    return;
+/**
+ * Locks in the Guesser's guess. The validate-guess edge function judges it against the
+ * hidden target (formatting differences instantly, synonyms/misspellings via AI) and
+ * records the round's outcome itself. Resolves to whether the guess was correct; throws
+ * if it couldn't be submitted, so the caller can let the Guesser retry.
+ */
+export async function submitGuess(code: string, round: number, guess: string): Promise<boolean> {
+  // Holds the host's timer at zero while the guess is judged — see RoomData.guessPending.
+  // Set from here rather than the edge function so it lands before any cold-start delay.
+  const { error: pendingError } = await supabase.rpc('mark_guess_pending', {
+    p_code: code,
+    p_round: round,
+  });
+  if (pendingError) console.error(pendingError);
+
+  const { data, error } = await supabase.functions.invoke('validate-guess', {
+    body: { code, round, guess },
+  });
+  if (error || typeof data?.correct !== 'boolean') {
+    throw error ?? new Error('validate-guess returned no verdict');
   }
-  const next = gameWords[round]; // gameWords is 0-indexed; index `round` is the (round+1)-th word
-  await patchRoom(code, buildRoundOps(playerOrder, round + 1, players, next.word, next.category));
+  return data.correct;
+}
+
+/** Host's once-a-second tick — the server decrements, so time can only move forward. */
+export async function tickTimer(code: string, round: number): Promise<void> {
+  const { error } = await supabase.rpc('tick_timer', { p_code: code, p_round: round });
+  if (error) throw error;
+}
+
+/** Host call when the turn timer hits zero — the server reveals the word into history. */
+export async function resolveRoundTimeout(code: string, round: number): Promise<void> {
+  const { error } = await supabase.rpc('resolve_round_timeout', { p_code: code, p_round: round });
+  if (error) throw error;
+}
+
+/** Host call from Round Resolution's "Next Round" — next round, or Game End after the last. */
+export async function advanceRound(code: string, fromRound: number): Promise<void> {
+  const { error } = await supabase.rpc('advance_round', { p_code: code, p_from_round: fromRound });
+  if (error) throw error;
 }

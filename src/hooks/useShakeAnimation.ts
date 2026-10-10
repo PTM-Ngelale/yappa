@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { Animated } from 'react-native';
+import { playSound } from '../audio/sounds';
 
 /**
  * A short left-right shake used to reject invalid input inline (e.g. submitting the target
@@ -10,6 +11,7 @@ export function useShakeAnimation() {
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   const shake = () => {
+    playSound('error');
     Animated.sequence([
       Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
