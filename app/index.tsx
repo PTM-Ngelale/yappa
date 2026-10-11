@@ -2,6 +2,7 @@ import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import {
 import { Pressable } from "../src/components/Pressable";
 import { SoundToggles } from "../src/components/SoundToggles";
 import { Avatar, Eyebrow, OUTLINE, Screen, Sticker, StickerButton } from "../src/components/ui";
+import { PRIVACY_POLICY_URL } from "../src/lib/links";
 import { SUPABASE_CONFIGURED } from "../src/supabase/config";
 import { generateRoomCode } from "../src/lib/roomCode";
 import { useGameStore } from "../src/store/gameStore";
@@ -244,14 +246,24 @@ export default function HomeScreen() {
             </Sticker>
           )}
 
-          <Pressable
-            onPress={() => router.push("/how-to-play")}
-            accessibilityRole="button"
-            accessibilityLabel="How to play"
-            style={styles.howTo}
-          >
-            <Text style={styles.howToText}>How to play</Text>
-          </Pressable>
+          <View style={styles.links}>
+            <Pressable
+              onPress={() => router.push("/how-to-play")}
+              accessibilityRole="button"
+              accessibilityLabel="How to play"
+              style={styles.howTo}
+            >
+              <Text style={styles.howToText}>How to play</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
+              accessibilityRole="link"
+              accessibilityLabel="Privacy policy, opens in your browser"
+              style={styles.howTo}
+            >
+              <Text style={styles.howToText}>Privacy</Text>
+            </Pressable>
+          </View>
 
           {!SUPABASE_CONFIGURED && (
             <Text style={styles.configNotice}>
@@ -322,7 +334,8 @@ const makeStyles = (p: Palette) =>
     },
     cancel: { paddingVertical: 6, paddingHorizontal: 12 },
     cancelText: { fontFamily: fonts.bold, fontSize: 16, color: p.muted },
-    howTo: { alignSelf: "center", paddingVertical: 10, paddingHorizontal: 12 },
+    links: { flexDirection: "row", justifyContent: "center", gap: 8 },
+    howTo: { paddingVertical: 10, paddingHorizontal: 12 },
     howToText: {
       fontFamily: fonts.bold,
       fontSize: 17,

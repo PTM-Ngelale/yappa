@@ -31,6 +31,8 @@ await db.exec(`
   create schema auth;
   create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create function auth.role() returns text language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claim.role', true), ''), 'anon') $$;
+  create table auth.users (id uuid primary key, is_anonymous boolean not null default true, created_at timestamptz not null default now(), last_sign_in_at timestamptz);
+  create table auth.sessions (id serial primary key, user_id uuid references auth.users (id) on delete cascade, updated_at timestamptz not null default now());
   grant usage on schema auth to anon, authenticated, service_role;
   grant execute on all functions in schema auth to anon, authenticated, service_role;
   create publication supabase_realtime;
@@ -210,6 +212,30 @@ check(await fails(invActive, `select submit_word('INVS', 1, $1)`, [hidden]), 'ta
 await as(invActive, `select submit_word('INVS', 1, $1)`, ['sun​shine']);
 check((await room('INVS')).chain[0] === 'sunshine', 'invisible characters are stripped from chain words');
 for (const u of [HOST, P2, P3]) await as(u, `select leave_room('INVS', $1)`, [u]);
+
+// --- Data retention (migration 008) -------------------------------------------------------
+check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');
+await as(HOST, `select create_room('NEW1', $1)`, [player(HOST)]);
+await as(P2, `select create_room('STAL', $1)`, [player(P2)]);
+await db.query(`update rooms set created_at = now() - interval '25 hours' where code = 'STAL'`);
+await db.query(`insert into ai_usage (uid, at) values ('x', now() - interval '2 hours')`);
+await db.exec(`
+  insert into auth.users (id, created_at, last_sign_in_at) values
+    ('${HOST}', now() - interval '60 days', now() - interval '60 days'),
+    ('${P2}',   now() - interval '60 days', now() - interval '60 days'),
+    ('${P3}',   now() - interval '2 days',  now() - interval '2 days');
+  insert into auth.users (id, is_anonymous, created_at) values ('${OUTSIDER}', false, now() - interval '90 days');
+  insert into auth.sessions (user_id, updated_at) values ('${P2}', now() - interval '1 day');
+`);
+await db.query(`select purge_expired_data()`);
+check((await room('STAL')) === undefined, 'rooms older than 24 hours are purged');
+check((await room('NEW1')) !== undefined, 'recent rooms are kept');
+check((await db.query(`select count(*)::int n from ai_usage where at < now() - interval '1 hour'`)).rows[0].n === 0, 'old AI usage rows are purged');
+const users = (await db.query(`select id::text from auth.users order by id`)).rows.map((r) => r.id);
+check(!users.includes(HOST), 'anonymous users idle for 30+ days are purged');
+check(users.includes(P2), '…but not if their session was refreshed recently');
+check(users.includes(P3), '…and not new anonymous users');
+check(users.includes(OUTSIDER), '…and never non-anonymous users');
 
 console.log(failures ? `\n${failures} failed, ${passed} passed` : `\nall ${passed} checks passed`);
 process.exit(failures ? 1 : 0);
