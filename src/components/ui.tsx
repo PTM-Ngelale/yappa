@@ -64,6 +64,10 @@ export function Sticker({
   offset?: number;
 }) {
   const p = useTheme();
+  // Only stretch the face when the caller gave the sticker a size (e.g. flex: 1). An
+  // unconditional flexGrow made content-sized stickers balloon to fill the screen on Android.
+  const outer = StyleSheet.flatten(style) ?? {};
+  const fill = outer.flex != null || outer.flexGrow != null || outer.height != null || outer.minHeight != null;
   return (
     <View style={[{ paddingRight: offset, paddingBottom: offset }, style]}>
       <View
@@ -75,7 +79,8 @@ export function Sticker({
       />
       <View
         style={[
-          { flexGrow: 1, backgroundColor: bg ?? p.card, borderRadius: radius, borderWidth: OUTLINE, borderColor: p.line },
+          fill && { flexGrow: 1 },
+          { backgroundColor: bg ?? p.card, borderRadius: radius, borderWidth: OUTLINE, borderColor: p.line },
           contentStyle,
         ]}
       >
