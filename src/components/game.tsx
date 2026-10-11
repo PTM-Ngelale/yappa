@@ -1,0 +1,77 @@
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
+import { TimerBar } from './TimerBar';
+import { Eyebrow, Pill, Sticker } from './ui';
+
+/** Round pill, role pill and (optionally) the turn timer — the top of every gameplay screen. */
+export function GameHeader({
+  round,
+  maxRounds,
+  role,
+  roleBg,
+  roleFg,
+  durationSeconds,
+  secondsRemaining,
+  showTimer = true,
+}: {
+  round: number;
+  maxRounds: number;
+  role: string;
+  roleBg?: string;
+  roleFg?: string;
+  durationSeconds: number;
+  secondsRemaining: number;
+  showTimer?: boolean;
+}) {
+  const styles = useStyles(makeStyles);
+  return (
+    <View style={styles.header}>
+      <View style={styles.pills}>
+        <Pill label={`Round ${round} / ${maxRounds}`} />
+        <Pill label={role} bg={roleBg} fg={roleFg} />
+      </View>
+      {showTimer && <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />}
+    </View>
+  );
+}
+
+/** The inverted card holding the word only the Knowers see. */
+export function SecretWordCard({
+  word,
+  category,
+  hint,
+}: {
+  word: string;
+  category: string;
+  hint?: string;
+}) {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
+  return (
+    <Sticker bg={p.hero} shadow={p.coral} radius={24} offset={5} contentStyle={styles.secret}>
+      <View style={styles.secretTop}>
+        <Eyebrow style={{ color: p.heroAccent }}>Secret word</Eyebrow>
+        <View style={[styles.category, { backgroundColor: p.heroAccent }]}>
+          <Text style={[styles.categoryText, { color: p.hero }]}>{category}</Text>
+        </View>
+      </View>
+      <Text style={styles.secretWord} adjustsFontSizeToFit numberOfLines={1}>
+        {word}
+      </Text>
+      {hint && <Text style={styles.secretHint}>{hint}</Text>}
+    </Sticker>
+  );
+}
+
+const makeStyles = (p: Palette) =>
+  StyleSheet.create({
+    header: { gap: 14 },
+    pills: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    secret: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16, gap: 4 },
+    secretTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    category: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
+    categoryText: { fontFamily: fonts.bold, fontSize: 13 },
+    secretWord: { fontFamily: fonts.black, fontSize: 44, lineHeight: 50, letterSpacing: -1, color: p.onHero },
+    secretHint: { ...type.small, color: p.onHero, opacity: 0.9 },
+  });

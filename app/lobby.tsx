@@ -1,24 +1,21 @@
+import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { Pressable } from '../src/components/Pressable';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { playSound } from '../src/audio/sounds';
 import { SoundToggles } from '../src/components/SoundToggles';
+import { Avatar, Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
 import { SUPABASE_CONFIGURED } from '../src/supabase/config';
 import type { RoomData } from '../src/supabase/room';
 import { useGameStore, type RoomPlayer } from '../src/store/gameStore';
 import { usePlayerStore } from '../src/store/playerStore';
-import { colors, elevation, radius, spacing, typography } from '../src/theme';
+import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
 
 const MAX_PLAYERS = 3;
 
 export default function LobbyScreen() {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
   const { roomCode, isHost: createdRoom, setPlayers, reset: resetGameStore } = useGameStore();
   const { name, uid, avatarColor } = usePlayerStore();
   const [roomData, setRoomData] = useState<RoomData | null>(null);
@@ -86,54 +83,82 @@ export default function LobbyScreen() {
     router.back();
   }
 
+  function handleShare() {
+    if (!roomCode) return;
+    Share.share({ message: `Join my Yappa game! Room code: ${roomCode}` }).catch(console.error);
+  }
+
   const canStart = isHost && players.length === MAX_PLAYERS;
   const emptySlots = MAX_PLAYERS - players.length;
+  const code = (roomCode ?? '----').split('');
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* Header */}
+    <Screen>
       <View style={styles.header}>
-        <Pressable
-          style={styles.backBtn}
-          onPress={handleLeave}
-          accessibilityRole="button"
-          accessibilityLabel="Leave lobby"
-        >
-          <Text style={styles.backText}>← Back</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>Lobby</Text>
-        <View style={[styles.backBtn, styles.headerRight]}>
+        <View style={styles.headerSide}>
+          <IconButton icon="arrow-left" onPress={handleLeave} accessibilityLabel="Leave lobby" />
+        </View>
+        <Text style={styles.headerTitle} accessibilityRole="header">
+          Lobby
+        </Text>
+        <View style={[styles.headerSide, styles.headerRight]}>
           <SoundToggles />
         </View>
       </View>
 
-      <ScrollView
-        style={styles.flex}
-        contentContainerStyle={styles.body}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Room code */}
-        <View style={styles.codeCard}>
-          <Text style={styles.codeLabel}>ROOM CODE</Text>
-          <Text style={styles.codeText}>{roomCode ?? '----'}</Text>
-          <Text style={styles.codeHint}>Share this with your friends</Text>
-        </View>
-
-        {/* Player slots */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>PLAYERS ({players.length}/{MAX_PLAYERS})</Text>
-          <View style={styles.playerList}>
-            {players.map((p) => (
-              <PlayerRow key={p.uid} player={p} isYou={p.uid === (uid ?? 'local')} />
-            ))}
-            {Array.from({ length: emptySlots }).map((_, i) => (
-              <EmptySlot key={`empty-${i}`} />
+      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+        <Sticker radius={26} offset={6} contentStyle={styles.codeCard}>
+          <Eyebrow>Room code</Eyebrow>
+          <View style={styles.tiles} accessible accessibilityLabel={`Room code ${code.join(' ')}`}>
+            {code.map((ch, i) => (
+              <View key={i} style={styles.tile}>
+                <Text style={styles.tileText}>{ch}</Text>
+              </View>
             ))}
           </View>
+          {roomCode && (
+            <StickerButton
+              label="Share code"
+              icon="share-2"
+              variant="card"
+              height={46}
+              fontSize={16}
+              onPress={handleShare}
+            />
+          )}
+        </Sticker>
+
+        <View style={styles.section}>
+          <View style={styles.sectionTop}>
+            <Eyebrow>Players</Eyebrow>
+            <Text style={styles.count}>
+              {players.length} / {MAX_PLAYERS}
+            </Text>
+          </View>
+          {players.map((player) => (
+            <Sticker key={player.uid} radius={20} contentStyle={styles.playerRow}>
+              <Avatar name={player.name} color={player.avatarColor} />
+              <Text style={styles.playerName} numberOfLines={1}>
+                {player.name}
+                {player.uid === (uid ?? 'local') && <Text style={styles.you}> (you)</Text>}
+              </Text>
+              {roomData?.hostUid === player.uid && (
+                <Pill label="Host" bg={p.yellow} fg={p.onYellow} size={13} style={styles.hostPill} />
+              )}
+            </Sticker>
+          ))}
+          {Array.from({ length: emptySlots }).map((_, i) => (
+            <View key={`empty-${i}`} style={styles.emptySlot}>
+              <View style={styles.emptyAvatar}>
+                <Feather name="plus" size={18} color={p.ink} />
+              </View>
+              <Text style={styles.emptyText}>Waiting for a friend…</Text>
+            </View>
+          ))}
         </View>
 
         {!isHost && (
-          <Text style={styles.waitingText}>Waiting for host to start the game…</Text>
+          <Text style={styles.note}>Waiting for the host to start the game…</Text>
         )}
 
         {!SUPABASE_CONFIGURED && (
@@ -143,169 +168,85 @@ export default function LobbyScreen() {
         )}
       </ScrollView>
 
-      {/* Fixed footer — host only */}
       {isHost && (
         <View style={styles.footer}>
-          {!canStart && (
-            <Text style={styles.waitingText}>
-              Waiting for {emptySlots} more player{emptySlots !== 1 ? 's' : ''}…
-            </Text>
-          )}
-          <Pressable
+          <StickerButton
+            label="Start game"
+            height={64}
             onPress={handleStart}
             disabled={!canStart}
-            accessibilityRole="button"
-            accessibilityLabel="Start game"
-            style={({ pressed }) => pressed && canStart && styles.btnPressed}
-          >
-            <View style={[styles.startBtn, !canStart && styles.startBtnDisabled]}>
-              <Text style={[styles.startBtnText, !canStart && styles.startBtnTextDisabled]}>
-                Start Game
-              </Text>
-            </View>
-          </Pressable>
+            sound="roundStart"
+          />
+          <Text style={styles.note}>
+            {canStart
+              ? 'Everyone’s here — let’s go!'
+              : `Needs exactly 3 players, ${emptySlots} more to go`}
+          </Text>
         </View>
       )}
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-function PlayerRow({ player, isYou }: { player: RoomPlayer; isYou: boolean }) {
-  return (
-    <View style={styles.playerRow}>
-      <View style={[styles.avatar, { backgroundColor: player.avatarColor }]}>
-        <Text style={styles.avatarText}>{player.name.charAt(0).toUpperCase()}</Text>
-      </View>
-      <Text style={styles.playerName}>
-        {player.name}{isYou ? ' (you)' : ''}
-      </Text>
-    </View>
-  );
-}
-
-function EmptySlot() {
-  return (
-    <View style={[styles.playerRow, styles.emptySlot]}>
-      <View style={[styles.avatar, styles.avatarEmpty]}>
-        <Text style={styles.avatarEmptyText}>?</Text>
-      </View>
-      <Text style={styles.emptyText}>Waiting for player…</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.containerMargin,
-    height: 64,
-    backgroundColor: colors.surface,
-  },
-  headerTitle: { ...typography.headlineLgMobile, color: colors.primary },
-  backBtn: { minWidth: 64 },
-  headerRight: { alignItems: 'flex-end' },
-  backText: { ...typography.bodyMd, color: colors.primary },
-  flex: { flex: 1 },
-  body: {
-    padding: spacing.containerMargin,
-    gap: spacing.stackLg,
-    paddingBottom: spacing.stackLg,
-  },
-  codeCard: {
-    ...elevation.card,
-    backgroundColor: colors.primaryContainer,
-    borderRadius: radius.xl,
-    alignItems: 'center',
-    paddingVertical: spacing.stackLg,
-    paddingHorizontal: spacing.containerMargin,
-    gap: spacing.stackSm,
-  },
-  codeLabel: {
-    ...typography.labelXl,
-    fontSize: 12,
-    color: colors.onPrimaryContainer,
-    letterSpacing: 2,
-    opacity: 0.75,
-  },
-  codeText: {
-    fontFamily: 'Rubik_700Bold',
-    fontSize: 56,
-    lineHeight: 64,
-    color: colors.onPrimaryContainer,
-    letterSpacing: 16,
-  },
-  codeHint: { ...typography.bodyMd, color: colors.onPrimaryContainer, opacity: 0.7 },
-  section: { gap: spacing.stackMd },
-  sectionLabel: {
-    ...typography.labelXl,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    letterSpacing: 1.5,
-  },
-  playerList: { gap: spacing.stackSm },
-  playerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.stackMd,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.lg,
-    padding: spacing.stackMd,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-  },
-  emptySlot: { opacity: 0.45 },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: 'Rubik_700Bold',
-    fontSize: 18,
-    color: '#fff',
-  },
-  avatarEmpty: { backgroundColor: colors.surfaceContainerHigh },
-  avatarEmptyText: { ...typography.bodyLg, color: colors.onSurfaceVariant },
-  playerName: { ...typography.bodyLg, color: colors.onSurface },
-  emptyText: { ...typography.bodyMd, color: colors.onSurfaceVariant, fontStyle: 'italic' },
-  footer: {
-    paddingHorizontal: spacing.containerMargin,
-    paddingBottom: spacing.stackMd,
-    paddingTop: spacing.stackSm,
-    gap: spacing.stackMd,
-    backgroundColor: colors.background,
-    borderTopWidth: 1,
-    borderTopColor: colors.outlineVariant,
-  },
-  startBtn: {
-    width: '100%',
-    height: 64,
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...elevation.card,
-    shadowColor: colors.primary,
-  },
-  startBtnDisabled: { backgroundColor: colors.surfaceContainerHigh, shadowOpacity: 0, elevation: 0 },
-  startBtnText: {
-    fontFamily: 'Rubik_700Bold',
-    fontSize: 20,
-    color: colors.onPrimary,
-  },
-  startBtnTextDisabled: { color: colors.onSurfaceVariant },
-  btnPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
-  waitingText: { ...typography.bodyMd, color: colors.onSurfaceVariant, textAlign: 'center' },
-  configNotice: {
-    ...typography.bodyMd,
-    fontSize: 13,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-    opacity: 0.6,
-  },
-});
+const makeStyles = (p: Palette) =>
+  StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.screen,
+      paddingTop: 8,
+      paddingBottom: 4,
+    },
+    headerSide: { width: 104 },
+    headerRight: { alignItems: 'flex-end' },
+    headerTitle: { fontFamily: fonts.black, fontSize: 24, color: p.ink },
+    body: { paddingHorizontal: spacing.screen, paddingTop: 14, paddingBottom: 24, gap: 20 },
+    codeCard: { alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 14 },
+    tiles: { flexDirection: 'row', gap: 8 },
+    tile: {
+      width: 58,
+      height: 70,
+      borderRadius: radius.md,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      backgroundColor: p.yellow,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tileText: { fontFamily: fonts.black, fontSize: 42, color: p.onYellow },
+    section: { gap: 10 },
+    sectionTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+    count: { fontFamily: fonts.black, fontSize: 16, color: p.ink },
+    playerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 10 },
+    playerName: { flex: 1, fontFamily: fonts.bold, fontSize: 20, color: p.ink },
+    you: { fontFamily: fonts.medium },
+    hostPill: { alignSelf: 'center' },
+    emptySlot: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderWidth: OUTLINE,
+      borderStyle: 'dashed',
+      borderColor: p.ink,
+      borderRadius: 20,
+      backgroundColor: p.ghost,
+      marginRight: 4,
+    },
+    emptyAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: OUTLINE,
+      borderStyle: 'dashed',
+      borderColor: p.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyText: { fontFamily: fonts.bold, fontSize: 18, color: p.ink },
+    note: { ...type.body, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
+    configNotice: { ...type.small, fontSize: 12, color: p.muted, textAlign: 'center' },
+    footer: { paddingHorizontal: spacing.screen, paddingTop: 10, paddingBottom: 14, gap: 8 },
+  });

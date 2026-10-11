@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -10,16 +10,17 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { GameHeader } from "../components/game";
 import { Pressable } from "../components/Pressable";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { TimerBar } from "../components/TimerBar";
 import { TypingIndicator } from "../components/TypingIndicator";
+import { Eyebrow, OUTLINE, Screen, Sticker, StickerButton } from "../components/ui";
 import { WordChain } from "../components/WordChain";
 import { useShakeAnimation } from "../hooks/useShakeAnimation";
-import { colors, elevation, radius, spacing, typography } from "../theme";
+import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from "../theme";
 
 interface GuesserScreenProps {
   round: number;
+  maxRounds: number;
   category: string;
   chain: string[];
   activeKnowerName: string;
@@ -30,15 +31,16 @@ interface GuesserScreenProps {
   /** Hide the timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
   /**
-   * Resolves to whether the guess was correct (judged server-side, may involve an AI check);
-   * rejects if the guess couldn't be submitted, in which case the Guesser can retry.
+   * Resolves to the verdict (judged server-side, may involve an AI check), or null if the
+   * round ended before the guess landed; rejects if it couldn't be submitted, so the
+   * Guesser can retry.
    */
-  /** Resolves to the verdict, or null if the round ended before the guess landed. */
   onGuess: (guess: string) => Promise<boolean | null>;
 }
 
 export function GuesserScreen({
   round,
+  maxRounds,
   category,
   chain,
   activeKnowerName,
@@ -48,6 +50,8 @@ export function GuesserScreen({
   showTimer = true,
   onGuess,
 }: GuesserScreenProps) {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
   const [guessInputVisible, setGuessInputVisible] = useState(false);
   const [guess, setGuess] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -83,279 +87,174 @@ export function GuesserScreen({
   };
 
   const isPreFirstWord = chain.length === 0;
+  const canSubmit = guess.trim().length > 0 && !checking;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {showTimer && (
-        <TimerBar
-          durationSeconds={durationSeconds}
-          secondsRemaining={secondsRemaining}
-        />
-      )}
-
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.iconBtn} />
-        <Text style={styles.headerTitle}>Round {round}</Text>
-        <View style={styles.iconBtn} />
-      </View>
-
+    <Screen>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
         <View style={styles.body}>
-          {/* Category pill — only hint the Guesser gets */}
-          <View style={styles.categoryPill}>
-            <Text style={styles.categoryText}>{category}</Text>
-          </View>
-
-          {/* Chain canvas */}
-          <WordChain
-            words={chain}
-            emphasiseLast={false}
-            showPending={knowerIsTyping}
-            style={styles.chainCard}
-            emptyState={
-              <View style={styles.preFistWordState}>
-                <Text style={styles.preWordText}>
-                  Your friends are thinking…
-                </Text>
-                <View style={styles.knowerBadge}>
-                  <Text style={styles.knowerBadgeText}>
-                    {activeKnowerName} is up first
-                  </Text>
-                </View>
-              </View>
-            }
+          <GameHeader
+            round={round}
+            maxRounds={maxRounds}
+            role="You’re guessing"
+            roleBg={p.coral}
+            roleFg={p.onCoral}
+            durationSeconds={durationSeconds}
+            secondsRemaining={secondsRemaining}
+            showTimer={showTimer}
           />
 
-          {/* Typing indicator — shown between words once chain has started */}
-          {!isPreFirstWord && (
-            <View style={styles.typingRow}>
+          {/* Category — the only hint the Guesser gets */}
+          <View style={styles.categoryBlock}>
+            <Eyebrow>The category is</Eyebrow>
+            <Text style={styles.category} adjustsFontSizeToFit numberOfLines={1}>
+              {category}
+            </Text>
+          </View>
+
+          <Sticker style={styles.flex} radius={26} offset={6} contentStyle={styles.chainCard}>
+            {isPreFirstWord ? (
+              <View style={styles.preWord}>
+                <Text style={styles.preWordTitle}>Your friends are thinking…</Text>
+                <Text style={styles.preWordSub}>{activeKnowerName} is up first</Text>
+              </View>
+            ) : (
+              <WordChain words={chain} variant="center" style={styles.flex} />
+            )}
+            <View style={styles.typingRow} accessibilityLiveRegion="polite">
               <TypingIndicator active={knowerIsTyping} />
               <Text style={styles.typingText}>
                 {knowerIsTyping
-                  ? `${activeKnowerName} is typing…`
-                  : `${activeKnowerName} is thinking…`}
+                  ? `${activeKnowerName} is typing`
+                  : `${activeKnowerName} is thinking`}
               </Text>
             </View>
-          )}
+          </Sticker>
         </View>
 
-        {/* Bottom — guess input area */}
         <View style={styles.footer}>
           {errorMsg !== "" && (
             <Text style={styles.errorMsg} accessibilityLiveRegion="assertive">
               {errorMsg}
             </Text>
           )}
-          {guessInputVisible && (
-            <Animated.View
-              style={[
-                styles.guessInputRow,
-                { transform: [{ translateX: shakeAnim }] },
-              ]}
-            >
-              <TextInput
-                style={styles.guessInput}
-                value={guess}
-                onChangeText={(t) => {
-                  setGuess(t);
-                  if (errorMsg) setErrorMsg("");
-                }}
-                placeholder="What's the target word?"
-                placeholderTextColor={colors.onSurfaceVariant}
-                autoFocus
-                editable={!checking}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={handleSubmitGuess}
-                accessibilityLabel="Type your guess"
-              />
-              <Pressable
-                style={({ pressed }) => [
-                  styles.submitGuessBtn,
-                  pressed && styles.btnPressed,
-                  guess.trim().length === 0 && styles.btnDisabled,
-                ]}
-                onPress={handleSubmitGuess}
-                disabled={guess.trim().length === 0 || checking}
-                accessibilityRole="button"
-                accessibilityLabel={checking ? "Checking guess" : "Submit guess"}
-                accessibilityState={{ busy: checking }}
-              >
-                {checking ? (
-                  <ActivityIndicator color={colors.onPrimary} />
-                ) : (
-                  <Ionicons name="checkmark" size={28} color={colors.onPrimary} />
-                )}
-              </Pressable>
-            </Animated.View>
-          )}
 
-          <View style={styles.guessButtonRow}>
-            {checking ? (
-              <View style={styles.cancelBtn}>
-                <Text style={styles.cancelBtnText} accessibilityLiveRegion="polite">
+          {guessInputVisible ? (
+            <>
+              <Animated.View
+                style={[styles.guessRow, { transform: [{ translateX: shakeAnim }] }]}
+              >
+                <TextInput
+                  style={styles.guessInput}
+                  value={guess}
+                  onChangeText={(t) => {
+                    setGuess(t);
+                    if (errorMsg) setErrorMsg("");
+                  }}
+                  placeholder="What's the secret word?"
+                  placeholderTextColor={p.muted}
+                  autoFocus
+                  editable={!checking}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={handleSubmitGuess}
+                  accessibilityLabel="Your guess"
+                />
+                <Pressable
+                  onPress={handleSubmitGuess}
+                  disabled={!canSubmit}
+                  accessibilityRole="button"
+                  accessibilityLabel={checking ? "Checking guess" : "Submit guess"}
+                  accessibilityState={{ busy: checking, disabled: !canSubmit }}
+                  style={[styles.submit, !canSubmit && !checking && styles.submitDisabled]}
+                >
+                  {checking ? (
+                    <ActivityIndicator color={p.onCoral} />
+                  ) : (
+                    <Feather name="check" size={28} color={canSubmit ? p.onCoral : p.onDisabled} />
+                  )}
+                </Pressable>
+              </Animated.View>
+              {checking ? (
+                <Text style={styles.cancelText} accessibilityLiveRegion="polite">
                   Checking your guess…
                 </Text>
-              </View>
-            ) : guessInputVisible ? (
-              <Pressable
-                style={styles.cancelBtn}
-                onPress={() => {
-                  setGuessInputVisible(false);
-                  setGuess("");
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel guess"
-              >
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </Pressable>
-            ) : (
-              <Pressable
-                style={({ pressed }) => [
-                  styles.guessBtn,
-                  pressed && styles.btnPressed,
-                ]}
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    setGuessInputVisible(false);
+                    setGuess("");
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel guess"
+                  style={styles.cancel}
+                >
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              )}
+            </>
+          ) : (
+            <>
+              <StickerButton
+                label="I know it!"
+                icon="help-circle"
+                height={72}
+                fontSize={28}
                 onPress={() => setGuessInputVisible(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Lock in a guess"
-              >
-                <Text style={styles.guessBtnText}>Guess!</Text>
-              </Pressable>
-            )}
-          </View>
+                accessibilityLabel="Make a guess"
+              />
+              <Text style={styles.footnote}>One guess. A wrong answer ends the round.</Text>
+            </>
+          )}
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: spacing.containerMargin,
-    height: 64,
-    backgroundColor: colors.surface,
-  },
-  headerTitle: { ...typography.headlineLgMobile, color: colors.primary },
-  // Empty spacer matching the old icon button's footprint, so the title stays centered.
-  iconBtn: { width: 40, height: 40 },
-  body: {
-    flex: 1,
-    padding: spacing.containerMargin,
-    gap: spacing.stackLg,
-  },
-  categoryPill: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.surfaceContainerHigh,
-    paddingHorizontal: spacing.stackMd,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-  },
-  categoryText: { ...typography.labelXl, color: colors.onSurfaceVariant },
-  chainCard: {
-    flex: 1,
-  },
-  preFistWordState: {
-    alignItems: "center",
-    gap: spacing.stackMd,
-    padding: spacing.stackLg,
-  },
-  preWordText: {
-    ...typography.headlineLgMobile,
-    color: colors.onSurfaceVariant,
-    textAlign: "center",
-  },
-  knowerBadge: {
-    backgroundColor: colors.surfaceContainerHigh,
-    paddingHorizontal: spacing.stackMd,
-    paddingVertical: spacing.stackSm,
-    borderRadius: radius.full,
-  },
-  knowerBadgeText: { ...typography.bodyMd, color: colors.onSurfaceVariant },
-  typingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.stackSm,
-  },
-  typingText: { ...typography.bodyMd, color: colors.onSurfaceVariant },
-  footer: {
-    paddingHorizontal: spacing.containerMargin,
-    paddingBottom: spacing.stackMd,
-    paddingTop: spacing.stackSm,
-    gap: spacing.stackSm,
-    backgroundColor: colors.background,
-  },
-  errorMsg: {
-    ...typography.bodyMd,
-    color: colors.error,
-    textAlign: "center",
-  },
-  guessInputRow: {
-    flexDirection: "row",
-    gap: spacing.stackSm,
-    alignItems: "center",
-  },
-  guessInput: {
-    flex: 1,
-    height: 56,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.stackMd,
-    ...typography.bodyLg,
-    color: colors.onSurface,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  submitGuessBtn: {
-    width: 56,
-    height: 56,
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    justifyContent: "center",
-    alignItems: "center",
-    ...elevation.card,
-    shadowColor: colors.primary,
-  },
-  guessButtonRow: {},
-  guessBtn: {
-    width: "100%",
-    height: 64,
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: colors.onPrimaryContainer,
-    // Neutral black shadow (not tinted to the button color) so the button still
-    // reads as "lifted" off the page even under warm/night-mode display filters
-    // that can wash out coral-on-cream contrast.
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  guessBtnText: {
-    ...typography.headlineLgMobile,
-    fontFamily: "Rubik_700Bold",
-    color: colors.onPrimary,
-  },
-  cancelBtn: {
-    width: "100%",
-    height: 48,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  cancelBtnText: { ...typography.labelXl, color: colors.onSurfaceVariant },
-  btnPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
-  btnDisabled: { backgroundColor: colors.surfaceContainerHigh },
-});
+const makeStyles = (p: Palette) =>
+  StyleSheet.create({
+    flex: { flex: 1 },
+    body: { flex: 1, paddingHorizontal: spacing.screen, paddingTop: 10, gap: 14 },
+    categoryBlock: { alignItems: "center", gap: 2 },
+    category: { fontFamily: fonts.black, fontSize: 50, lineHeight: 56, letterSpacing: -1.5, color: p.ink },
+    chainCard: { flex: 1, paddingVertical: 12, paddingHorizontal: 12 },
+    preWord: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 16 },
+    preWordTitle: { fontFamily: fonts.black, fontSize: 24, color: p.ink, textAlign: "center" },
+    preWordSub: { ...type.body, color: p.muted },
+    typingRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingTop: 8 },
+    typingText: { fontFamily: fonts.bold, fontSize: 16, color: p.ink },
+    footer: { paddingHorizontal: spacing.screen, paddingTop: 12, paddingBottom: 14, gap: 8 },
+    footnote: { ...type.small, color: p.ink, textAlign: "center" },
+    errorMsg: { ...type.bodyBold, color: p.danger, textAlign: "center" },
+    guessRow: { flexDirection: "row", gap: 10 },
+    guessInput: {
+      flex: 1,
+      height: 60,
+      borderRadius: radius.md + 2,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      backgroundColor: p.card,
+      paddingHorizontal: 18,
+      fontFamily: fonts.bold,
+      fontSize: 20,
+      color: p.ink,
+    },
+    submit: {
+      width: 60,
+      height: 60,
+      borderRadius: radius.md + 2,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      backgroundColor: p.coral,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    submitDisabled: { backgroundColor: p.disabled },
+    cancel: { alignSelf: "center", paddingVertical: 10, paddingHorizontal: 16 },
+    cancelText: { fontFamily: fonts.bold, fontSize: 17, color: p.ink, textAlign: "center" },
+  });

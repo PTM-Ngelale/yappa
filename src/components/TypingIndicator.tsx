@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { colors, spacing } from '../theme';
+import { useStyles, type Palette } from '../theme';
 
 interface TypingIndicatorProps {
   /** False renders static, dimmed dots instead of the pulsing animation (e.g. partner is idle, not typing) */
@@ -8,6 +8,7 @@ interface TypingIndicatorProps {
 }
 
 export function TypingIndicator({ active = true }: TypingIndicatorProps) {
+  const styles = useStyles(makeStyles);
   const dots = [
     useRef(new Animated.Value(0)).current,
     useRef(new Animated.Value(0)).current,
@@ -49,7 +50,8 @@ export function TypingIndicator({ active = true }: TypingIndicatorProps) {
           style={[
             styles.dot,
             {
-              opacity: dot,
+              // Never fully invisible — the dots read as "someone's here" even between pulses.
+              opacity: dot.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
               transform: [{ translateY: dot.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }],
             },
           ]}
@@ -59,17 +61,18 @@ export function TypingIndicator({ active = true }: TypingIndicatorProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.stackSm,
-    paddingVertical: 4,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.onSurfaceVariant,
-  },
-});
+const makeStyles = (p: Palette) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 4,
+    },
+    dot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: p.ink,
+    },
+  });

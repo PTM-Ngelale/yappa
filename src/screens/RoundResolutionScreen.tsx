@@ -1,10 +1,10 @@
+import { Feather } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Pressable } from '../components/Pressable';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { TypingIndicator } from '../components/TypingIndicator';
+import { Eyebrow, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../components/ui';
 import { WordChain } from '../components/WordChain';
-import { colors, elevation, radius, spacing, typography } from '../theme';
+import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 
 const AUTO_ADVANCE_SECONDS = 5;
 
@@ -21,8 +21,8 @@ interface RoundResolutionScreenProps {
   chain: string[];
   /** AI link-validation results keyed by chain index — advisory only, never affects score. */
   linkChecks?: Record<number, 'valid' | 'invalid'>;
-  /** Rounds won so far, including this one. */
-  scoreSoFar: number;
+  /** Outcome of every round played so far, in order, including this one. */
+  results: Array<'won' | 'lost'>;
   isHost: boolean;
   onNextRound: () => void;
 }
@@ -37,12 +37,13 @@ export function RoundResolutionScreen({
   isMyGuess,
   chain,
   linkChecks,
-  scoreSoFar,
+  results,
   isHost,
   onNextRound,
 }: RoundResolutionScreenProps) {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
   const won = outcome === 'won';
-  const lostReason = outcome === 'lost-timeout' ? "Time's Up" : 'Wrong Guess';
   const [manualFlags, setManualFlags] = useState<Set<number>>(new Set());
   const [secondsLeft, setSecondsLeft] = useState(AUTO_ADVANCE_SECONDS);
   const advancedRef = useRef(false);
@@ -78,7 +79,9 @@ export function RoundResolutionScreen({
 
   // Chain + revealed target, as one visual sequence.
   const fullChain = [...chain, targetWord];
-  const hasAiFlaggedLink = Object.values(linkChecks ?? {}).some((status) => status === 'invalid');
+  const aiFlagged = Object.entries(linkChecks ?? {})
+    .filter(([, status]) => status === 'invalid')
+    .map(([i]) => Number(i));
 
   const toggleFlag = (index: number) => {
     setManualFlags((prev) => {
@@ -89,176 +92,162 @@ export function RoundResolutionScreen({
     });
   };
 
+  const ground = won ? p.blue : p.coral;
+  const onGround = won ? p.onBlue : p.onCoral;
+  const headline = won ? 'Got it!' : outcome === 'lost-timeout' ? 'Time’s up' : 'Not quite';
+  const who = isMyGuess ? 'You' : guesserName;
+  const sub = won
+    ? `${who} guessed “${guess ?? targetWord}”`
+    : guess
+      ? `${who} guessed “${guess}” — it was ${targetWord}`
+      : `The word was ${targetWord}`;
+  const wins = results.filter((r) => r === 'won').length;
+  const isLastRound = round >= maxRounds;
+  const anyFlag = aiFlagged.length > 0 || manualFlags.size > 0;
+
+  let flagNote = 'Tap an arrow to flag a link that doesn’t work';
+  if (manualFlags.size > 0) {
+    flagNote = `Thanks — ${manualFlags.size} link${manualFlags.size === 1 ? '' : 's'} flagged`;
+  } else if (aiFlagged.length > 0) {
+    const i = aiFlagged[0];
+    flagNote = `${fullChain[i - 1]} → ${fullChain[i]} may not be a real link`;
+  }
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Round {round} of {maxRounds}</Text>
-      </View>
+    <Screen ground={ground}>
+      <View pointerEvents="none" style={[styles.blob, { backgroundColor: won ? p.yellow : p.blue }]} />
 
       <View style={styles.body}>
-        <View style={styles.resultSection}>
-          <View style={[styles.outcomePill, won ? styles.outcomePillWon : styles.outcomePillLost]}>
-            <Text style={[styles.outcomeText, won ? styles.outcomeTextWon : styles.outcomeTextLost]}>
-              {won ? 'Team Won!' : lostReason}
-            </Text>
-          </View>
+        <Pill label={`Round ${round} / ${maxRounds}`} />
 
-          <Text style={styles.targetLabel}>Target Word</Text>
-          <Text style={styles.targetWord}>{targetWord}</Text>
-
-          {guess && (
-            <Text style={styles.guessLine}>
-              {isMyGuess ? 'You' : guesserName} guessed{' '}
-              <Text style={[styles.guessWord, won ? styles.outcomeTextWon : styles.guessWordLost]}>
-                “{guess}”
-              </Text>
-              {won ? ' ✓' : ''}
+        <View style={styles.hero}>
+          <Sticker radius={22} offset={6} style={styles.headlineWrap} contentStyle={styles.headline}>
+            <Feather name={won ? 'check' : 'x'} size={38} color={p.ink} />
+            <Text style={styles.headlineText} accessibilityRole="header">
+              {headline}
             </Text>
-          )}
-
-          <View style={styles.scorePill}>
-            <Text style={styles.scoreText}>
-              {scoreSoFar} of {round} round{round === 1 ? '' : 's'} won so far
-            </Text>
-          </View>
+          </Sticker>
+          <Text style={[styles.sub, { color: onGround }]}>{sub}</Text>
         </View>
 
-        <View style={[styles.chainCard, elevation.card]}>
-          <Text style={styles.chainTitle}>How you got there</Text>
+        <Sticker radius={24} offset={6} contentStyle={styles.chainCard}>
+          <Eyebrow>How you got there</Eyebrow>
           <WordChain
             words={fullChain}
-            emphasiseLast={false}
+            variant="wrap"
+            highlightLast
             linkStatus={linkChecks}
             flaggedIndices={manualFlags}
             onLinkPress={toggleFlag}
           />
-          <Text style={styles.aiFlagLegend}>
-            {manualFlags.size > 0
-              ? `Thanks — ${manualFlags.size} link${manualFlags.size === 1 ? '' : 's'} flagged for review`
-              : hasAiFlaggedLink
-                ? '⚠ marks a link our AI isn\'t sure chains — tap any link to flag it yourself'
-                : 'Tap a link above to flag it as a bad chain'}
-          </Text>
+          <View style={styles.flagNote}>
+            <Feather name="flag" size={15} color={anyFlag ? p.danger : p.muted} />
+            <Text style={[styles.flagText, anyFlag && { color: p.danger }]}>{flagNote}</Text>
+          </View>
+        </Sticker>
+
+        <View style={styles.score}>
+          <View style={styles.scoreTop}>
+            <Eyebrow style={{ color: onGround }}>Team score</Eyebrow>
+            <Text style={[styles.scoreText, { color: onGround }]}>
+              {wins} of {results.length} won
+            </Text>
+          </View>
+          <View
+            style={styles.blocks}
+            accessible
+            accessibilityLabel={`${wins} won, ${results.length - wins} lost, ${maxRounds - results.length} to play`}
+          >
+            {Array.from({ length: maxRounds }).map((_, i) => {
+              const r = results[i];
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.block,
+                    r === 'won' && { backgroundColor: p.yellow },
+                    r === 'lost' && { backgroundColor: p.card },
+                    !r && { backgroundColor: 'rgba(255,255,255,0.28)' },
+                  ]}
+                >
+                  {r === 'lost' && <Feather name="x" size={14} color={p.ink} />}
+                </View>
+              );
+            })}
+          </View>
         </View>
       </View>
 
       <View style={styles.footer}>
         {isHost ? (
-          <Pressable
-            onPress={handleNextPress}
-            accessibilityRole="button"
-            accessibilityLabel="Next round"
-            style={({ pressed }) => pressed && styles.btnPressed}
-          >
-            <View style={styles.nextBtn}>
-              <Text style={styles.nextBtnText}>
-                {round >= maxRounds ? 'See Results' : `Next Round (${secondsLeft})`}
-              </Text>
-            </View>
-          </Pressable>
+          <>
+            <StickerButton
+              label={isLastRound ? 'See results' : 'Next round'}
+              variant={won ? 'yellow' : 'card'}
+              height={64}
+              onPress={handleNextPress}
+            />
+            <Text style={[styles.footnote, { color: onGround }]}>
+              Starting automatically in {secondsLeft}s
+            </Text>
+          </>
         ) : (
-          <View style={styles.waitingRow}>
+          <View style={styles.waiting}>
             <TypingIndicator />
-            <Text style={styles.waitingText}>Waiting for host to continue…</Text>
+            <Text style={styles.waitingText}>Waiting for the host…</Text>
           </View>
         )}
       </View>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  header: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing.containerMargin,
-    height: 64,
-    backgroundColor: colors.surface,
-  },
-  headerTitle: { ...typography.headlineLgMobile, color: colors.primary },
-  body: {
-    flex: 1,
-    padding: spacing.containerMargin,
-    gap: spacing.stackLg,
-  },
-  resultSection: { alignItems: 'center', gap: spacing.stackSm },
-  outcomePill: {
-    paddingHorizontal: spacing.stackLg,
-    paddingVertical: spacing.stackSm,
-    borderRadius: radius.full,
-    marginBottom: spacing.stackSm,
-  },
-  outcomePillWon: { backgroundColor: colors.tertiaryContainer },
-  outcomePillLost: { backgroundColor: colors.errorContainer },
-  outcomeText: { ...typography.labelXl, textTransform: 'uppercase', letterSpacing: 1 },
-  outcomeTextWon: { color: colors.onTertiaryContainer },
-  outcomeTextLost: { color: colors.onErrorContainer },
-  targetLabel: { ...typography.bodyLg, color: colors.onSurfaceVariant },
-  targetWord: {
-    ...typography.displayLg,
-    color: colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 4,
-    textAlign: 'center',
-  },
-  guessLine: { ...typography.bodyLg, color: colors.onSurfaceVariant, textAlign: 'center' },
-  guessWord: { fontFamily: 'Rubik_700Bold' },
-  guessWordLost: { color: colors.error },
-  scorePill: {
-    marginTop: spacing.stackSm,
-    backgroundColor: colors.surfaceVariant,
-    paddingHorizontal: spacing.stackMd,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-  },
-  scoreText: { ...typography.bodyMd, color: colors.onSurface },
-  chainCard: {
-    backgroundColor: colors.surfaceContainer,
-    borderRadius: radius.lg,
-    padding: spacing.stackMd,
-    gap: spacing.stackSm,
-  },
-  chainTitle: {
-    ...typography.labelXl,
-    fontSize: 14,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-  },
-  aiFlagLegend: {
-    ...typography.bodyMd,
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-  },
-  footer: {
-    paddingHorizontal: spacing.containerMargin,
-    paddingBottom: spacing.stackMd,
-    paddingTop: spacing.stackSm,
-    backgroundColor: colors.background,
-  },
-  nextBtn: {
-    width: '100%',
-    height: 64,
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...elevation.card,
-    shadowColor: colors.primary,
-  },
-  nextBtnText: {
-    ...typography.labelXl,
-    fontFamily: 'Rubik_700Bold',
-    color: colors.onPrimary,
-  },
-  waitingRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.stackSm,
-    height: 64,
-  },
-  waitingText: { ...typography.bodyMd, color: colors.onSurfaceVariant },
-  btnPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
-});
+const makeStyles = (p: Palette) =>
+  StyleSheet.create({
+    blob: {
+      position: 'absolute',
+      width: 260,
+      height: 260,
+      borderRadius: 130,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      top: -110,
+      right: -90,
+    },
+    body: { flex: 1, paddingHorizontal: spacing.screen, paddingTop: 10, gap: 18 },
+    hero: { gap: 10, marginTop: 8 },
+    headlineWrap: { alignSelf: 'flex-start', transform: [{ rotate: '-3deg' }] },
+    headline: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 4 },
+    headlineText: { fontFamily: fonts.black, fontSize: 52, lineHeight: 60, letterSpacing: -2, color: p.ink },
+    sub: { fontFamily: fonts.bold, fontSize: 18, marginLeft: 4 },
+    chainCard: { padding: 16, gap: 12 },
+    flagNote: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    flagText: { ...type.small, flex: 1, fontFamily: fonts.bold, color: p.muted },
+    score: { gap: 8 },
+    scoreTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+    scoreText: { fontFamily: fonts.black, fontSize: 20 },
+    blocks: { flexDirection: 'row', gap: 6 },
+    block: {
+      flex: 1,
+      height: 26,
+      borderRadius: 8,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    footer: { paddingHorizontal: spacing.screen, paddingBottom: 14, paddingTop: 10, gap: 8 },
+    footnote: { ...type.small, fontFamily: fonts.bold, textAlign: 'center' },
+    waiting: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
+      backgroundColor: p.card,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      borderRadius: 20,
+      paddingVertical: 16,
+    },
+    waitingText: { fontFamily: fonts.bold, fontSize: 17, color: p.ink },
+  });

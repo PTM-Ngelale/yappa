@@ -10,15 +10,17 @@ import {
   View,
 } from "react-native";
 import { Pressable } from "../src/components/Pressable";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { SoundToggles } from "../src/components/SoundToggles";
+import { Avatar, Eyebrow, OUTLINE, Screen, Sticker, StickerButton } from "../src/components/ui";
 import { SUPABASE_CONFIGURED } from "../src/supabase/config";
 import { generateRoomCode } from "../src/lib/roomCode";
 import { useGameStore } from "../src/store/gameStore";
 import { usePlayerStore } from "../src/store/playerStore";
-import { colors, radius, spacing, typography } from "../src/theme";
+import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from "../src/theme";
 
 export default function HomeScreen() {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
   const { name, setName, avatarColor, setUid } = usePlayerStore();
   const { setRoomCode, setIsHost } = useGameStore();
 
@@ -29,7 +31,6 @@ export default function HomeScreen() {
 
   const trimmedName = name.trim();
   const canProceed = trimmedName.length >= 2;
-  const initial = trimmedName.charAt(0).toUpperCase();
 
   async function getUid(): Promise<string | null> {
     if (!SUPABASE_CONFIGURED) return null;
@@ -118,10 +119,11 @@ export default function HomeScreen() {
     }
   }
 
-  const createActive = canProceed && !loading;
-
   return (
-    <SafeAreaView style={styles.safe}>
+    <Screen>
+      <View pointerEvents="none" style={[styles.blobCircle, { backgroundColor: p.coral }]} />
+      <View pointerEvents="none" style={[styles.blobSquare, { backgroundColor: p.blue }]} />
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -135,174 +137,117 @@ export default function HomeScreen() {
             <SoundToggles />
           </View>
 
-          {/* Hero */}
           <View style={styles.hero}>
-            <View style={styles.decorRow}>
-              <View
-                style={[
-                  styles.decorDot,
-                  { backgroundColor: colors.primaryContainer },
-                ]}
-              />
-              <View
-                style={[
-                  styles.decorDot,
-                  styles.decorDotMid,
-                  { backgroundColor: colors.primary },
-                ]}
-              />
-              <View
-                style={[
-                  styles.decorDot,
-                  { backgroundColor: colors.primaryContainer },
-                ]}
-              />
-            </View>
-            <Text style={styles.appName}>Yappa</Text>
-            <Text style={styles.tagline}>Word chain party game</Text>
+            <Sticker
+              bg={p.isDark ? p.yellow : p.card}
+              radius={26}
+              offset={6}
+              style={styles.wordmarkWrap}
+              contentStyle={styles.wordmark}
+            >
+              <Text style={[styles.wordmarkText, { color: p.isDark ? p.onYellow : p.ink }]} accessibilityRole="header">
+                Yappa
+              </Text>
+            </Sticker>
+            <Text style={styles.tagline}>Chain words. Guess the secret. Beat the clock.</Text>
           </View>
 
-          {/* Name input */}
-          <View style={styles.nameCard}>
-            <View style={styles.nameRow}>
-              <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-                <Text style={styles.avatarText}>{initial || "?"}</Text>
-              </View>
+          <View style={styles.spacer} />
+
+          <Sticker radius={22} offset={5} contentStyle={styles.nameCard}>
+            <Avatar name={trimmedName || "?"} color={avatarColor} size={48} />
+            <View style={styles.flex}>
+              <Eyebrow style={styles.nameLabel}>Your name</Eyebrow>
               <TextInput
-                style={styles.input}
+                style={styles.nameInput}
                 value={name}
                 onChangeText={(t) => {
                   setName(t);
                   setError("");
                 }}
-                placeholder="Your name…"
-                placeholderTextColor={colors.onSurfaceVariant}
+                placeholder="Type your name…"
+                placeholderTextColor={p.muted}
                 autoCapitalize="words"
                 autoCorrect={false}
                 maxLength={20}
                 returnKeyType="done"
-                accessibilityLabel="Your player name"
+                accessibilityLabel="Your name"
               />
             </View>
-          </View>
+          </Sticker>
 
-          {error !== "" && <Text style={styles.errorText}>{error}</Text>}
+          {error !== "" && (
+            <Text style={styles.errorText} accessibilityLiveRegion="assertive">
+              {error}
+            </Text>
+          )}
 
-          {/* Actions */}
-          <View style={styles.actions}>
-            {/* Create Game */}
-            <Pressable
-              onPress={handleCreate}
-              disabled={!createActive}
-              accessibilityRole="button"
-              accessibilityLabel="Create a new game"
-              style={({ pressed }) =>
-                pressed && createActive && styles.btnPressed
-              }
-            >
-              <View
-                style={[
-                  styles.createBtn,
-                  !createActive && styles.createBtnInactive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.createBtnText,
-                    !createActive && styles.createBtnTextInactive,
-                  ]}
-                >
-                  {loading && !showJoin ? "Creating…" : "Create Game"}
-                </Text>
-              </View>
-            </Pressable>
+          <StickerButton
+            label={loading && !showJoin ? "Creating…" : "Create game"}
+            onPress={handleCreate}
+            disabled={!canProceed || loading}
+            height={64}
+            fontSize={22}
+            accessibilityLabel="Create a new game"
+          />
 
-            {/* Divider */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Join section */}
-            {!showJoin ? (
+          {!showJoin ? (
+            <StickerButton
+              label="Join with a code"
+              icon="log-in"
+              variant="card"
+              fontSize={20}
+              onPress={() => setShowJoin(true)}
+              accessibilityLabel="Join an existing game"
+            />
+          ) : (
+            <Sticker radius={22} offset={5} contentStyle={styles.joinCard}>
+              <Eyebrow>Room code</Eyebrow>
+              <TextInput
+                style={styles.joinInput}
+                value={joinCode}
+                onChangeText={(t) => setJoinCode(t.toUpperCase())}
+                placeholder="ABCD"
+                placeholderTextColor={p.muted}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={4}
+                returnKeyType="go"
+                onSubmitEditing={handleJoin}
+                accessibilityLabel="Room code"
+                autoFocus
+              />
+              <StickerButton
+                label={loading ? "Joining…" : "Join"}
+                icon="arrow-right"
+                variant="blue"
+                height={56}
+                fontSize={20}
+                onPress={handleJoin}
+                disabled={!canProceed || loading || joinCode.trim().length !== 4}
+                accessibilityLabel="Join room"
+                style={styles.stretch}
+              />
               <Pressable
-                onPress={() => setShowJoin(true)}
+                onPress={() => {
+                  setShowJoin(false);
+                  setJoinCode("");
+                }}
                 accessibilityRole="button"
-                accessibilityLabel="Join an existing game"
-                style={({ pressed }) => pressed && styles.btnPressed}
+                style={styles.cancel}
               >
-                <View style={styles.joinGhostBtn}>
-                  <Text style={styles.joinGhostText}>Join a game</Text>
-                </View>
+                <Text style={styles.cancelText}>Cancel</Text>
               </Pressable>
-            ) : (
-              <View style={styles.joinCard}>
-                <Text style={styles.joinCardLabel}>ENTER ROOM CODE</Text>
-
-                {/* Code input — full width */}
-                <TextInput
-                  style={styles.joinInput}
-                  value={joinCode}
-                  onChangeText={(t) => setJoinCode(t.toUpperCase())}
-                  placeholder="A B C D"
-                  placeholderTextColor={colors.onSurfaceVariant}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  maxLength={4}
-                  returnKeyType="go"
-                  onSubmitEditing={handleJoin}
-                  accessibilityLabel="Room code input"
-                  autoFocus
-                />
-
-                {/* Submit button — full width below input */}
-                <Pressable
-                  onPress={handleJoin}
-                  disabled={!canProceed || loading}
-                  accessibilityRole="button"
-                  accessibilityLabel="Join room"
-                  style={({ pressed }) =>
-                    pressed && canProceed && !loading && styles.btnPressed
-                  }
-                >
-                  <View
-                    style={[
-                      styles.joinSubmitBtn,
-                      (!canProceed || loading) && styles.joinSubmitBtnInactive,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.joinSubmitText,
-                        (!canProceed || loading) &&
-                          styles.joinSubmitTextInactive,
-                      ]}
-                    >
-                      {loading ? "Joining…" : "Join →"}
-                    </Text>
-                  </View>
-                </Pressable>
-
-                <Pressable
-                  onPress={() => {
-                    setShowJoin(false);
-                    setJoinCode("");
-                  }}
-                >
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </Pressable>
-              </View>
-            )}
-          </View>
+            </Sticker>
+          )}
 
           <Pressable
             onPress={() => router.push("/how-to-play")}
             accessibilityRole="button"
             accessibilityLabel="How to play"
-            style={({ pressed }) => pressed && styles.btnPressed}
+            style={styles.howTo}
           >
-            <Text style={styles.howToPlayText}>How to Play →</Text>
+            <Text style={styles.howToText}>How to play</Text>
           </Pressable>
 
           {!SUPABASE_CONFIGURED && (
@@ -312,204 +257,75 @@ export default function HomeScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
-  body: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.containerMargin,
-    paddingTop: spacing.stackMd,
-    paddingBottom: spacing.stackLg,
-    gap: spacing.stackLg,
-  },
-  topBar: { alignItems: "flex-end" },
-
-  // Hero
-  hero: { alignItems: "center", gap: 10 },
-  decorRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: 8,
-    marginBottom: 4,
-  },
-  decorDot: { width: 12, height: 12, borderRadius: radius.full },
-  decorDotMid: { width: 18, height: 18 },
-  appName: {
-    fontFamily: "Rubik_700Bold",
-    fontSize: 72,
-    lineHeight: 80,
-    color: colors.primary,
-    letterSpacing: -2,
-  },
-  tagline: {
-    ...typography.bodyMd,
-    color: colors.onSurfaceVariant,
-    letterSpacing: 0.3,
-  },
-
-  // Name card
-  nameCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    paddingHorizontal: spacing.stackMd,
-    paddingVertical: 10,
-  },
-  nameRow: { flexDirection: "row", alignItems: "center", gap: spacing.stackMd },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.full,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  avatarText: { fontFamily: "Rubik_700Bold", fontSize: 16, color: colors.onPrimary },
-  input: {
-    flex: 1,
-    height: 44,
-    fontFamily: "Rubik_400Regular",
-    fontSize: 18,
-    color: colors.onSurface,
-  },
-
-  errorText: { ...typography.bodyMd, color: colors.error, textAlign: "center" },
-
-  actions: { gap: spacing.stackMd },
-
-  // Create Game button — two explicit states, no opacity tricks
-  createBtn: {
-    height: 60,
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  createBtnInactive: {
-    backgroundColor: colors.surfaceContainerHigh,
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  createBtnText: {
-    ...typography.labelXl,
-    fontFamily: "Rubik_700Bold",
-    color: colors.onPrimary,
-    letterSpacing: 0.5,
-    textAlign: "center",
-  },
-  createBtnTextInactive: { color: colors.onSurfaceVariant },
-
-  // Divider
-  dividerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.stackMd,
-  },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.outlineVariant },
-  dividerText: {
-    fontFamily: "Rubik_400Regular",
-    fontSize: 14,
-    color: colors.onSurfaceVariant,
-  },
-
-  // Join ghost button
-  joinGhostBtn: {
-    width: "100%",
-    height: 52,
-    borderRadius: radius.full,
-    borderWidth: 2,
-    borderColor: colors.outline,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  joinGhostText: {
-    ...typography.labelXl,
-    fontFamily: "Rubik_600SemiBold",
-    color: colors.onSurface,
-    textAlign: "center",
-  },
-
-  // Join expanded card — stacked layout
-  joinCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    paddingHorizontal: spacing.stackMd,
-    paddingVertical: spacing.stackMd,
-    gap: spacing.stackMd,
-    alignItems: "center",
-  },
-  joinCardLabel: {
-    ...typography.labelXl,
-    fontSize: 11,
-    color: colors.onSurfaceVariant,
-    letterSpacing: 1.5,
-  },
-  joinInput: {
-    width: "100%",
-    height: 56,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.full,
-    fontFamily: "Rubik_700Bold",
-    fontSize: 24,
-    color: colors.onSurface,
-    borderWidth: 2,
-    borderColor: colors.primary,
-    letterSpacing: 8,
-    textAlign: "center",
-  },
-  joinSubmitBtn: {
-    width: "100%",
-    height: 40,
-    backgroundColor: colors.primary,
-    borderRadius: radius.full,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 10,
-  },
-  joinSubmitBtnInactive: {
-    backgroundColor: colors.surfaceContainerHigh,
-  },
-  joinSubmitText: {
-    ...typography.labelXl,
-    fontFamily: "Rubik_700Bold",
-    color: colors.onPrimary,
-    textAlign: "center",
-  },
-  joinSubmitTextInactive: { color: colors.onSurfaceVariant },
-  cancelText: {
-    fontFamily: "Rubik_400Regular",
-    fontSize: 14,
-    color: colors.onSurfaceVariant,
-  },
-
-  btnPressed: {
-    opacity: 0.82,
-    transform: [{ scale: 0.97 }],
-  },
-
-  configNotice: {
-    fontFamily: "Rubik_400Regular",
-    fontSize: 12,
-    color: colors.onSurfaceVariant,
-    textAlign: "center",
-    opacity: 0.6,
-  },
-  howToPlayText: {
-    fontFamily: "Rubik_600SemiBold",
-    fontSize: 15,
-    color: colors.primary,
-    textAlign: "center",
-  },
-});
+const makeStyles = (p: Palette) =>
+  StyleSheet.create({
+    flex: { flex: 1 },
+    stretch: { alignSelf: "stretch" },
+    blobCircle: {
+      position: "absolute",
+      width: 220,
+      height: 220,
+      borderRadius: 110,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      top: -70,
+      left: -80,
+    },
+    blobSquare: {
+      position: "absolute",
+      width: 120,
+      height: 120,
+      borderRadius: 28,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      top: 230,
+      right: -40,
+      transform: [{ rotate: "18deg" }],
+    },
+    body: {
+      flexGrow: 1,
+      paddingHorizontal: spacing.screen,
+      paddingTop: 8,
+      paddingBottom: 24,
+      gap: 16,
+    },
+    topBar: { alignItems: "flex-end" },
+    hero: { alignItems: "flex-start", gap: 14, marginTop: 30 },
+    wordmarkWrap: { transform: [{ rotate: "-4deg" }] },
+    wordmark: { paddingHorizontal: 24, paddingBottom: 8, paddingTop: 2 },
+    wordmarkText: { fontFamily: fonts.black, fontSize: 84, lineHeight: 96, letterSpacing: -3 },
+    tagline: { fontFamily: fonts.bold, fontSize: 19, lineHeight: 24, color: p.ink, maxWidth: 270, marginLeft: 6 },
+    spacer: { flexGrow: 1, minHeight: 24 },
+    nameCard: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 12 },
+    nameLabel: { color: p.muted },
+    nameInput: { fontFamily: fonts.bold, fontSize: 22, color: p.ink, paddingVertical: 2, paddingHorizontal: 0 },
+    errorText: { ...type.bodyBold, color: p.danger, textAlign: "center" },
+    joinCard: { alignItems: "center", gap: 12, padding: 16 },
+    joinInput: {
+      alignSelf: "stretch",
+      height: 60,
+      borderRadius: radius.md,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      backgroundColor: p.isDark ? p.disabled : p.yellow,
+      textAlign: "center",
+      fontFamily: fonts.black,
+      fontSize: 28,
+      letterSpacing: 10,
+      color: p.ink,
+    },
+    cancel: { paddingVertical: 6, paddingHorizontal: 12 },
+    cancelText: { fontFamily: fonts.bold, fontSize: 16, color: p.muted },
+    howTo: { alignSelf: "center", paddingVertical: 10, paddingHorizontal: 12 },
+    howToText: {
+      fontFamily: fonts.bold,
+      fontSize: 17,
+      color: p.ink,
+      textDecorationLine: "underline",
+    },
+    configNotice: { ...type.small, fontSize: 12, color: p.muted, textAlign: "center" },
+  });

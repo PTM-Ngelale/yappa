@@ -1,24 +1,24 @@
+import { Feather } from '@expo/vector-icons';
 import React, { useRef, useState } from 'react';
 import {
   Animated,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { GameHeader, SecretWordCard } from '../components/game';
 import { Pressable } from '../components/Pressable';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { RoleChip } from '../components/RoleChip';
-import { TimerBar } from '../components/TimerBar';
+import { Eyebrow, OUTLINE, Screen } from '../components/ui';
 import { WordChain } from '../components/WordChain';
 import { useShakeAnimation } from '../hooks/useShakeAnimation';
-import { colors, elevation, radius, spacing, typography } from '../theme';
+import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 
 interface KnowerActiveScreenProps {
   round: number;
+  maxRounds: number;
   targetWord: string;
   category: string;
   chain: string[];
@@ -54,6 +54,7 @@ function matchesTarget(candidate: string, target: string): boolean {
 
 export function KnowerActiveScreen({
   round,
+  maxRounds,
   targetWord,
   category,
   chain,
@@ -63,6 +64,8 @@ export function KnowerActiveScreen({
   onSubmitWord,
   onTypingChange,
 }: KnowerActiveScreenProps) {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
   const [word, setWord] = useState('');
   const [validationMsg, setValidationMsg] = useState('');
   const { shakeAnim, shake } = useShakeAnimation();
@@ -74,7 +77,7 @@ export function KnowerActiveScreen({
 
     if (matchesTarget(trimmed, targetWord)) {
       shake();
-      setValidationMsg("That's the target — try a different word.");
+      setValidationMsg("That's the secret word — try a different one.");
       setTimeout(() => setValidationMsg(''), 3000);
       return;
     }
@@ -102,196 +105,159 @@ export function KnowerActiveScreen({
   handleSendRef.current = handleSend;
 
   const canSend = word.trim().length > 0;
+  const lastWord = chain[chain.length - 1];
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {showTimer && (
-        <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
-      )}
-
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.iconBtn} />
-        <Text style={styles.headerTitle}>Round {round}</Text>
-        <View style={styles.iconBtn} />
-      </View>
-
+    <Screen>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-        >
-          <RoleChip role="knower" isYourTurn />
+        <View style={styles.body}>
+          <GameHeader
+            round={round}
+            maxRounds={maxRounds}
+            role="Your turn"
+            roleBg={p.blue}
+            roleFg={p.onBlue}
+            durationSeconds={durationSeconds}
+            secondsRemaining={secondsRemaining}
+            showTimer={showTimer}
+          />
 
-          {/* Target word — pinned at top, always visible */}
-          <View style={styles.targetSection}>
-            <Text style={styles.targetLabel}>SECRET WORD</Text>
-            <View style={styles.targetCard}>
-              <Text style={styles.targetWord}>{targetWord}</Text>
-            </View>
-            <View style={styles.categoryPill}>
-              <Text style={styles.categoryText}>Category: {category}</Text>
-            </View>
+          <SecretWordCard word={targetWord} category={category} hint="Don’t say it. Lead them to it." />
+
+          <View style={styles.chainSection}>
+            <Eyebrow>The chain</Eyebrow>
+            <WordChain
+              words={chain}
+              variant="stack"
+              emphasiseLast
+              showPending
+              pendingLabel={chain.length === 0 ? 'first word…' : 'your word…'}
+              style={styles.flex}
+            />
           </View>
 
-          {/* Chain canvas */}
-          <WordChain
-            words={chain}
-            emphasiseLast
-            showPending
-            style={styles.chainCard}
-            emptyState={
-              <Text style={styles.chainEmptyText}>You go first — add the opening word</Text>
-            }
-          />
-        </ScrollView>
+          <Text style={styles.hint}>
+            {lastWord ? (
+              <>
+                One word that makes a compound or phrase with{' '}
+                <Text style={styles.hintStrong}>{lastWord}</Text>.
+              </>
+            ) : (
+              'You go first — pick an opening word that points toward the secret.'
+            )}
+          </Text>
+        </View>
 
-        {/* Input row */}
         <View style={styles.inputSection}>
           {validationMsg !== '' && (
             <Text style={styles.validationMsg} accessibilityLiveRegion="assertive">
               {validationMsg}
             </Text>
           )}
-          <Animated.View
-            style={[styles.inputRow, { transform: [{ translateX: shakeAnim }] }]}
-          >
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              value={word}
-              onChangeText={handleChangeText}
-              placeholder="Type your word…"
-              placeholderTextColor={colors.onSurfaceVariant}
-              autoFocus
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="send"
-              onSubmitEditing={handleSend}
-              accessibilityLabel="Type your word"
-            />
+          <Eyebrow>Your word</Eyebrow>
+          <Animated.View style={[styles.inputRow, { transform: [{ translateX: shakeAnim }] }]}>
+            <View style={styles.inputWrap}>
+              <View style={styles.inputShadow} />
+              <TextInput
+                ref={inputRef}
+                style={styles.input}
+                value={word}
+                onChangeText={handleChangeText}
+                placeholder="Type a word…"
+                placeholderTextColor={p.muted}
+                autoFocus
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="send"
+                onSubmitEditing={handleSend}
+                accessibilityLabel="Your word"
+              />
+            </View>
             <Pressable
-              style={({ pressed }) => [
-                styles.sendBtn,
-                pressed && styles.sendBtnPressed,
-                !canSend && styles.sendBtnDisabled,
-              ]}
               onPress={handleSend}
               disabled={!canSend}
               accessibilityRole="button"
               accessibilityLabel="Send word"
+              accessibilityState={{ disabled: !canSend }}
             >
-              <Text style={[styles.sendBtnText, !canSend && styles.sendBtnTextDisabled]}>
-                Send →
-              </Text>
+              {({ pressed }) => (
+                <View style={styles.sendWrap}>
+                  {canSend && <View style={styles.sendShadow} />}
+                  <View
+                    style={[
+                      styles.send,
+                      !canSend && styles.sendDisabled,
+                      pressed && canSend && styles.sendPressed,
+                    ]}
+                  >
+                    <Feather name="arrow-right" size={26} color={canSend ? p.onCoral : p.onDisabled} />
+                  </View>
+                </View>
+              )}
             </Pressable>
           </Animated.View>
+          <Text style={styles.small}>Space bar sends it.</Text>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  flex: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.containerMargin,
-    height: 64,
-    backgroundColor: colors.surface,
-  },
-  headerTitle: { ...typography.headlineLgMobile, color: colors.primary },
-  // Empty spacer matching the old icon button's footprint, so the title stays centered.
-  iconBtn: { width: 40, height: 40 },
-  scroll: {
-    padding: spacing.containerMargin,
-    paddingBottom: spacing.stackLg,
-    gap: spacing.stackLg,
-  },
-  targetSection: { alignItems: 'center', gap: spacing.stackMd },
-  targetLabel: {
-    ...typography.labelXl,
-    color: colors.onSurfaceVariant,
-    letterSpacing: 2,
-  },
-  targetCard: {
-    backgroundColor: colors.primaryContainer,
-    paddingHorizontal: spacing.stackLg,
-    paddingVertical: spacing.stackMd,
-    borderRadius: radius.xl,
-    ...elevation.card,
-    shadowColor: colors.primaryContainer,
-  },
-  targetWord: {
-    ...typography.displayLg,
-    color: colors.onPrimaryContainer,
-    letterSpacing: 4,
-    textTransform: 'uppercase',
-  },
-  categoryPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceContainerLow,
-    paddingHorizontal: spacing.stackMd,
-    paddingVertical: 6,
-    borderRadius: radius.full,
-  },
-  categoryText: { ...typography.bodyMd, color: colors.onSurface },
-  chainCard: {
-    minHeight: 140,
-  },
-  chainEmptyText: {
-    ...typography.bodyLg,
-    color: colors.onSurfaceVariant,
-    fontStyle: 'italic',
-    padding: spacing.stackLg,
-    textAlign: 'center',
-  },
-  inputSection: {
-    paddingHorizontal: spacing.containerMargin,
-    paddingBottom: spacing.stackMd,
-    paddingTop: spacing.stackSm,
-    gap: spacing.stackSm,
-    backgroundColor: colors.background,
-  },
-  validationMsg: {
-    ...typography.bodyMd,
-    color: colors.error,
-    textAlign: 'center',
-  },
-  inputRow: {
-    flexDirection: 'row',
-    gap: spacing.stackMd,
-    alignItems: 'center',
-  },
-  input: {
-    flex: 1,
-    height: 56,
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.full,
-    paddingHorizontal: spacing.stackMd,
-    ...typography.bodyLg,
-    color: colors.onSurface,
-    borderWidth: 1,
-    borderColor: colors.surfaceVariant,
-  },
-  sendBtn: {
-    height: 64,
-    paddingHorizontal: spacing.stackMd,
-    backgroundColor: colors.primaryContainer,
-    borderRadius: radius.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...elevation.card,
-  },
-  sendBtnPressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
-  sendBtnDisabled: { backgroundColor: colors.surfaceContainerHigh },
-  sendBtnText: { ...typography.labelXl, fontFamily: 'Rubik_700Bold', color: colors.onPrimaryContainer },
-  sendBtnTextDisabled: { color: colors.onSurfaceVariant },
-});
+const makeStyles = (p: Palette) =>
+  StyleSheet.create({
+    flex: { flex: 1 },
+    body: { flex: 1, paddingHorizontal: spacing.screen, paddingTop: 10, gap: 16 },
+    chainSection: { flex: 1, gap: 10, minHeight: 0 },
+    hint: { ...type.small, fontSize: 15, color: p.ink },
+    hintStrong: { fontFamily: fonts.black },
+    inputSection: { paddingHorizontal: spacing.screen, paddingTop: 10, paddingBottom: 12, gap: 6 },
+    validationMsg: { ...type.bodyBold, color: p.danger, textAlign: 'center' },
+    inputRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+    inputWrap: { flex: 1, paddingRight: 4, paddingBottom: 4 },
+    inputShadow: {
+      ...StyleSheet.absoluteFillObject,
+      top: 4,
+      left: 4,
+      borderRadius: radius.md + 2,
+      backgroundColor: p.line,
+    },
+    input: {
+      // Keeps the input above its shadow layer on web, where positioned elements paint
+      // over unpositioned ones regardless of order.
+      position: 'relative',
+      height: 60,
+      borderRadius: radius.md + 2,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      backgroundColor: p.card,
+      paddingHorizontal: 18,
+      fontFamily: fonts.bold,
+      fontSize: 22,
+      color: p.ink,
+    },
+    sendWrap: { paddingRight: 4, paddingBottom: 4 },
+    sendShadow: {
+      ...StyleSheet.absoluteFillObject,
+      top: 4,
+      left: 4,
+      borderRadius: radius.md + 2,
+      backgroundColor: p.line,
+    },
+    send: {
+      position: 'relative',
+      width: 60,
+      height: 60,
+      borderRadius: radius.md + 2,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      backgroundColor: p.coral,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sendDisabled: { backgroundColor: p.disabled },
+    sendPressed: { transform: [{ translateX: 3 }, { translateY: 3 }] },
+    small: { ...type.small, fontSize: 13, color: p.ink },
+  });

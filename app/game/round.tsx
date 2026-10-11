@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   advanceRound,
   checkLink,
@@ -24,14 +23,16 @@ import { onPresenceChange, stopPresence } from '../../src/supabase/presence';
 import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
 import { SyncErrorBanner } from '../../src/components/SyncErrorBanner';
+import { Screen } from '../../src/components/ui';
 import { GameEndScreen } from '../../src/screens/GameEndScreen';
 import { GuesserScreen } from '../../src/screens/GuesserScreen';
 import { KnowerActiveScreen } from '../../src/screens/KnowerActiveScreen';
 import { KnowerWaitingScreen } from '../../src/screens/KnowerWaitingScreen';
+import { ROUND_INTRO_MS, RoundIntroScreen } from '../../src/screens/RoundIntroScreen';
 import { RoundResolutionScreen } from '../../src/screens/RoundResolutionScreen';
 import { useGameStore, type RoomPlayer } from '../../src/store/gameStore';
 import { usePlayerStore } from '../../src/store/playerStore';
-import { colors, typography } from '../../src/theme';
+import { fonts, useStyles, useTheme, type Palette } from '../../src/theme';
 
 /** How long the disconnect overlay waits after losing presence before declaring someone offline. */
 const DISCONNECT_GRACE_MS = 3000;
@@ -48,6 +49,8 @@ export default function RoundScreen() {
   // From the room itself, so a player promoted after the host leaves picks up host duties.
   const isHost = !!roomData && !!uid && roomData.hostUid === uid;
   useGameSounds(roomData, uid);
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
 
   // Surfaces a failed realtime write (submit, resolve, advance, ...) instead of leaving the
   // player's screen silently stuck — see the retry-wrapped call sites below. Purely cosmetic
@@ -66,6 +69,25 @@ export default function RoundScreen() {
   // Keep a ref for the timer interval closure — avoids stale secondsRemaining
   const roomDataRef = useRef<RoomData | null>(null);
   useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
+
+  // Round Intro: every device shows the role reveal for a moment when a round starts. The
+  // host holds the turn timer meanwhile, so the first Knower still gets the full 30 seconds.
+  const [introRound, setIntroRound] = useState<number | null>(null);
+  const introActiveRef = useRef(false);
+  const playingRound = roomData?.status === 'playing' ? roomData.round : null;
+  useEffect(() => {
+    if (playingRound === null) return;
+    setIntroRound(playingRound);
+    introActiveRef.current = true;
+    const timeout = setTimeout(() => {
+      introActiveRef.current = false;
+      setIntroRound(null);
+    }, ROUND_INTRO_MS);
+    return () => {
+      clearTimeout(timeout);
+      introActiveRef.current = false;
+    };
+  }, [playingRound]);
 
   // Subscribe to room in real time
   useEffect(() => {
@@ -177,7 +199,7 @@ export default function RoundScreen() {
     let heldTicks = 0;
     const interval = setInterval(() => {
       const current = roomDataRef.current;
-      if (!current || current.status !== 'playing') return;
+      if (!current || current.status !== 'playing' || introActiveRef.current) return;
       const next = Math.max(0, current.secondsRemaining - 1);
       // A guess locked in before time ran out is still being judged — let it land rather
       // than expiring the round under it. Capped so a stuck flag can't freeze the round.
@@ -237,24 +259,24 @@ export default function RoundScreen() {
   // Loading — waiting for RTDB snapshot
   if (!roomData || !uid) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <Screen>
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <ActivityIndicator color={p.ink} size="large" />
           <Text style={styles.statusText}>Connecting…</Text>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
   // Initializing — host is setting up round 1
   if (roomData.status === 'lobby') {
     return (
-      <SafeAreaView style={styles.safe}>
+      <Screen>
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <ActivityIndicator color={p.ink} size="large" />
           <Text style={styles.statusText}>Starting round…</Text>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -265,15 +287,14 @@ export default function RoundScreen() {
     const lastEntry = history[history.length - 1];
     if (!lastEntry) {
       return (
-        <SafeAreaView style={styles.safe}>
+        <Screen>
           <View style={styles.center}>
-            <ActivityIndicator color={colors.primary} size="large" />
+            <ActivityIndicator color={p.ink} size="large" />
             <Text style={styles.statusText}>Tallying the round…</Text>
           </View>
-        </SafeAreaView>
+        </Screen>
       );
     }
-    const scoreSoFar = history.filter((h) => h.outcome === 'won').length;
     return renderWithDisconnectOverlay(
       <RoundResolutionScreen
         round={lastEntry.round}
@@ -285,7 +306,7 @@ export default function RoundScreen() {
         isMyGuess={lastEntry.guesserUid === uid}
         chain={lastEntry.chain ?? []}
         linkChecks={lastEntry.linkChecks}
-        scoreSoFar={scoreSoFar}
+        results={history.map((h) => (h.outcome === 'won' ? 'won' : 'lost'))}
         isHost={isHost}
         onNextRound={() => {
           const attemptAdvance = () => {
@@ -324,12 +345,27 @@ export default function RoundScreen() {
   const myPlayer = roomData.players[uid];
   if (!myPlayer) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <Screen>
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <ActivityIndicator color={p.ink} size="large" />
           <Text style={styles.statusText}>Syncing your seat…</Text>
         </View>
-      </SafeAreaView>
+      </Screen>
+    );
+  }
+
+  // Role reveal at the start of each round (also covers the Knowers' secret-word fetch).
+  if (introRound === roomData.round) {
+    const isGuesser = roomData.guesserUid === uid;
+    const knowers = Object.values(roomData.players).filter((pl) => pl.uid !== roomData.guesserUid);
+    return renderWithDisconnectOverlay(
+      <RoundIntroScreen
+        round={roomData.round}
+        isGuesser={isGuesser}
+        category={roomData.category}
+        knowerNames={(isGuesser ? knowers : knowers.filter((k) => k.uid !== uid)).map((k) => k.name)}
+        guesserName={roomData.players[roomData.guesserUid]?.name ?? 'the Guesser'}
+      />
     );
   }
 
@@ -344,12 +380,12 @@ export default function RoundScreen() {
   // Knower, word not fetched yet for this round
   if (myPlayer.role === 'knower' && target?.round !== roomData.round) {
     return renderWithDisconnectOverlay(
-      <SafeAreaView style={styles.safe}>
+      <Screen>
         <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} size="large" />
+          <ActivityIndicator color={p.ink} size="large" />
           <Text style={styles.statusText}>Getting the secret word…</Text>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
   const targetWord = target?.word ?? '';
@@ -359,6 +395,7 @@ export default function RoundScreen() {
     return renderWithDisconnectOverlay(
       <KnowerActiveScreen
         round={roomData.round}
+        maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         category={roomData.category}
         chain={chain}
@@ -401,10 +438,12 @@ export default function RoundScreen() {
     return renderWithDisconnectOverlay(
       <KnowerWaitingScreen
         round={roomData.round}
+        maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         category={roomData.category}
         chain={chain}
         partnerName={partner?.name ?? 'Partner'}
+        partnerColor={partner?.avatarColor}
         partnerIsTyping={!!typing[partnerUid]}
         durationSeconds={ROUND_SECONDS}
         // The partner's turn starts fresh; the server's countdown is still on mine until it lands.
@@ -418,6 +457,7 @@ export default function RoundScreen() {
   return renderWithDisconnectOverlay(
     <GuesserScreen
       round={roomData.round}
+      maxRounds={roomData.maxRounds}
       category={roomData.category}
       chain={chain}
       activeKnowerName={activeKnower?.name ?? 'Knower'}
@@ -430,15 +470,15 @@ export default function RoundScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  overlayHost: { flex: 1 },
-  safe: { flex: 1, backgroundColor: colors.background },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 32,
-  },
-  statusText: { ...typography.bodyLg, color: colors.onSurfaceVariant },
-});
+const makeStyles = (p: Palette) =>
+  StyleSheet.create({
+    overlayHost: { flex: 1 },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      gap: 24,
+    },
+    statusText: { fontFamily: fonts.bold, fontSize: 20, color: p.ink },
+  });
