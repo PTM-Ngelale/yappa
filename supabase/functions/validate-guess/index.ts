@@ -14,6 +14,7 @@ import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isLocalMatch } from "../_shared/guessMatch.ts";
 import { judgeGuess } from "../_shared/judges.ts";
+import { json, takeAiQuota } from "../_shared/quota.ts";
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") });
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -21,13 +22,6 @@ const admin = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY
 
 /** Keeps the round from hanging on a slow AI call; the host's timer holds ~8s for us. */
 const AI_TIMEOUT_MS = 5000;
-
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
-}
 
 /** The AI's verdict, or false on any error/timeout — never hang or crash the round. */
 async function aiJudge(guess: string, target: string, category: string): Promise<boolean> {
@@ -80,7 +74,9 @@ Deno.serve(async (req) => {
   if (secretError || !secret) return json({ error: "lookup-failed" }, 500);
   const target = secret.target_word as string;
 
-  const correct = isLocalMatch(trimmed, target) || (await aiJudge(trimmed, target, data.category));
+  // Over the AI quota, only exact/formatting matches count — the round still resolves.
+  const correct = isLocalMatch(trimmed, target) ||
+    ((await takeAiQuota(admin, user.id)) && (await aiJudge(trimmed, target, data.category)));
 
   const { data: resolved, error: resolveError } = await admin.rpc("resolve_round_guess", {
     p_code: code,

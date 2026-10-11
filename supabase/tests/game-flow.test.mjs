@@ -183,5 +183,33 @@ for (const u of [P2, P3, OUTSIDER]) await as(u, `select leave_room('ABCD', $1)`,
 check((await room()) === undefined, 'the last player out deletes the room');
 check((await db.query(`select count(*)::int n from round_secrets where code = 'ABCD'`)).rows[0].n === 0, '…along with its round secrets');
 
+// --- AI quota (migration 007) -----------------------------------------------------------
+const takeQuota = async (uid, perUser, global) =>
+  (await as(null, `select take_ai_quota($1, $2, $3) ok`, [uid, perUser, global])).rows[0].ok;
+check(await fails(HOST, `select take_ai_quota($1, 100, 100)`, [HOST]), 'players cannot call take_ai_quota themselves');
+check(await fails(HOST, `select * from ai_usage`) || (await as(HOST, `select * from ai_usage`)).rows.length === 0, 'players cannot read ai_usage');
+const firstThree = [await takeQuota(HOST, 3, 100), await takeQuota(HOST, 3, 100), await takeQuota(HOST, 3, 100)];
+check(firstThree.every(Boolean) && !(await takeQuota(HOST, 3, 100)), 'per-player cap: 3 allowed, the 4th refused');
+check(await takeQuota(P2, 3, 100), "one player's cap doesn't block another");
+check(!(await takeQuota(P3, 3, 4)), 'global cap refuses everyone once reached');
+await db.query(`update ai_usage set at = now() - interval '2 hours'`);
+check(await takeQuota(HOST, 3, 100), 'slots free up after an hour');
+
+// --- Invisible characters (migration 007) ------------------------------------------------
+await as(HOST, `select create_room('INVS', $1)`, [player(HOST, { name: 'A​l‮ex' })]);
+check((await room('INVS')).players[HOST].name === 'Alex', 'invisible characters are stripped from names');
+check(await fails(P2, `select join_room('INVS', $1)`, [player(P2, { name: '​​​x' })]), 'a name that is only invisible characters is too short');
+await as(P2, `select join_room('INVS', $1)`, [player(P2)]);
+await as(P3, `select join_room('INVS', $1)`, [player(P3)]);
+await as(HOST, `select start_game('INVS')`);
+d = await room('INVS');
+const invTarget = (await db.query(`select target_word from round_secrets where code = 'INVS' and round = 1`)).rows[0].target_word;
+const invActive = d.activeKnowerUid;
+const hidden = invTarget.slice(0, 2) + '​' + invTarget.slice(2);
+check(await fails(invActive, `select submit_word('INVS', 1, $1)`, [hidden]), 'target word with a zero-width space inside is still rejected');
+await as(invActive, `select submit_word('INVS', 1, $1)`, ['sun​shine']);
+check((await room('INVS')).chain[0] === 'sunshine', 'invisible characters are stripped from chain words');
+for (const u of [HOST, P2, P3]) await as(u, `select leave_room('INVS', $1)`, [u]);
+
 console.log(failures ? `\n${failures} failed, ${passed} passed` : `\nall ${passed} checks passed`);
 process.exit(failures ? 1 : 0);
