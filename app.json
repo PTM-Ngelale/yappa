@@ -32,6 +32,9 @@
       ],
       "package": "com.ptm2.yappa"
     },
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
     "web": {
       "bundler": "metro",
       "favicon": "./assets/favicon.png"
@@ -57,6 +60,9 @@
       "eas": {
         "projectId": "076b0adc-65cc-4c57-93dd-7813cd216732"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/076b0adc-65cc-4c57-93dd-7813cd216732"
     }
   }
 }
