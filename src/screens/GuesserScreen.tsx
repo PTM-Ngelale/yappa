@@ -33,7 +33,8 @@ interface GuesserScreenProps {
    * Resolves to whether the guess was correct (judged server-side, may involve an AI check);
    * rejects if the guess couldn't be submitted, in which case the Guesser can retry.
    */
-  onGuess: (guess: string) => Promise<boolean>;
+  /** Resolves to the verdict, or null if the round ended before the guess landed. */
+  onGuess: (guess: string) => Promise<boolean | null>;
 }
 
 export function GuesserScreen({
@@ -57,7 +58,7 @@ export function GuesserScreen({
     const trimmed = guess.trim();
     if (trimmed.length === 0 || checking) return;
     setChecking(true);
-    let correct = false;
+    let correct: boolean | null = false;
     try {
       correct = await onGuess(trimmed);
     } catch (e) {
@@ -68,6 +69,8 @@ export function GuesserScreen({
     } finally {
       setChecking(false);
     }
+    // Too late — time ran out first. The screen is about to switch to the round result.
+    if (correct === null) return;
     if (correct) {
       setGuess("");
       setGuessInputVisible(false);

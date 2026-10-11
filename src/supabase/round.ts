@@ -58,10 +58,11 @@ export async function checkLink(code: string, index: number): Promise<void> {
 /**
  * Locks in the Guesser's guess. The validate-guess edge function judges it against the
  * hidden target (formatting differences instantly, synonyms/misspellings via AI) and
- * records the round's outcome itself. Resolves to whether the guess was correct; throws
+ * records the round's outcome itself. Resolves to whether the guess was correct, or null if
+ * the round had already ended (the timer won the race); throws
  * if it couldn't be submitted, so the caller can let the Guesser retry.
  */
-export async function submitGuess(code: string, round: number, guess: string): Promise<boolean> {
+export async function submitGuess(code: string, round: number, guess: string): Promise<boolean | null> {
   // Holds the host's timer at zero while the guess is judged — see RoomData.guessPending.
   // Set from here rather than the edge function so it lands before any cold-start delay.
   const { error: pendingError } = await supabase.rpc('mark_guess_pending', {
@@ -73,10 +74,27 @@ export async function submitGuess(code: string, round: number, guess: string): P
   const { data, error } = await supabase.functions.invoke('validate-guess', {
     body: { code, round, guess },
   });
-  if (error || typeof data?.correct !== 'boolean') {
-    throw error ?? new Error('validate-guess returned no verdict');
+  if (error) {
+    const reason = await functionErrorReason(error);
+    // The timer ended the round while the guess was in flight — not a failure; the room
+    // update moving everyone to Resolution is already on its way.
+    if (reason === 'round-over') return null;
+    throw new Error(`validate-guess failed: ${reason}`);
   }
+  if (typeof data?.correct !== 'boolean') throw new Error('validate-guess returned no verdict');
   return data.correct;
+}
+
+/** The `error` code an edge function put in its JSON body, falling back to the HTTP status. */
+async function functionErrorReason(error: unknown): Promise<string> {
+  const response = (error as { context?: Response }).context;
+  if (!response || typeof response.json !== 'function') return String(error);
+  try {
+    const body = await response.json();
+    return typeof body?.error === 'string' ? body.error : `HTTP ${response.status}`;
+  } catch {
+    return `HTTP ${response.status}`;
+  }
 }
 
 /** Host's once-a-second tick — the server decrements, so time can only move forward. */
