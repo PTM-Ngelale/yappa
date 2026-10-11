@@ -145,14 +145,17 @@ export default function HomeScreen() {
               style={styles.wordmarkWrap}
               contentStyle={styles.wordmark}
             >
-              <Text style={[styles.wordmarkText, { color: p.isDark ? p.onYellow : p.ink }]} accessibilityRole="header">
+              <Text
+                style={[styles.wordmarkText, { color: p.isDark ? p.onYellow : p.ink }]}
+                accessibilityRole="header"
+                maxFontSizeMultiplier={1.2}
+                numberOfLines={1}
+              >
                 Yappa
               </Text>
             </Sticker>
-            <Text style={styles.tagline}>Chain words. Guess the secret. Beat the clock.</Text>
+            <Text style={styles.tagline} maxFontSizeMultiplier={1.3}>Chain words. Guess the secret. Beat the clock.</Text>
           </View>
-
-          <View style={styles.spacer} />
 
           <Sticker radius={22} offset={5} contentStyle={styles.nameCard}>
             <Avatar name={trimmedName || "?"} color={avatarColor} size={48} />
@@ -286,20 +289,19 @@ const makeStyles = (p: Palette) =>
       right: -40,
       transform: [{ rotate: "18deg" }],
     },
+    // Plain top-to-bottom flow: no stretchy spacer, so nothing depends on the scroll height.
     body: {
-      flexGrow: 1,
       paddingHorizontal: spacing.screen,
       paddingTop: 8,
       paddingBottom: 24,
       gap: 16,
     },
     topBar: { alignItems: "flex-end" },
-    hero: { alignItems: "flex-start", gap: 14, marginTop: 30 },
+    hero: { alignItems: "flex-start", gap: 14, marginTop: 20, marginBottom: 20 },
     wordmarkWrap: { transform: [{ rotate: "-4deg" }] },
     wordmark: { paddingHorizontal: 24, paddingBottom: 8, paddingTop: 2 },
     wordmarkText: { fontFamily: fonts.black, fontSize: 84, lineHeight: 96, letterSpacing: -3 },
     tagline: { fontFamily: fonts.bold, fontSize: 19, lineHeight: 24, color: p.ink, maxWidth: 270, marginLeft: 6 },
-    spacer: { flexGrow: 1, minHeight: 24 },
     nameCard: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 12 },
     nameLabel: { color: p.muted },
     nameInput: { fontFamily: fonts.bold, fontSize: 22, color: p.ink, paddingVertical: 2, paddingHorizontal: 0 },
