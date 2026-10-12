@@ -14,18 +14,20 @@
   -->
   <style>
     html, body { margin: 0; padding: 0; background: transparent; }
-    body { display: flex; justify-content: center; align-items: center; min-height: 70px; }
+    body { display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 70px; }
   </style>
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=yappaStart" async defer></script>
 </head>
 <body>
   <div id="widget"></div>
+  <p id="status" style="font: 16px sans-serif; text-align: center"></p>
   <script>
     const SITE_KEY = '0x4AAAAAAFUXaXeARxw6jnqw';
     function send(msg) {
       const data = JSON.stringify(msg);
       if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(data);
-      else console.log(data);
+      else document.getElementById('status').textContent = // opened in a browser to test
+        msg.type === 'token' ? 'Check passed ✓' : msg.type === 'error' ? 'Check failed — code ' + msg.code : 'Tap the box';
     }
     function yappaStart() {
       turnstile.render('#widget', {
@@ -33,13 +35,13 @@
         appearance: 'interaction-only',
         'before-interactive-callback': () => send({ type: 'interactive' }),
         callback: (token) => send({ type: 'token', token }),
-        'error-callback': () => send({ type: 'error' }),
-        'expired-callback': () => send({ type: 'error' }),
-        'timeout-callback': () => send({ type: 'error' }),
+        'error-callback': (code) => { send({ type: 'error', code: String(code) }); return true; },
+        'expired-callback': () => send({ type: 'error', code: 'expired' }),
+        'timeout-callback': () => send({ type: 'error', code: 'timeout' }),
       });
     }
     // Script blocked or offline: tell the app instead of leaving it waiting.
-    setTimeout(() => { if (!window.turnstile) send({ type: 'error' }); }, 15000);
+    setTimeout(() => { if (!window.turnstile) send({ type: 'error', code: 'script-not-loaded' }); }, 15000);
   </script>
 </body>
 </html>

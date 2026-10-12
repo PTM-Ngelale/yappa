@@ -52,6 +52,14 @@ export default function HomeScreen() {
     return e instanceof Error && e.message.includes("name not allowed");
   }
 
+  // Sign-in blocked by the CAPTCHA check: show the reason so it can be reported.
+  function captchaError(e: unknown): string | null {
+    const message = e instanceof Error ? e.message : "";
+    return message.startsWith("captcha")
+      ? `Couldn’t confirm you’re a real player (${message}). Try again.`
+      : null;
+  }
+
   function handlePlayOnline() {
     if (!canProceed) {
       setError("Enter your name first (2+ characters).");
@@ -88,9 +96,10 @@ export default function HomeScreen() {
       router.push("/lobby");
     } catch (e) {
       setError(
-        nameRejected(e)
-          ? "That name isn’t allowed — please pick another."
-          : "Couldn’t find a game. Check your connection and try again."
+        captchaError(e) ??
+          (nameRejected(e)
+            ? "That name isn’t allowed — please pick another."
+            : "Couldn’t find a game. Check your connection and try again.")
       );
       console.error(e);
     } finally {
@@ -125,9 +134,10 @@ export default function HomeScreen() {
       router.push("/lobby");
     } catch (e) {
       setError(
-        nameRejected(e)
-          ? "That name isn’t allowed — please pick another."
-          : "Failed to create room. Check your connection."
+        captchaError(e) ??
+          (nameRejected(e)
+            ? "That name isn’t allowed — please pick another."
+            : "Failed to create room. Check your connection.")
       );
       console.error(e);
     } finally {
@@ -166,7 +176,9 @@ export default function HomeScreen() {
       router.push("/lobby");
     } catch (e) {
       const message = e instanceof Error ? e.message : "";
-      if (message.includes("not found")) {
+      if (captchaError(e)) {
+        setError(captchaError(e)!);
+      } else if (message.includes("not found")) {
         setError("No game found with that code — check it and try again.");
       } else if (message.includes("already started")) {
         setError("That game has already started.");

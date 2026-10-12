@@ -30,15 +30,23 @@ async function doSignIn(): Promise<string> {
   // Supabase (Auth → Attack Protection). If the check can't run, try without one: that still
   // works while protection is off, and fails with a clear error once it's on.
   let captchaToken: string | undefined;
+  let captchaProblem = 'no token';
   try {
     captchaToken = await requestCaptchaToken();
   } catch (e) {
+    captchaProblem = e instanceof Error ? e.message : String(e);
     console.warn('Captcha check failed:', e);
   }
 
   const { data, error } = await supabase.auth.signInAnonymously(
     captchaToken ? { options: { captchaToken } } : undefined
   );
-  if (error) throw error;
+  if (error) {
+    // Name the actual cause so the player (and we) can see it on screen.
+    if (error.code === 'captcha_failed' || /captcha/i.test(error.message)) {
+      throw new Error(captchaToken ? `captcha rejected: ${error.message}` : `captcha: ${captchaProblem}`);
+    }
+    throw error;
+  }
   return data.user!.id;
 }

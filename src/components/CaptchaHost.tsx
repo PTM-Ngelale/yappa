@@ -72,7 +72,7 @@ export function CaptchaHost() {
 
   function onMessage(e: WebViewMessageEvent) {
     if (!request) return;
-    let msg: { type?: string; token?: string };
+    let msg: { type?: string; token?: string; code?: string };
     try {
       msg = JSON.parse(e.nativeEvent.data);
     } catch {
@@ -80,7 +80,7 @@ export function CaptchaHost() {
     }
     if (msg.type === 'interactive') setInteractive(true);
     else if (msg.type === 'token' && msg.token) finish(request.id, msg.token);
-    else if (msg.type === 'error') finish(request.id, new Error('captcha failed'));
+    else if (msg.type === 'error') finish(request.id, new Error(`captcha failed (${msg.code ?? 'unknown'})`));
   }
 
   // One WebView for the whole check; only its container's style changes, so showing it for
@@ -103,8 +103,8 @@ export function CaptchaHost() {
           key={request.id}
           source={{ uri: CAPTCHA_URL }}
           onMessage={onMessage}
-          onError={() => finish(request.id, new Error('captcha page failed to load'))}
-          onHttpError={() => finish(request.id, new Error('captcha page failed to load'))}
+          onError={(e) => finish(request.id, new Error(`captcha page failed to load (${e.nativeEvent.description})`))}
+          onHttpError={(e) => finish(request.id, new Error(`captcha page failed to load (HTTP ${e.nativeEvent.statusCode})`))}
           style={styles.webview}
           originWhitelist={['https://*']}
           javaScriptEnabled
