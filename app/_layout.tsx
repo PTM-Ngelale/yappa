@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import '../global.css';
+import { CaptchaHost } from '../src/components/CaptchaHost';
 import { initAudio, setMusicTrack } from '../src/audio/sounds';
 import { SUPABASE_CONFIGURED } from '../src/supabase/config';
 import { useTheme } from '../src/theme';
@@ -54,6 +55,7 @@ export default function RootLayout() {
       {/* "auto" = dark icons on the light theme's yellow, light icons in dark mode. */}
       <StatusBar style="auto" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: p.ground } }} />
+      <CaptchaHost />
     </>
   );
 }

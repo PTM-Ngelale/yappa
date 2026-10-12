@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Yappa Check</title>
+  <!--
+    Loaded by the app in a WebView (src/components/CaptchaHost.tsx) to get a Cloudflare
+    Turnstile token for Supabase's anonymous sign-in. Posts {type, token?} back to the app:
+      "interactive" — Turnstile wants the player to tap; the app shows this page
+      "token"       — done; the app signs in with it
+      "error"       — failed or expired; the app retries or signs in without it
+  -->
+  <style>
+    html, body { margin: 0; padding: 0; background: transparent; }
+    body { display: flex; justify-content: center; align-items: center; min-height: 70px; }
+  </style>
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=yappaStart" async defer></script>
+</head>
+<body>
+  <div id="widget"></div>
+  <script>
+    const SITE_KEY = '0x4AAAAAAFUXaXeARxw6jnqw';
+    function send(msg) {
+      const data = JSON.stringify(msg);
+      if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(data);
+      else console.log(data);
+    }
+    function yappaStart() {
+      turnstile.render('#widget', {
+        sitekey: SITE_KEY,
+        appearance: 'interaction-only',
+        'before-interactive-callback': () => send({ type: 'interactive' }),
+        callback: (token) => send({ type: 'token', token }),
+        'error-callback': () => send({ type: 'error' }),
+        'expired-callback': () => send({ type: 'error' }),
+        'timeout-callback': () => send({ type: 'error' }),
+      });
+    }
+    // Script blocked or offline: tell the app instead of leaving it waiting.
+    setTimeout(() => { if (!window.turnstile) send({ type: 'error' }); }, 15000);
+  </script>
+</body>
+</html>

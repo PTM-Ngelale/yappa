@@ -1,6 +1,18 @@
+import { requestCaptchaToken } from '../components/CaptchaHost';
 import { supabase } from './client';
 
-export async function signInAnon(): Promise<string> {
+// The app signs in on launch and again on Create / Join / Play online; share one attempt so
+// they can't race into two anonymous accounts (or two captcha checks).
+let inFlight: Promise<string> | null = null;
+
+export function signInAnon(): Promise<string> {
+  inFlight ??= doSignIn().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
+async function doSignIn(): Promise<string> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -14,7 +26,19 @@ export async function signInAnon(): Promise<string> {
     await supabase.auth.signOut({ scope: 'local' });
   }
 
-  const { data, error } = await supabase.auth.signInAnonymously();
+  // New anonymous accounts need a Cloudflare Turnstile token once CAPTCHA protection is on in
+  // Supabase (Auth → Attack Protection). If the check can't run, try without one: that still
+  // works while protection is off, and fails with a clear error once it's on.
+  let captchaToken: string | undefined;
+  try {
+    captchaToken = await requestCaptchaToken();
+  } catch (e) {
+    console.warn('Captcha check failed:', e);
+  }
+
+  const { data, error } = await supabase.auth.signInAnonymously(
+    captchaToken ? { options: { captchaToken } } : undefined
+  );
   if (error) throw error;
   return data.user!.id;
 }
