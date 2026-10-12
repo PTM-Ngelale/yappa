@@ -3,6 +3,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { RoundHistoryEntry } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
+import { Pressable } from '../components/Pressable';
 import { Eyebrow, Screen, Sticker, StickerButton } from '../components/ui';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 
@@ -12,6 +13,8 @@ interface GameEndScreenProps {
   maxRounds: number;
   onPlayAgain: () => void;
   onBackToHome: () => void;
+  /** Public games only: opens the report sheet. */
+  onReport?: () => void;
 }
 
 function verdict(won: number, max: number): string {
@@ -29,8 +32,10 @@ export function GameEndScreen({
   maxRounds,
   onPlayAgain,
   onBackToHome,
+  onReport,
 }: GameEndScreenProps) {
   const styles = useStyles(makeStyles);
+  const p = useTheme();
   const sorted = [...history].sort((a, b) => a.round - b.round);
   const wonCount = sorted.filter((h) => h.outcome === 'won').length;
 
@@ -67,6 +72,12 @@ export function GameEndScreen({
       <View style={styles.footer}>
         <StickerButton label="Play again" height={64} onPress={onPlayAgain} />
         <StickerButton label="Back to home" variant="card" height={56} fontSize={19} onPress={onBackToHome} />
+        {onReport && (
+          <Pressable onPress={onReport} accessibilityRole="button" style={styles.report} sound={false}>
+            <Feather name="flag" size={14} color={p.ink} />
+            <Text style={styles.reportText}>Report a player</Text>
+          </Pressable>
+        )}
       </View>
     </Screen>
   );
@@ -138,5 +149,7 @@ const makeStyles = (p: Palette) =>
     rowWord: { fontFamily: fonts.black, fontSize: 18, color: p.ink },
     rowMeta: { ...type.small, fontSize: 13, color: p.muted },
     footer: { paddingHorizontal: spacing.screen, paddingTop: 16, paddingBottom: 14, gap: 12 },
+    report: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 6, paddingVertical: 2, paddingHorizontal: 8 },
+    reportText: { fontFamily: fonts.bold, fontSize: 14, color: p.ink, textDecorationLine: 'underline' },
   });
 

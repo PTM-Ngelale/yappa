@@ -40,6 +40,8 @@ export interface RoomData {
   guessPending?: boolean | null;
   /** Keyed by round number (string) — one entry per completed round. */
   history?: Record<string, RoundHistoryEntry> | null;
+  /** Open to Play online — strangers can be matched in, and it starts itself when full. */
+  isPublic?: boolean;
   createdAt: number;
 }
 
@@ -114,6 +116,37 @@ export function listenToRoom(
     cancelled = true;
     supabase.removeChannel(channel);
   };
+}
+
+/** "Play online": joins the oldest open public lobby, or opens a new one. Returns its code. */
+export async function quickMatch(player: RoomPlayer): Promise<string> {
+  const { data, error } = await supabase.rpc('quick_match', { p_player: player });
+  if (error) throw error;
+  return data as string;
+}
+
+/** Host only, in the lobby: let Play online fill the empty seats (or stop it). */
+export async function setRoomPublic(code: string, isPublic: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_room_public', { p_code: code, p_public: isPublic });
+  if (error) throw error;
+}
+
+/** Sent every 15s from the lobby so public lobbies can clear out players who've left. */
+export async function lobbyHeartbeat(code: string): Promise<void> {
+  const { error } = await supabase.rpc('lobby_heartbeat', { p_code: code });
+  if (error) throw error;
+}
+
+export type ReportReason = 'name' | 'words' | 'cheating' | 'other';
+
+/** Records a report, with a snapshot of the game, for the developer to review. */
+export async function reportPlayer(code: string, reportedUid: string, reason: ReportReason): Promise<void> {
+  const { error } = await supabase.rpc('report_player', {
+    p_code: code,
+    p_reported_uid: reportedUid,
+    p_reason: reason,
+  });
+  if (error) throw error;
 }
 
 /** Disconnect overlay's "End game now" (or its countdown expiring) — ends the game for everyone. */

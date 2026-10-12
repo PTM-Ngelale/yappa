@@ -31,13 +31,14 @@ Guess it and you all win the round. Run out of time and the secret wins. Everyon
 
 WHY YOU'LL LOVE IT
 • Quick rounds — 30 seconds a turn keeps everyone on their toes
-• Play together in the same room or apart — anyone with an internet connection can join with a 4-letter code
+• Play with friends using a 4-letter code — same room or miles apart
+• No one around? Tap Play online and get matched with two other players
 • Smart judging — close guesses and plurals count, so it's about the idea, not the spelling
 • Flag a cheeky link on the round results
 • Bright, bold design with a dark mode
 • No sign-up, no ads
 
-You need three players, each with the app and an internet connection.
+Every player needs the app and an internet connection. Online games filter offensive words, and you can report a player at any time.
 ```
 
 **App category:** Game → Word
@@ -59,7 +60,7 @@ You need three players, each with the app and an internet connection.
 **Content rating (IARC questionnaire):**
 - Category: Game (word / puzzle / party).
 - Violence, fear, sexuality, language, controlled substances, gambling: No to all.
-- Does the app let users interact or exchange content? **Yes** — players see each other's chosen names and the words they type during a game. (No chat, no images, no voice.)
+- Does the app let users interact or exchange content? **Yes** — players (including strangers, via Play online) see each other's chosen names and the words they type during a game. (No chat, no images, no voice.)
 - Does it share the user's location? No. Digital purchases? No.
 - Expected result: Everyone / PEGI 3 with the "Users Interact" notice.
 
@@ -68,6 +69,11 @@ You need three players, each with the app and an internet connection.
 **News app:** No. **Health apps:** No. **Financial features:** None. **Government app:** No.
 
 **AI-generated content:** Yappa doesn't generate content for users. AI (Anthropic Claude) only judges whether a guess matches the secret and whether two words make a phrase — answer accordingly if asked.
+
+**User-generated content (Play online):** strangers see each other's names and chain words. In place, as Play's UGC policy requires:
+- terms shown before the first online game (be kind, don't share personal info, how to report);
+- an offensive-word filter on names and words (server-side `blocked_words` table, editable in Supabase);
+- in-app reporting from the lobby, round results and game end, saved to the `player_reports` table (with a snapshot of the names and words) — **check this table regularly** (Supabase → Table editor → player_reports).
 
 ## Data safety
 
@@ -83,12 +89,13 @@ Service providers (Supabase, Anthropic, Expo) process data on our behalf, so und
 | Personal info → **Name** (player name) | Yes | No | No | Required | App functionality |
 | App activity → **Other user-generated content** (game words, guesses) | Yes | No | No | Required | App functionality |
 | Device or other IDs (anonymous player ID) | Yes | No | No | Required | App functionality, Fraud prevention / security |
+| App activity → Other actions (reports you make about other players) | Yes | No | No | Optional | Fraud prevention / security, Account management |
 
 Not collected: location, contacts, photos/videos, audio, files, calendar, messages, health, financial info, email, phone, web browsing, crash logs, diagnostics, installed apps.
 
 ## Before you press "publish"
 
-1. Run `supabase/migrations/008_data_retention.sql` in the Supabase SQL editor. The privacy policy promises 24-hour game deletion and 30-day ID deletion, and this is what does it.
+1. Run `supabase/migrations/008_data_retention.sql` then `009_public_matchmaking.sql` in the Supabase SQL editor. 008 is the 24-hour game / 30-day ID deletion the privacy policy promises; 009 is Play online, the word filter and reports.
 2. Rotate the Anthropic API key, since the old one was pasted in chat.
 3. Personal developer accounts: closed test with at least 12 testers for 14 days before applying for production.
 4. Upload the newest production AAB to closed testing. Play App Signing: accept.

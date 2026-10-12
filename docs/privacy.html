@@ -13,13 +13,14 @@
   <a class="wordmark" href="./">Yappa</a>
 
   <h1>Privacy Policy</h1>
-  <p class="meta">Effective 11 October 2026</p>
+  <p class="meta">Effective 12 October 2026</p>
 
   <div class="card">
     <h2>The short version</h2>
     <ul>
       <li>You don't create an account or give us an email address. Yappa signs you in with a random, anonymous ID.</li>
       <li>We store the name you type and what happens in your games — the words, guesses and results — only so the game can be played. Games are deleted within 24 hours.</li>
+      <li>If you choose <em>Play online</em>, you're matched with people you don't know, and they see your name and words.</li>
       <li>To judge guesses, game words (never your name or ID) are sent to an AI service, Anthropic.</li>
       <li>No ads, no analytics, no tracking, no selling of data. Yappa doesn't use your location, contacts, camera or microphone.</li>
     </ul>
@@ -46,6 +47,11 @@
       <tr>
         <td><strong>Game content</strong> — room code, the secret word and category for each round, the words players type, guesses, round results and which links were flagged</td>
         <td>To run the game, keep the three players in sync and show the results</td>
+        <td>Our database (Supabase)</td>
+      </tr>
+      <tr>
+        <td><strong>Reports</strong> — if a player reports someone: who reported whom, the reason, and a copy of the player names and words from that game</td>
+        <td>To review reports of offensive or abusive behaviour in online games and act on them</td>
         <td>Our database (Supabase)</td>
       </tr>
       <tr>
@@ -76,12 +82,13 @@
     <li><strong>Expo</strong> — delivers app updates. When the app checks for an update, Expo receives technical data such as your device's platform and app version. (<a href="https://expo.dev/privacy">Expo privacy policy</a>)</li>
     <li><strong>Google Play</strong> — distributes the app, under Google's own privacy policy.</li>
   </ul>
-  <p>Other players in your game see your player name, avatar colour and the words and guesses you play. We may also disclose data if the law requires it.</p>
+  <p>Other players in your game see your player name, avatar colour and the words and guesses you play. In a game you join through <em>Play online</em> (or a lobby the host opens to online players), those players may be strangers. We may also disclose data if the law requires it.</p>
 
   <h2>How long we keep it</h2>
   <ul>
     <li><strong>Games</strong> are deleted when every player has left, and in any case within 24 hours of being created.</li>
     <li><strong>Usage counters</strong> are deleted after one hour.</li>
+    <li><strong>Reports</strong> are deleted 90 days after they're made.</li>
     <li><strong>Anonymous player IDs</strong> are deleted after 30 days without use.</li>
     <li><strong>Data on your device</strong> stays until you clear the app's data or uninstall it.</li>
     <li><strong>Server logs</strong> are kept by our providers for a limited time under their own policies.</li>
@@ -96,6 +103,9 @@
 
   <h2>Your rights</h2>
   <p>Depending on where you live, you may have the right to access, correct or delete your personal data, to object to or restrict how it's used, and to complain to your data protection authority. To use any of these rights, email us. We rely on providing the game you asked to play (and, for rate limiting and security, our legitimate interest in keeping the service running) as the legal basis for processing.</p>
+
+  <h2>Playing online</h2>
+  <p>Names and chain words are checked against a list of offensive words, and offensive ones are refused. Any player in an online game can report another from the lobby, the round results or the end of the game. We review reports and may remove offensive content or stop abusive behaviour. Please don't share personal information with players you don't know.</p>
 
   <h2>Security</h2>
   <p>Data is encrypted in transit (HTTPS). The database only lets players read the games they're in, and the secret word is hidden from the guesser on our server, not just in the app.</p>

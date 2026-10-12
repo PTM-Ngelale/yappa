@@ -22,6 +22,7 @@ import {
 import { onPresenceChange, stopPresence } from '../../src/supabase/presence';
 import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
+import { ReportSheet } from '../../src/components/ReportSheet';
 import { SyncErrorBanner } from '../../src/components/SyncErrorBanner';
 import { Screen } from '../../src/components/ui';
 import { GameEndScreen } from '../../src/screens/GameEndScreen';
@@ -57,7 +58,8 @@ export default function RoundScreen() {
   // writes (typing indicator, per-tick timer sync) and the fail-open AI link check are left
   // as console.error-only on purpose: showing an error for those would be noise with no
   // recovery value.
-  const [syncError, setSyncError] = useState<{ message: string; retry: () => void } | null>(null);
+  const [syncError, setSyncError] = useState<{ message: string; retry?: () => void } | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const attemptEndGame = () => {
     endGame(roomCode!).catch((e) => {
@@ -167,6 +169,18 @@ export default function RoundScreen() {
     return () => clearInterval(interval);
   }, [confirmedDisconnected?.uid]);
 
+  // Public games: report a player from Round Result or Game End.
+  const reportSheet =
+    roomData?.isPublic && roomCode && uid ? (
+      <ReportSheet
+        visible={reportOpen}
+        roomCode={roomCode}
+        players={Object.values(roomData.players).filter((pl) => pl.uid !== uid)}
+        onClose={() => setReportOpen(false)}
+      />
+    ) : null;
+  const onReport = reportSheet ? () => setReportOpen(true) : undefined;
+
   function renderWithDisconnectOverlay(screen: React.ReactNode) {
     return (
       <View style={styles.overlayHost}>
@@ -174,14 +188,19 @@ export default function RoundScreen() {
         {syncError && (
           <SyncErrorBanner
             message={syncError.message}
-            onRetry={() => {
-              const { retry } = syncError;
-              setSyncError(null);
-              retry();
-            }}
+            onRetry={
+              syncError.retry
+                ? () => {
+                    const { retry } = syncError;
+                    setSyncError(null);
+                    retry?.();
+                  }
+                : undefined
+            }
             onDismiss={() => setSyncError(null)}
           />
         )}
+        {reportSheet}
         {confirmedDisconnected && (
           <DisconnectedOverlay
             playerName={confirmedDisconnected.name}
@@ -308,6 +327,7 @@ export default function RoundScreen() {
         linkChecks={lastEntry.linkChecks}
         results={history.map((h) => (h.outcome === 'won' ? 'won' : 'lost'))}
         isHost={isHost}
+        onReport={onReport}
         onNextRound={() => {
           const attemptAdvance = () => {
             advanceRound(roomCode!, roomData.round).catch((e) => {
@@ -324,20 +344,24 @@ export default function RoundScreen() {
   // Game End — final score + per-round breakdown
   if (roomData.status === 'gameover') {
     return (
-      <GameEndScreen
-        history={history}
-        players={roomData.players}
-        maxRounds={roomData.maxRounds}
-        onPlayAgain={() => {
-          resetRoomToLobby(roomCode!).catch(console.error);
-        }}
-        onBackToHome={() => {
-          if (uid) leaveRoom(roomCode!, uid).catch(console.error);
-          stopPresence();
-          resetGameStore();
-          router.replace('/');
-        }}
-      />
+      <>
+        <GameEndScreen
+          history={history}
+          players={roomData.players}
+          maxRounds={roomData.maxRounds}
+          onReport={onReport}
+          onPlayAgain={() => {
+            resetRoomToLobby(roomCode!).catch(console.error);
+          }}
+          onBackToHome={() => {
+            if (uid) leaveRoom(roomCode!, uid).catch(console.error);
+            stopPresence();
+            resetGameStore();
+            router.replace('/');
+          }}
+        />
+        {reportSheet}
+      </>
     );
   }
 
@@ -412,6 +436,10 @@ export default function RoundScreen() {
               .catch((e) => {
                 console.error(e);
                 setSentWord(null); // hand the turn back on screen
+                if (e instanceof Error && e.message.includes('word not allowed')) {
+                  setSyncError({ message: 'That word isn’t allowed — try another one.' });
+                  return;
+                }
                 // Only offer a retry while it's still this player's turn in this round —
                 // otherwise the server rejected a stale move and retrying can't help.
                 const latest = roomDataRef.current;

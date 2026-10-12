@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import {
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -18,6 +19,7 @@ import { SUPABASE_CONFIGURED } from "../src/supabase/config";
 import { generateRoomCode } from "../src/lib/roomCode";
 import { useGameStore } from "../src/store/gameStore";
 import { usePlayerStore } from "../src/store/playerStore";
+import { useSettingsStore } from "../src/store/settingsStore";
 import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from "../src/theme";
 
 export default function HomeScreen() {
@@ -30,6 +32,9 @@ export default function HomeScreen() {
   const [showJoin, setShowJoin] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const [showNotice, setShowNotice] = useState(false);
+  const { onlineNoticeSeen, markOnlineNoticeSeen } = useSettingsStore();
 
   const trimmedName = name.trim();
   const canProceed = trimmedName.length >= 2;
@@ -40,6 +45,57 @@ export default function HomeScreen() {
     const uid = await signInAnon();
     setUid(uid);
     return uid;
+  }
+
+  /** The server rejects offensive names (migration 009); say so instead of a generic error. */
+  function nameRejected(e: unknown): boolean {
+    return e instanceof Error && e.message.includes("name not allowed");
+  }
+
+  function handlePlayOnline() {
+    if (!canProceed) {
+      setError("Enter your name first (2+ characters).");
+      return;
+    }
+    if (!onlineNoticeSeen) {
+      setShowNotice(true);
+      return;
+    }
+    playOnline();
+  }
+
+  async function playOnline() {
+    setError("");
+    setMatching(true);
+    try {
+      const uid = await getUid();
+      if (!uid) {
+        setError("Online play needs Supabase configured.");
+        return;
+      }
+      const { quickMatch } = await import("../src/supabase/room");
+      const code = await quickMatch({
+        uid,
+        name: trimmedName,
+        avatarColor,
+        role: "knower",
+        lastSeenAt: Date.now(),
+      });
+      setRoomCode(code);
+      setIsHost(false); // the Lobby reads the real host from the room
+      const { startPresence } = await import("../src/supabase/presence");
+      startPresence(code, uid);
+      router.push("/lobby");
+    } catch (e) {
+      setError(
+        nameRejected(e)
+          ? "That name isn’t allowed — please pick another."
+          : "Couldn’t find a game. Check your connection and try again."
+      );
+      console.error(e);
+    } finally {
+      setMatching(false);
+    }
   }
 
   async function handleCreate() {
@@ -68,7 +124,11 @@ export default function HomeScreen() {
       }
       router.push("/lobby");
     } catch (e) {
-      setError("Failed to create room. Check your connection.");
+      setError(
+        nameRejected(e)
+          ? "That name isn’t allowed — please pick another."
+          : "Failed to create room. Check your connection."
+      );
       console.error(e);
     } finally {
       setLoading(false);
@@ -110,6 +170,8 @@ export default function HomeScreen() {
         setError("No game found with that code — check it and try again.");
       } else if (message.includes("already started")) {
         setError("That game has already started.");
+      } else if (message.includes("name not allowed")) {
+        setError("That name isn’t allowed — please pick another.");
       } else if (message.includes("is full")) {
         setError("That room is already full.");
       } else {
@@ -190,7 +252,7 @@ export default function HomeScreen() {
           <StickerButton
             label={loading && !showJoin ? "Creating…" : "Create game"}
             onPress={handleCreate}
-            disabled={!canProceed || loading}
+            disabled={!canProceed || loading || matching}
             height={64}
             fontSize={22}
             accessibilityLabel="Create a new game"
@@ -246,6 +308,18 @@ export default function HomeScreen() {
             </Sticker>
           )}
 
+          <StickerButton
+            label={matching ? "Finding a game…" : "Play online"}
+            icon="globe"
+            variant="blue"
+            fontSize={20}
+            onPress={handlePlayOnline}
+            disabled={!canProceed || loading}
+            loading={matching}
+            accessibilityLabel="Play online with other players"
+          />
+          <Text style={styles.onlineHint}>No one to play with? We’ll match you with two other players.</Text>
+
           <View style={styles.links}>
             <Pressable
               onPress={() => router.push("/how-to-play")}
@@ -272,6 +346,31 @@ export default function HomeScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={showNotice} transparent animationType="fade" onRequestClose={() => setShowNotice(false)} statusBarTranslucent>
+        <View style={styles.scrim}>
+          <Sticker radius={24} offset={6} style={styles.stretch} contentStyle={styles.noticeCard}>
+            <Text style={styles.noticeTitle} accessibilityRole="header">Playing online</Text>
+            <Text style={styles.noticeItem}>• You’ll play with people you don’t know.</Text>
+            <Text style={styles.noticeItem}>• Be kind. Offensive names and words are blocked.</Text>
+            <Text style={styles.noticeItem}>• Don’t share personal info like your full name, age or where you live.</Text>
+            <Text style={styles.noticeItem}>• Someone being nasty? Tap the flag next to their name to report them.</Text>
+            <StickerButton
+              label="Got it, let’s play"
+              height={56}
+              fontSize={19}
+              onPress={() => {
+                markOnlineNoticeSeen();
+                setShowNotice(false);
+                playOnline();
+              }}
+            />
+            <Pressable onPress={() => setShowNotice(false)} accessibilityRole="button" style={styles.cancel}>
+              <Text style={styles.cancelText}>Not now</Text>
+            </Pressable>
+          </Sticker>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -334,7 +433,12 @@ const makeStyles = (p: Palette) =>
     },
     cancel: { paddingVertical: 6, paddingHorizontal: 12 },
     cancelText: { fontFamily: fonts.bold, fontSize: 16, color: p.muted },
+    onlineHint: { ...type.small, fontSize: 14, color: p.ink, textAlign: "center", marginTop: -6 },
     links: { flexDirection: "row", justifyContent: "center", gap: 8 },
+    scrim: { flex: 1, backgroundColor: p.scrim, justifyContent: "center", padding: spacing.screen },
+    noticeCard: { padding: 20, gap: 10 },
+    noticeTitle: { fontFamily: fonts.black, fontSize: 26, color: p.ink },
+    noticeItem: { ...type.body, color: p.ink },
     howTo: { paddingVertical: 10, paddingHorizontal: 12 },
     howToText: {
       fontFamily: fonts.bold,

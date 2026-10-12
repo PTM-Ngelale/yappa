@@ -3,6 +3,8 @@ import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { playSound } from '../src/audio/sounds';
+import { Pressable } from '../src/components/Pressable';
+import { ReportSheet } from '../src/components/ReportSheet';
 import { SoundToggles } from '../src/components/SoundToggles';
 import { Avatar, Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
 import { SUPABASE_CONFIGURED } from '../src/supabase/config';
@@ -12,6 +14,8 @@ import { usePlayerStore } from '../src/store/playerStore';
 import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
 
 const MAX_PLAYERS = 3;
+/** A full public lobby starts itself after this many seconds. */
+const AUTO_START_SECONDS = 5;
 
 export default function LobbyScreen() {
   const styles = useStyles(makeStyles);
@@ -19,6 +23,9 @@ export default function LobbyScreen() {
   const { roomCode, isHost: createdRoom, setPlayers, reset: resetGameStore } = useGameStore();
   const { name, uid, avatarColor } = usePlayerStore();
   const [roomData, setRoomData] = useState<RoomData | null>(null);
+  const [reportFor, setReportFor] = useState<RoomPlayer | null>(null);
+  const [togglingPublic, setTogglingPublic] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
 
   // Build local player list for display when Supabase isn't configured
   const localPlayer: RoomPlayer = {
@@ -61,6 +68,50 @@ export default function LobbyScreen() {
     playSound(count > before ? 'join' : 'leave');
   }, [roomData]);
 
+  // "Still here" every 15s — public lobbies drop players who stop sending these, so Play
+  // online never matches anyone into a room whose players have gone.
+  useEffect(() => {
+    if (!SUPABASE_CONFIGURED || !roomCode || roomData?.status !== 'lobby') return;
+    let stopped = false;
+    const beat = () =>
+      import('../src/supabase/room').then(({ lobbyHeartbeat }) => {
+        if (!stopped) lobbyHeartbeat(roomCode).catch(console.error);
+      });
+    beat();
+    const id = setInterval(beat, 15000);
+    return () => {
+      stopped = true;
+      clearInterval(id);
+    };
+  }, [roomCode, roomData?.status]);
+
+  // A full public lobby starts by itself: nobody waits on a stranger to tap Start.
+  // Everyone sees the countdown; the host's app does the starting.
+  const isPublic = !!roomData?.isPublic;
+  const isFull = players.length === MAX_PLAYERS;
+  useEffect(() => {
+    if (!isPublic || !isFull || roomData?.status !== 'lobby') {
+      setCountdown(null);
+      return;
+    }
+    let left = AUTO_START_SECONDS;
+    setCountdown(left);
+    const id = setInterval(() => {
+      left -= 1;
+      setCountdown(left);
+      if (left <= 0) clearInterval(id);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isPublic, isFull, roomData?.status]);
+
+  useEffect(() => {
+    if (countdown === 0 && isHost) {
+      playSound('roundStart');
+      handleStart();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown, isHost]);
+
   // Non-host: navigate to round screen when host starts the game
   useEffect(() => {
     if (!isHost && roomData?.status === 'playing') {
@@ -83,12 +134,25 @@ export default function LobbyScreen() {
     router.back();
   }
 
+  async function handleTogglePublic() {
+    if (!roomCode) return;
+    setTogglingPublic(true);
+    try {
+      const { setRoomPublic } = await import('../src/supabase/room');
+      await setRoomPublic(roomCode, !isPublic);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTogglingPublic(false);
+    }
+  }
+
   function handleShare() {
     if (!roomCode) return;
     Share.share({ message: `Join my Yappa game! Room code: ${roomCode}` }).catch(console.error);
   }
 
-  const canStart = isHost && players.length === MAX_PLAYERS;
+  const canStart = isHost && isFull;
   const emptySlots = MAX_PLAYERS - players.length;
   const code = (roomCode ?? '----').split('');
 
@@ -99,7 +163,7 @@ export default function LobbyScreen() {
           <IconButton icon="arrow-left" onPress={handleLeave} accessibilityLabel="Leave lobby" />
         </View>
         <Text style={styles.headerTitle} accessibilityRole="header">
-          Lobby
+          {isPublic ? 'Online lobby' : 'Lobby'}
         </Text>
         <View style={[styles.headerSide, styles.headerRight]}>
           <SoundToggles />
@@ -145,6 +209,17 @@ export default function LobbyScreen() {
               {roomData?.hostUid === player.uid && (
                 <Pill label="Host" bg={p.yellow} fg={p.onYellow} size={13} style={styles.hostPill} />
               )}
+              {isPublic && player.uid !== uid && (
+                <Pressable
+                  onPress={() => setReportFor(player)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Report ${player.name}`}
+                  style={styles.flag}
+                >
+                  <Feather name="flag" size={18} color={p.muted} />
+                </Pressable>
+              )}
             </Sticker>
           ))}
           {Array.from({ length: emptySlots }).map((_, i) => (
@@ -152,13 +227,37 @@ export default function LobbyScreen() {
               <View style={styles.emptyAvatar}>
                 <Feather name="plus" size={18} color={p.ink} />
               </View>
-              <Text style={styles.emptyText}>Waiting for a friend…</Text>
+              <Text style={styles.emptyText}>
+                {isPublic ? 'Finding a player…' : 'Waiting for a friend…'}
+              </Text>
             </View>
           ))}
         </View>
 
-        {!isHost && (
-          <Text style={styles.note}>Waiting for the host to start the game…</Text>
+        {isHost && roomData?.status === 'lobby' && (!isFull || isPublic) && (
+          <StickerButton
+            label={isPublic ? 'Stop finding players' : 'Find players online'}
+            icon={isPublic ? 'x' : 'globe'}
+            variant={isPublic ? 'card' : 'blue'}
+            height={50}
+            fontSize={17}
+            loading={togglingPublic}
+            onPress={handleTogglePublic}
+            accessibilityLabel={isPublic ? 'Stop finding players online' : 'Find players online to fill the empty seats'}
+          />
+        )}
+
+        {countdown !== null ? (
+          <Text style={styles.note} accessibilityLiveRegion="polite">
+            Everyone’s here — starting in {Math.max(countdown, 0)}…
+          </Text>
+        ) : isPublic ? (
+          <Text style={styles.note}>
+            Looking for players online. Friends can still join with the code. The game starts by
+            itself when it’s full.
+          </Text>
+        ) : (
+          !isHost && <Text style={styles.note}>Waiting for the host to start the game…</Text>
         )}
 
         {!SUPABASE_CONFIGURED && (
@@ -168,7 +267,7 @@ export default function LobbyScreen() {
         )}
       </ScrollView>
 
-      {isHost && (
+      {isHost && !isPublic && (
         <View style={styles.footer}>
           <StickerButton
             label="Start game"
@@ -183,6 +282,14 @@ export default function LobbyScreen() {
               : `Needs exactly 3 players, ${emptySlots} more to go`}
           </Text>
         </View>
+      )}
+      {roomCode && (
+        <ReportSheet
+          visible={reportFor !== null}
+          roomCode={roomCode}
+          players={reportFor ? [reportFor] : []}
+          onClose={() => setReportFor(null)}
+        />
       )}
     </Screen>
   );
@@ -222,6 +329,7 @@ const makeStyles = (p: Palette) =>
     playerName: { flex: 1, fontFamily: fonts.bold, fontSize: 20, color: p.ink },
     you: { fontFamily: fonts.medium },
     hostPill: { alignSelf: 'center' },
+    flag: { padding: 6 },
     emptySlot: {
       flexDirection: 'row',
       alignItems: 'center',

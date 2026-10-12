@@ -213,6 +213,67 @@ await as(invActive, `select submit_word('INVS', 1, $1)`, ['sun​shine']);
 check((await room('INVS')).chain[0] === 'sunshine', 'invisible characters are stripped from chain words');
 for (const u of [HOST, P2, P3]) await as(u, `select leave_room('INVS', $1)`, [u]);
 
+// --- Online play (migration 009) ------------------------------------------------------
+const FIFTH = '55555555-5555-5555-5555-555555555555';
+const quickMatch = async (uid, extra) => (await as(uid, `select quick_match($1) code`, [player(uid, extra)])).rows[0].code;
+const pub1 = await quickMatch(HOST);
+d = await room(pub1);
+check(d.isPublic === true && d.hostUid === HOST && d.status === 'lobby', 'quick_match opens a public lobby with the caller as host');
+check((await db.query(`select is_public from rooms where code = $1`, [pub1])).rows[0].is_public, '…flagged public on the row');
+check((await quickMatch(P2)) === pub1, 'the next player is matched into the open lobby');
+check((await quickMatch(P2)) === pub1, 'matching again while waiting keeps you in the same lobby');
+check((await quickMatch(P3)) === pub1 && Object.keys((await room(pub1)).players).length === 3, 'a third player fills it');
+const pub2 = await quickMatch(OUTSIDER);
+check(pub2 !== pub1, 'a full lobby is skipped and a new one opened');
+await db.query(`update rooms set data = jsonb_set(data, array['players', $2, 'lastSeenAt'], '0') where code = $1`, [pub2, OUTSIDER]);
+const pub3 = await quickMatch(FIFTH);
+check((await room(pub2)) === undefined && pub3 !== pub2, 'a lobby whose only player went quiet is cleared, not joined');
+
+// Word filter
+const offensive = async (t) => (await db.query(`select _is_offensive($1) x`, [t])).rows[0].x;
+for (const t of ['fuck', 'FUUUCK', 'f u c k', 'f.u.c.k', 'motherfuckers', 'sh1t', 'Big Sh!t', 'b1tch']) check(await offensive(t), `filter blocks "${t}"`);
+for (const t of ['Scunthorpe', 'shell', 'class', 'Niger', 'cocktail', 'grape', 'therapist', 'Dick', 'sunshine']) check(!(await offensive(t)), `filter allows "${t}"`);
+check(await fails(FIFTH, `select create_room('BADN', $1)`, [player(FIFTH, { name: 'Sh1t Head' })]), 'offensive names are rejected');
+check(await fails(FIFTH, `select quick_match($1)`, [player(FIFTH, { name: 'fuuuck' })]) , '…in Play online too');
+
+// The full public lobby plays; a blocked chain word is refused
+await as(HOST, `select start_game($1)`, [pub1]);
+d = await room(pub1);
+check(await fails(d.activeKnowerUid, `select submit_word($1, 1, 'sh1t')`, [pub1]), 'offensive chain words are rejected');
+await as(d.activeKnowerUid, `select submit_word($1, 1, 'sunny')`, [pub1]);
+check((await room(pub1)).chain[0] === 'sunny', 'normal words still go through');
+
+// Reports
+check(await fails(P2, `select report_player($1, $2, 'words')`, [pub1, P2]), 'you cannot report yourself');
+check(await fails(OUTSIDER, `select report_player($1, $2, 'words')`, [pub1, HOST]), 'only players in the game can report');
+check(await fails(P2, `select report_player($1, $2, 'rude')`, [pub1, HOST]), 'unknown report reasons are rejected');
+await as(P2, `select report_player($1, $2, 'words')`, [pub1, HOST]);
+const report = (await db.query(`select * from player_reports where room_code = $1`, [pub1])).rows[0];
+check(report?.reported_uid === HOST && report.reporter_uid === P2 && report.reported_name === 'P1', 'a report records who and why');
+check(report?.snapshot?.chain?.[0] === 'sunny' && report.snapshot.players[P3] === 'P3', '…with a snapshot of names and words');
+check(await fails(P2, `select * from player_reports`) || (await as(P2, `select * from player_reports`)).rows.length === 0, 'players cannot read reports');
+
+// Lobby heartbeat and going public
+await as(P2, `select create_room('PRIV', $1)`, [player(P2)]);
+await as(P3, `select join_room('PRIV', $1)`, [player(P3)]);
+const staleP3 = () => db.query(`update rooms set data = jsonb_set(data, array['players', $1, 'lastSeenAt'], '0') where code = 'PRIV'`, [P3]);
+await staleP3();
+await as(P2, `select lobby_heartbeat('PRIV')`);
+check(P3 in (await room('PRIV')).players, 'private lobbies keep quiet players');
+check(await fails(P3, `select set_room_public('PRIV', true)`), 'only the host can open a lobby to the public');
+await as(P2, `select set_room_public('PRIV', true)`);
+check((await room('PRIV')).isPublic === true, 'the host can open a lobby to the public');
+await as(P2, `select lobby_heartbeat('PRIV')`);
+d = await room('PRIV');
+check(!(P3 in d.players) && d.hostUid === P2, 'public lobbies drop players who went quiet');
+check(d.players[P2].lastSeenAt > Date.now() - 60000, 'the heartbeat marks the caller as present');
+await staleP3();
+await db.query(`update rooms set data = jsonb_set(data, '{hostUid}', to_jsonb($1::text)) where code = 'PRIV'`, [P2]);
+await as(P3, `select join_room('PRIV', $1)`, [player(P3)]);
+await db.query(`update rooms set data = jsonb_set(data, array['players', $1, 'lastSeenAt'], '0') where code = 'PRIV'`, [P2]);
+await as(P3, `select lobby_heartbeat('PRIV')`);
+check((await room('PRIV')).hostUid === P3, 'the host role passes on when the host goes quiet');
+
 // --- Data retention (migration 008) -------------------------------------------------------
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');
 await as(HOST, `select create_room('NEW1', $1)`, [player(HOST)]);

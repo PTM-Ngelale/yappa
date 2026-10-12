@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { Eyebrow, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../components/ui';
+import { Pressable } from '../components/Pressable';
 import { WordChain } from '../components/WordChain';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 
@@ -24,6 +25,8 @@ interface RoundResolutionScreenProps {
   /** Outcome of every round played so far, in order, including this one. */
   results: Array<'won' | 'lost'>;
   isHost: boolean;
+  /** Public games only: opens the report sheet. */
+  onReport?: () => void;
   onNextRound: () => void;
 }
 
@@ -39,6 +42,7 @@ export function RoundResolutionScreen({
   linkChecks,
   results,
   isHost,
+  onReport,
   onNextRound,
 }: RoundResolutionScreenProps) {
   const styles = useStyles(makeStyles);
@@ -197,6 +201,12 @@ export function RoundResolutionScreen({
             <Text style={styles.waitingText}>Waiting for the host…</Text>
           </View>
         )}
+        {onReport && (
+          <Pressable onPress={onReport} accessibilityRole="button" style={styles.report} sound={false}>
+            <Feather name="flag" size={14} color={onGround} />
+            <Text style={[styles.reportText, { color: onGround }]}>Report a player</Text>
+          </Pressable>
+        )}
       </View>
     </Screen>
   );
@@ -238,6 +248,8 @@ const makeStyles = (p: Palette) =>
     },
     footer: { paddingHorizontal: spacing.screen, paddingBottom: 14, paddingTop: 10, gap: 8 },
     footnote: { ...type.small, fontFamily: fonts.bold, textAlign: 'center' },
+    report: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 6, paddingVertical: 4, paddingHorizontal: 8 },
+    reportText: { fontFamily: fonts.bold, fontSize: 14, textDecorationLine: 'underline' },
     waiting: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -7,7 +7,8 @@ import { Sticker } from './ui';
 
 interface SyncErrorBannerProps {
   message: string;
-  onRetry: () => void;
+  /** Left out when retrying can't help (e.g. the server rejected the word). */
+  onRetry?: () => void;
   onDismiss: () => void;
 }
 
@@ -24,9 +25,11 @@ export function SyncErrorBanner({ message, onRetry, onDismiss }: SyncErrorBanner
       <Sticker shadow={p.coral} radius={18} contentStyle={styles.banner}>
         <Text style={styles.message}>{message}</Text>
         <View style={styles.actions}>
-          <Pressable onPress={onRetry} accessibilityRole="button" accessibilityLabel="Retry" hitSlop={8}>
-            <Text style={styles.retry}>Retry</Text>
-          </Pressable>
+          {onRetry && (
+            <Pressable onPress={onRetry} accessibilityRole="button" accessibilityLabel="Retry" hitSlop={8}>
+              <Text style={styles.retry}>Retry</Text>
+            </Pressable>
+          )}
           <Pressable onPress={onDismiss} accessibilityRole="button" accessibilityLabel="Dismiss" hitSlop={8}>
             <Text style={styles.dismiss}>Dismiss</Text>
           </Pressable>
