@@ -122,9 +122,11 @@ export default function RoundScreen() {
   useEffect(() => onPresenceChange(setOnlineUids), []);
 
   // A player (other than me) missing from presence during active gameplay —
-  // debounced so a brief presence sync lag doesn't flash the overlay for everyone.
+  // debounced so a brief presence sync lag doesn't flash the overlay for everyone. Only
+  // when this device can see itself online: if it can't, it's this device's connection
+  // that's broken (it reconnects on its own), not the others'.
   const disconnectedCandidate: RoomPlayer | null =
-    roomData && uid && (roomData.status === 'playing' || roomData.status === 'resolution')
+    roomData && uid && onlineUids.has(uid) && (roomData.status === 'playing' || roomData.status === 'resolution')
       ? Object.values(roomData.players).find(
           (p) => p.uid !== uid && !onlineUids.has(p.uid)
         ) ?? null

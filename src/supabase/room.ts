@@ -79,24 +79,27 @@ export function listenToRoom(
   onData: (data: RoomData | null) => void
 ): () => void {
   let cancelled = false;
-  // The first read and the live updates race: on a slow connection the read can land after
-  // a newer update (e.g. the game starting) and roll the screen back to stale state. Once a
-  // live update has arrived, the read is out of date — drop it.
-  let gotLiveUpdate = false;
-
-  supabase
-    .from('rooms')
-    .select('data')
-    .eq('code', code)
-    .maybeSingle()
-    .then(({ data, error }) => {
-      if (cancelled || gotLiveUpdate) return;
-      if (error) {
-        console.error(error);
-        return;
-      }
-      onData(data ? (data.data as RoomData) : null);
-    });
+  // A read and the live updates race: on a slow connection the read can land after a newer
+  // update (e.g. the game starting) and roll the screen back to stale state. If a live
+  // update arrived after the read was sent, the read is out of date — drop it.
+  let liveUpdates = 0;
+  const read = () => {
+    const sentAfter = liveUpdates;
+    supabase
+      .from('rooms')
+      .select('data')
+      .eq('code', code)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled || liveUpdates !== sentAfter) return;
+        if (error) {
+          console.error(error);
+          return;
+        }
+        onData(data ? (data.data as RoomData) : null);
+      });
+  };
+  read();
 
   // Supabase reuses an existing channel object for a topic that's already registered,
   // which throws if we then try to add a postgres_changes listener post-subscribe(). Drop
@@ -105,6 +108,7 @@ export function listenToRoom(
   const stale = supabase.getChannels().find((c) => c.topic === `realtime:${topic}`);
   if (stale) supabase.removeChannel(stale);
 
+  let joined = false;
   const channel = supabase
     .channel(topic)
     .on(
@@ -112,12 +116,18 @@ export function listenToRoom(
       { event: '*', schema: 'public', table: 'rooms', filter: `code=eq.${code}` },
       (payload) => {
         if (cancelled) return;
-        gotLiveUpdate = true;
+        liveUpdates += 1;
         const row = payload.new as { data?: RoomData } | undefined;
         onData(row?.data ?? null);
       }
     )
-    .subscribe();
+    // Each rejoin after the first (a reconnect, e.g. coming back from the background): read
+    // the room again, since updates sent while the socket was down never arrive.
+    .subscribe((status) => {
+      if (status !== 'SUBSCRIBED') return;
+      if (joined) read();
+      joined = true;
+    });
 
   return () => {
     cancelled = true;
