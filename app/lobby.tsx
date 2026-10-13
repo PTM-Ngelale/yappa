@@ -132,8 +132,9 @@ export default function LobbyScreen() {
       );
       import('../src/supabase/presence').then(({ stopPresence }) => stopPresence());
     }
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
     resetGameStore();
-    router.back();
   }
 
   async function handleTogglePublic() {

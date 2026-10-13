@@ -110,9 +110,10 @@ export function listenToRoom(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'rooms', filter: `code=eq.${code}` },
       (payload) => {
+        if (cancelled) return;
         gotLiveUpdate = true;
-        const row = payload.new as { data: RoomData } | undefined;
-        onData(row ? row.data : null);
+        const row = payload.new as { data?: RoomData } | undefined;
+        onData(row?.data ?? null);
       }
     )
     .subscribe();
