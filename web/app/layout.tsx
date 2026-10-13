@@ -19,6 +19,9 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  // The on-screen keyboard shrinks the page rather than covering it, so the word box and
+  // the guess box stay above the keyboard (Android Chrome otherwise overlays it).
+  interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#FFE14D' },
     { media: '(prefers-color-scheme: dark)', color: '#17122B' },

@@ -41,10 +41,13 @@ export function SecretWordCard({
   word,
   category,
   hint,
+  compact = false,
 }: {
   word: string;
   category: string;
   hint?: string;
+  /** Short screens: smaller word, no hint. */
+  compact?: boolean;
 }) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
@@ -56,10 +59,10 @@ export function SecretWordCard({
           <Text style={[styles.categoryText, { color: p.hero }]}>{category}</Text>
         </View>
       </View>
-      <Text style={styles.secretWord} adjustsFontSizeToFit numberOfLines={1}>
+      <Text style={[styles.secretWord, compact && styles.secretWordCompact]} adjustsFontSizeToFit numberOfLines={1}>
         {word}
       </Text>
-      {hint && <Text style={styles.secretHint}>{hint}</Text>}
+      {hint && !compact && <Text style={styles.secretHint}>{hint}</Text>}
     </Sticker>
   );
 }
@@ -73,5 +76,6 @@ const makeStyles = (p: Palette) =>
     category: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
     categoryText: { fontFamily: fonts.bold, fontSize: 13 },
     secretWord: { fontFamily: fonts.black, fontSize: 44, lineHeight: 50, letterSpacing: -1, color: p.onHero },
+    secretWordCompact: { fontSize: 32, lineHeight: 38 },
     secretHint: { ...type.small, color: p.onHero, opacity: 0.9 },
   });

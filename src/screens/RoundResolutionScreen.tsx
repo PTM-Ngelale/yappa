@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { TypingIndicator } from '../components/TypingIndicator';
-import { Eyebrow, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../components/ui';
+import { Eyebrow, OUTLINE, Pill, Screen, ScreenBody, Sticker, StickerButton, useShortScreen } from '../components/ui';
 import { Pressable } from '../components/Pressable';
 import { WordChain } from '../components/WordChain';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
@@ -47,6 +47,7 @@ export function RoundResolutionScreen({
 }: RoundResolutionScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
+  const short = useShortScreen();
   const won = outcome === 'won';
   const [manualFlags, setManualFlags] = useState<Set<number>>(new Set());
   const [secondsLeft, setSecondsLeft] = useState(AUTO_ADVANCE_SECONDS);
@@ -121,13 +122,13 @@ export function RoundResolutionScreen({
     <Screen ground={ground}>
       <View pointerEvents="none" style={[styles.blob, { backgroundColor: won ? p.yellow : p.blue }]} />
 
-      <View style={styles.body}>
+      <ScreenBody style={styles.body}>
         <Pill label={`Round ${round} / ${maxRounds}`} />
 
         <View style={styles.hero}>
           <Sticker radius={22} offset={6} style={styles.headlineWrap} contentStyle={styles.headline}>
             <Feather name={won ? 'check' : 'x'} size={38} color={p.ink} />
-            <Text style={styles.headlineText} accessibilityRole="header">
+            <Text style={[styles.headlineText, short && styles.headlineCompact]} accessibilityRole="header">
               {headline}
             </Text>
           </Sticker>
@@ -180,7 +181,7 @@ export function RoundResolutionScreen({
             })}
           </View>
         </View>
-      </View>
+      </ScreenBody>
 
       <View style={styles.footer}>
         {isHost ? (
@@ -224,11 +225,12 @@ const makeStyles = (p: Palette) =>
       top: -110,
       right: -90,
     },
-    body: { flex: 1, paddingHorizontal: spacing.screen, paddingTop: 10, gap: 18 },
+    body: { paddingHorizontal: spacing.screen, paddingTop: 10, paddingBottom: 8, gap: 18 },
     hero: { gap: 10, marginTop: 8 },
     headlineWrap: { alignSelf: 'flex-start', transform: [{ rotate: '-3deg' }] },
     headline: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 4 },
     headlineText: { fontFamily: fonts.black, fontSize: 52, lineHeight: 60, letterSpacing: -2, color: p.ink },
+    headlineCompact: { fontSize: 38, lineHeight: 46 },
     sub: { fontFamily: fonts.bold, fontSize: 18, marginLeft: 4 },
     chainCard: { padding: 16, gap: 12 },
     flagNote: { flexDirection: 'row', alignItems: 'center', gap: 8 },

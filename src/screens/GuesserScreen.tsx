@@ -13,7 +13,7 @@ import {
 import { GameHeader } from "../components/game";
 import { Pressable } from "../components/Pressable";
 import { TypingIndicator } from "../components/TypingIndicator";
-import { Eyebrow, OUTLINE, Screen, Sticker, StickerButton } from "../components/ui";
+import { Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, StickerButton, useShortScreen } from "../components/ui";
 import { WordChain } from "../components/WordChain";
 import { useShakeAnimation } from "../hooks/useShakeAnimation";
 import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from "../theme";
@@ -52,6 +52,7 @@ export function GuesserScreen({
 }: GuesserScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
+  const short = useShortScreen();
   const [guessInputVisible, setGuessInputVisible] = useState(false);
   const [guess, setGuess] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -95,7 +96,7 @@ export function GuesserScreen({
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.body}>
+        <ScreenBody style={styles.body}>
           <GameHeader
             round={round}
             maxRounds={maxRounds}
@@ -109,20 +110,21 @@ export function GuesserScreen({
 
           {/* Category — the only hint the Guesser gets */}
           <View style={styles.categoryBlock}>
-            <Eyebrow>The category is</Eyebrow>
-            <Text style={styles.category} adjustsFontSizeToFit numberOfLines={1}>
+            {!short && <Eyebrow>The category is</Eyebrow>}
+            <Text style={[styles.category, short && styles.categoryCompact]} adjustsFontSizeToFit numberOfLines={1}>
               {category}
             </Text>
           </View>
 
-          <Sticker style={styles.flex} radius={26} offset={6} contentStyle={styles.chainCard}>
+          <Sticker style={[styles.chainWrap, short && styles.chainWrapCompact]} radius={26} offset={6} contentStyle={styles.chainCard}>
             {isPreFirstWord ? (
               <View style={styles.preWord}>
                 <Text style={styles.preWordTitle}>Your friends are thinking…</Text>
                 <Text style={styles.preWordSub}>{activeKnowerName} is up first</Text>
               </View>
             ) : (
-              <WordChain words={chain} variant="center" style={styles.flex} />
+              // A short screen has room for the newest word and the one before it.
+              <WordChain words={short ? chain.slice(-2) : chain} variant="center" style={styles.flex} />
             )}
             <View style={styles.typingRow} accessibilityLiveRegion="polite">
               <TypingIndicator active={knowerIsTyping} />
@@ -133,7 +135,7 @@ export function GuesserScreen({
               </Text>
             </View>
           </Sticker>
-        </View>
+        </ScreenBody>
 
         <View style={styles.footer}>
           {errorMsg !== "" && (
@@ -202,12 +204,12 @@ export function GuesserScreen({
               <StickerButton
                 label="I know it!"
                 icon="help-circle"
-                height={72}
-                fontSize={28}
+                height={short ? 60 : 72}
+                fontSize={short ? 24 : 28}
                 onPress={() => setGuessInputVisible(true)}
                 accessibilityLabel="Make a guess"
               />
-              <Text style={styles.footnote}>One guess. A wrong answer ends the round.</Text>
+              {!short && <Text style={styles.footnote}>One guess. A wrong answer ends the round.</Text>}
             </>
           )}
         </View>
@@ -219,9 +221,13 @@ export function GuesserScreen({
 const makeStyles = (p: Palette) =>
   StyleSheet.create({
     flex: { flex: 1 },
-    body: { flex: 1, paddingHorizontal: spacing.screen, paddingTop: 10, gap: 14 },
+    body: { paddingHorizontal: spacing.screen, paddingTop: 10, gap: 14 },
     categoryBlock: { alignItems: "center", gap: 2 },
     category: { fontFamily: fonts.black, fontSize: 50, lineHeight: 56, letterSpacing: -1.5, color: p.ink },
+    categoryCompact: { fontSize: 36, lineHeight: 42 },
+    // Room for the newest word, the one before it and the typing line.
+    chainWrap: { flex: 1, minHeight: 190 },
+    chainWrapCompact: { minHeight: 140 },
     chainCard: { flex: 1, paddingVertical: 12, paddingHorizontal: 12 },
     preWord: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 16 },
     preWordTitle: { fontFamily: fonts.black, fontSize: 24, color: p.ink, textAlign: "center" },

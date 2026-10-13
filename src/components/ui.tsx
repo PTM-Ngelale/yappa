@@ -5,12 +5,14 @@ import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import {
   ActivityIndicator,
+  ScrollView,
   StyleSheet,
   Text,
   View,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import type { SoundName } from '../audio/sounds';
@@ -40,6 +42,41 @@ export function Screen({
       {children}
     </SafeAreaView>
   );
+}
+
+/**
+ * A screen's main content: fills the space when there's room (so `flex: 1` children still
+ * stretch, exactly as before) and scrolls when there isn't — a phone on its side, a short
+ * browser window, or the on-screen keyboard shrinking a web page. Put pinned controls (the
+ * word input, the guess button) after it, not inside.
+ */
+export function ScreenBody({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  /** The content container — padding, gap, alignment. */
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={[{ flexGrow: 1 }, style]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      bounces={false}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+/** Below this window height, gameplay screens trim their biggest type to keep the essentials in view. */
+const SHORT_SCREEN = 640;
+
+/** True on a short window: landscape, a small browser window, or a web page with the keyboard up. */
+export function useShortScreen(): boolean {
+  return useWindowDimensions().height < SHORT_SCREEN;
 }
 
 /** An outlined card with a hard drop shadow. */

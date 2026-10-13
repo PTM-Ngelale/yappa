@@ -104,6 +104,8 @@ export function CaptchaHost() {
         widgetId = turnstile.render(el, {
           sitekey: SITE_KEY,
           appearance: 'interaction-only',
+          // The normal widget is a fixed 300px, wider than the card on small phones.
+          size: window.innerWidth < 380 ? 'compact' : 'normal',
           'before-interactive-callback': () => setInteractive(true),
           callback: (token: string) => finish(id, token),
           'error-callback': (code: string) => {
