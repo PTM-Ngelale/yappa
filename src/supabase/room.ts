@@ -78,6 +78,10 @@ export function listenToRoom(
   onData: (data: RoomData | null) => void
 ): () => void {
   let cancelled = false;
+  // The first read and the live updates race: on a slow connection the read can land after
+  // a newer update (e.g. the game starting) and roll the screen back to stale state. Once a
+  // live update has arrived, the read is out of date — drop it.
+  let gotLiveUpdate = false;
 
   supabase
     .from('rooms')
@@ -85,7 +89,7 @@ export function listenToRoom(
     .eq('code', code)
     .maybeSingle()
     .then(({ data, error }) => {
-      if (cancelled) return;
+      if (cancelled || gotLiveUpdate) return;
       if (error) {
         console.error(error);
         return;
@@ -106,6 +110,7 @@ export function listenToRoom(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'rooms', filter: `code=eq.${code}` },
       (payload) => {
+        gotLiveUpdate = true;
         const row = payload.new as { data: RoomData } | undefined;
         onData(row ? row.data : null);
       }

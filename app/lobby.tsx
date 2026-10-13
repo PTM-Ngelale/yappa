@@ -1,11 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { playSound } from '../src/audio/sounds';
 import { Pressable } from '../src/components/Pressable';
 import { ReportSheet } from '../src/components/ReportSheet';
 import { SoundToggles } from '../src/components/SoundToggles';
+import { shareRoom } from '../src/lib/shareRoom';
 import { Avatar, Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
 import { SUPABASE_CONFIGURED } from '../src/supabase/config';
 import type { RoomData } from '../src/supabase/room';
@@ -26,6 +27,7 @@ export default function LobbyScreen() {
   const [reportFor, setReportFor] = useState<RoomPlayer | null>(null);
   const [togglingPublic, setTogglingPublic] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Build local player list for display when Supabase isn't configured
   const localPlayer: RoomPlayer = {
@@ -147,9 +149,14 @@ export default function LobbyScreen() {
     }
   }
 
+  // Native always opens the share sheet; on web, browsers without one copy a link instead.
   function handleShare() {
     if (!roomCode) return;
-    Share.share({ message: `Join my Yappa game! Room code: ${roomCode}` }).catch(console.error);
+    shareRoom(roomCode).then((result) => {
+      if (result !== 'copied') return;
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    });
   }
 
   const canStart = isHost && isFull;
@@ -189,6 +196,11 @@ export default function LobbyScreen() {
               fontSize={16}
               onPress={handleShare}
             />
+          )}
+          {linkCopied && (
+            <Text style={styles.copied} accessibilityLiveRegion="polite">
+              Link copied
+            </Text>
           )}
         </Sticker>
 
@@ -355,6 +367,7 @@ const makeStyles = (p: Palette) =>
     },
     emptyText: { fontFamily: fonts.bold, fontSize: 18, color: p.ink },
     note: { ...type.body, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
+    copied: { ...type.small, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
     configNotice: { ...type.small, fontSize: 12, color: p.muted, textAlign: 'center' },
     footer: { paddingHorizontal: spacing.screen, paddingTop: 10, paddingBottom: 14, gap: 8 },
   });

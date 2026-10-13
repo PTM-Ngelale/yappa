@@ -14,7 +14,7 @@ import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isLocalMatch } from "../_shared/guessMatch.ts";
 import { judgeGuess } from "../_shared/judges.ts";
-import { json, takeAiQuota } from "../_shared/quota.ts";
+import { json, preflight, takeAiQuota } from "../_shared/quota.ts";
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") });
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -37,6 +37,9 @@ async function aiJudge(guess: string, target: string, category: string): Promise
 }
 
 Deno.serve(async (req) => {
+  const options = preflight(req);
+  if (options) return options;
+
   // Who is asking — verified from their own JWT, never from the request body.
   const userClient = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
     global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },

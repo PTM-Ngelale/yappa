@@ -7,7 +7,7 @@ import {
 import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import '../global.css';
 import { CaptchaHost } from '../src/components/CaptchaHost';
 import { initAudio, setMusicTrack } from '../src/audio/sounds';
@@ -16,7 +16,7 @@ import { useTheme } from '../src/theme';
 import { usePlayerStore } from '../src/store/playerStore';
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     BricolageGrotesque_500Medium,
     BricolageGrotesque_700Bold,
     BricolageGrotesque_800ExtraBold,
@@ -42,7 +42,9 @@ export default function RootLayout() {
     );
   }, [setUid]);
 
-  if (!fontsLoaded) {
+  // On web, font loading gives up after ~6s on a slow connection; carry on with the fallback
+  // fonts rather than spinning forever. (Native loads them from the app bundle.)
+  if (!fontsLoaded && !(Platform.OS === 'web' && fontError)) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: p.ground }}>
         <ActivityIndicator color={p.ink} size="large" />

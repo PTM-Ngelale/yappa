@@ -12,6 +12,8 @@
   ],
   "exclude": [
     "node_modules",
+    // The Next.js web version has its own tsconfig (web/tsconfig.json).
+    "web",
     // Deno-runtime Supabase Edge Functions — use Deno globals (Deno.serve) and npm: specifiers
     // that this project's Node/React Native tsconfig can't resolve. Type-checked by Deno at
     // deploy time instead (`supabase functions deploy`), not by this project's tsc.
