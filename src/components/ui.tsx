@@ -38,7 +38,10 @@ export function Screen({
 }) {
   const p = useTheme();
   return (
-    <SafeAreaView edges={edges} style={[{ flex: 1, backgroundColor: ground ?? p.ground }, style]}>
+    // overflow: hidden clips the decorative shapes that hang off the edges (Home, Round Intro,
+    // Round Result). Without it they widen the web page past the screen, so it scrolls
+    // sideways on phones and spills outside the app column on desktop.
+    <SafeAreaView edges={edges} style={[{ flex: 1, overflow: 'hidden', backgroundColor: ground ?? p.ground }, style]}>
       {children}
     </SafeAreaView>
   );
