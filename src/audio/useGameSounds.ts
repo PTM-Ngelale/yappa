@@ -2,27 +2,29 @@ import { useEffect, useRef } from 'react';
 import type { RoomData } from '../supabase/room';
 import { playSound } from './sounds';
 
-/** Seconds left in a turn at which the countdown starts ticking. */
+/** Seconds left in the round at which the countdown starts ticking. */
 const TICK_FROM_SECONDS = 5;
 
 /**
- * Plays sounds for game events as the room changes: a new round, a word landing in the
- * chain, your turn coming round, the last seconds ticking, and each round's result.
- * Every device derives these from the same room state, so everyone hears the same cues.
- * `secondsRemaining` is this device's turn countdown (see useTurnCountdown).
+ * Plays sounds for game events as the room changes: a new round, a word or guess landing in
+ * the feed, your turn coming round, the round's last seconds ticking, and each round's
+ * result. Every device derives these from the same room state, so everyone hears the same
+ * cues. `roundSeconds` is this device's round clock (see useRoundClocks).
  */
-export function useGameSounds(roomData: RoomData | null, uid: string | null, secondsRemaining: number) {
-  const prev = useRef<{ status: string; round: number; chainLength: number; activeKnowerUid: string } | null>(null);
+export function useGameSounds(roomData: RoomData | null, uid: string | null, roundSeconds: number) {
+  const prev = useRef<{ status: string; round: number; feedLength: number; activeKnowerUid: string } | null>(null);
 
   const status = roomData?.status;
   const round = roomData?.round ?? 0;
-  const chainLength = roomData?.chain?.length ?? 0;
+  const feed = roomData?.feed ?? [];
+  const feedLength = feed.length;
+  const lastKind = feed[feedLength - 1]?.kind;
   const activeKnowerUid = roomData?.activeKnowerUid ?? '';
 
   useEffect(() => {
     if (!roomData || !status) return;
     const before = prev.current;
-    prev.current = { status, round, chainLength, activeKnowerUid };
+    prev.current = { status, round, feedLength, activeKnowerUid };
 
     const newRound = status === 'playing' && (before?.status !== 'playing' || before.round !== round);
     if (newRound) {
@@ -31,9 +33,11 @@ export function useGameSounds(roomData: RoomData | null, uid: string | null, sec
     }
 
     if (status === 'playing' && before) {
-      if (chainLength > before.chainLength) {
-        // My partner just handed me the turn — a chime says "you're up"; otherwise a pop.
-        playSound(activeKnowerUid === uid && before.activeKnowerUid !== uid ? 'yourTurn' : 'pop');
+      if (feedLength > before.feedLength) {
+        // The turn just came to me: a chime says "you're up". A wrong guess buzzes; a word pops.
+        if (activeKnowerUid === uid && before.activeKnowerUid !== uid) playSound('yourTurn');
+        else if (lastKind === 'guess') playSound('error');
+        else playSound('pop');
       }
       return;
     }
@@ -49,12 +53,12 @@ export function useGameSounds(roomData: RoomData | null, uid: string | null, sec
     }
     // `roomData` itself is read only for the latest history entry when the status flips.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, round, chainLength, activeKnowerUid, uid]);
+  }, [status, round, feedLength, activeKnowerUid, uid]);
 
-  // Countdown ticks for the final seconds of each turn.
+  // Countdown ticks for the round's final seconds.
   useEffect(() => {
-    if (status === 'playing' && secondsRemaining > 0 && secondsRemaining <= TICK_FROM_SECONDS) {
+    if (status === 'playing' && roundSeconds > 0 && roundSeconds <= TICK_FROM_SECONDS) {
       playSound('tick');
     }
-  }, [status, secondsRemaining]);
+  }, [status, roundSeconds]);
 }

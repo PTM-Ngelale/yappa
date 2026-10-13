@@ -126,7 +126,7 @@ function RoundRow({
   const styles = useStyles(makeStyles);
   const p = useTheme();
   const won = entry.outcome === 'won';
-  const words = entry.chain?.length ?? 0;
+  const words = entry.wordCount ?? entry.chain?.length ?? 0;
   const name = guesser?.name ?? 'Someone';
   const detail = won
     ? `${name} guessed`

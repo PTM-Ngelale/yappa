@@ -1,6 +1,7 @@
 // Caps how many AI calls the edge functions make — see take_ai_quota() in migration 007.
-// A normal game uses roughly 1 guess judgement per round plus 1 link check per chain word,
-// so a player in a busy game makes well under 100 calls an hour.
+// A Guesser can guess every 3 seconds, and each guess the local matcher can't settle costs
+// one call. A normal game needs far fewer than the per-player cap; someone spamming guesses
+// hits it, after which only exact and formatting matches count for them.
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 /** Per player, per rolling hour. */

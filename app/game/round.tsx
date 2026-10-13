@@ -3,13 +3,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import {
   advanceRound,
-  checkLink,
+  expireRound,
   fetchTargetWord,
-  resolveRoundTimeout,
   setTyping,
+  skipTurn,
   startGame,
   submitGuess,
   submitWord,
+  wordRejection,
+  type WordRejection,
 } from '../../src/supabase/round';
 import {
   createShareCard,
@@ -24,7 +26,8 @@ import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
 import { shareCard } from '../../src/lib/shareCard';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
-import { TURN_SECONDS, useTurnCountdown } from '../../src/hooks/useTurnCountdown';
+import { TURN_SECONDS } from '../../src/game/config';
+import { useRoundClocks } from '../../src/hooks/useRoundClocks';
 import { ReportSheet } from '../../src/components/ReportSheet';
 import { SyncErrorBanner } from '../../src/components/SyncErrorBanner';
 import { Screen } from '../../src/components/ui';
@@ -34,6 +37,7 @@ import { KnowerActiveScreen } from '../../src/screens/KnowerActiveScreen';
 import { KnowerWaitingScreen } from '../../src/screens/KnowerWaitingScreen';
 import { ROUND_INTRO_MS, RoundIntroScreen } from '../../src/screens/RoundIntroScreen';
 import { RoundResolutionScreen } from '../../src/screens/RoundResolutionScreen';
+import type { FeedEntry } from '../../src/supabase/room';
 import { useGameStore, type RoomPlayer } from '../../src/store/gameStore';
 import { usePlayerStore } from '../../src/store/playerStore';
 import { fonts, useStyles, useTheme, type Palette } from '../../src/theme';
@@ -42,8 +46,16 @@ import { fonts, useStyles, useTheme, type Palette } from '../../src/theme';
 const DISCONNECT_GRACE_MS = 3000;
 const DISCONNECT_COUNTDOWN_SECONDS = 30;
 
-/** Max seconds the host holds an expired timer for a pending guess — just above validate-guess's 5s AI timeout. */
-const GUESS_HOLD_MAX_TICKS = 8;
+/** What to tell a Knower whose word the server refused. */
+const WORD_REJECTED: Record<WordRejection, string> = {
+  'not-your-turn': 'Too slow! The turn passed.',
+  'turn-over': 'Too slow! The turn passed.',
+  paused: 'The game is paused. Hang on.',
+  target: 'That’s the secret word. Try a different one.',
+  repeat: 'That was the last word. Try another one.',
+  shape: 'One word only, please. Try another.',
+  blocked: 'That word isn’t allowed. Try another one.',
+};
 
 export default function RoundScreen() {
   const { roomCode, reset: resetGameStore } = useGameStore();
@@ -55,11 +67,10 @@ export default function RoundScreen() {
   const styles = useStyles(makeStyles);
   const p = useTheme();
 
-  // Surfaces a failed realtime write (submit, resolve, advance, ...) instead of leaving the
-  // player's screen silently stuck — see the retry-wrapped call sites below. Purely cosmetic
-  // writes (typing indicator) and the fail-open AI link check are left
-  // as console.error-only on purpose: showing an error for those would be noise with no
-  // recovery value.
+  // Surfaces a failed realtime write (submit, advance, ...) instead of leaving the player's
+  // screen silently stuck: see the retry-wrapped call sites below. Purely cosmetic writes
+  // (typing indicator) are left console.error-only on purpose: showing an error for those
+  // would be noise with no recovery value.
   const [syncError, setSyncError] = useState<{ message: string; retry?: () => void } | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -70,12 +81,12 @@ export default function RoundScreen() {
     });
   };
 
-  // Latest room for interval and async closures (the guess hold, a rejected word's retry)
+  // Latest room for timer and async closures (skips, expiry, a rejected word's retry)
   const roomDataRef = useRef<RoomData | null>(null);
   useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
 
   // Round Intro: every device shows the role reveal for a moment when a round starts. The
-  // first turn's allowance covers it, so the first Knower still gets the full 30 seconds.
+  // first turn and the round get that time on top, so play itself gets the full clocks.
   const [introRound, setIntroRound] = useState<number | null>(null);
   const playingRound = roomData?.status === 'playing' ? roomData.round : null;
   useEffect(() => {
@@ -167,10 +178,9 @@ export default function RoundScreen() {
     return () => clearInterval(interval);
   }, [confirmedDisconnected?.uid]);
 
-  // This device's turn countdown — the first turn's allowance covers the role reveal; held
-  // while someone's dropped.
-  const secondsRemaining = useTurnCountdown(roomCode, roomData, !!confirmedDisconnected);
-  useGameSounds(roomData, uid, secondsRemaining);
+  // This device's turn and round clocks; both stand still while someone's dropped.
+  const { turnSeconds, roundSeconds } = useRoundClocks(roomCode, roomData, !!confirmedDisconnected);
+  useGameSounds(roomData, uid, roundSeconds);
 
   // Public games: report a player from Round Result or Game End.
   const reportSheet =
@@ -215,47 +225,62 @@ export default function RoundScreen() {
     );
   }
 
-  // Host: when the turn countdown runs out, end the round. This is the timer's only write.
-  const timedOutRound = roomData?.status === 'playing' && secondsRemaining === 0 ? roomData.round : null;
+  // When the turn clock runs out, pass the turn on; when the round clock runs out, end the
+  // round. Every device asks: the server acts once, and only when its own clock agrees, so a
+  // device that asks a moment early (or while a guess is still being judged) asks again.
+  const playing = roomData?.status === 'playing' && !confirmedDisconnected;
+  const turnOver = playing && turnSeconds === 0 ? `${roomData!.round}:${roomData!.turnIndex ?? 0}` : null;
   useEffect(() => {
-    if (!isHost || timedOutRound === null || confirmedDisconnected) return;
-    const attemptResolve = () => {
-      resolveRoundTimeout(roomCode!, timedOutRound).catch((e) => {
-        console.error(e);
-        setSyncError({ message: 'Could not end the round — check your connection.', retry: attemptResolve });
-      });
+    if (!turnOver || !roomCode) return;
+    const [round, turn] = turnOver.split(':').map(Number);
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
+      skipTurn(roomCode, round, turn)
+        .then((done) => {
+          const latest = roomDataRef.current;
+          const stillThisTurn = latest?.status === 'playing' && latest.round === round && (latest.turnIndex ?? 0) === turn;
+          if (!done && stillThisTurn && ++tries < 6) timer = setTimeout(attempt, 600);
+        })
+        .catch(console.error);
     };
-    // A guess locked in before time ran out is still being judged — let it land rather
-    // than expiring the round under it. Capped so a stuck flag can't freeze the round.
-    if (!roomDataRef.current?.guessPending) {
-      attemptResolve();
-      return;
-    }
-    let heldTicks = 0;
-    const interval = setInterval(() => {
-      const current = roomDataRef.current;
-      if (!current || current.status !== 'playing' || current.round !== timedOutRound) {
-        clearInterval(interval);
-        return;
-      }
-      heldTicks += 1;
-      if (!current.guessPending || heldTicks >= GUESS_HOLD_MAX_TICKS) {
-        clearInterval(interval);
-        attemptResolve();
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isHost, timedOutRound, confirmedDisconnected]);
+    attempt();
+    return () => clearTimeout(timer);
+  }, [turnOver, roomCode]);
+
+  const roundOver = playing && roundSeconds === 0 ? roomData!.round : null;
+  useEffect(() => {
+    if (roundOver === null || !roomCode) return;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attempt = () => {
+      expireRound(roomCode, roundOver)
+        .then((done) => {
+          const latest = roomDataRef.current;
+          const stillThisRound = latest?.status === 'playing' && latest.round === roundOver;
+          // Up to ~12s: a guess sent at the last second may take a few to be judged.
+          if (!done && stillThisRound && ++tries < 12) timer = setTimeout(attempt, 1000);
+        })
+        .catch((e) => {
+          console.error(e);
+          setSyncError({ message: 'Could not end the round. Check your connection.', retry: attempt });
+        });
+    };
+    attempt();
+    return () => clearTimeout(timer);
+  }, [roundOver, roomCode]);
 
   // Knowers fetch this round's word from round_secrets. The Guesser never asks — and RLS
   // would return nothing if they did — so the answer never reaches their device.
   const [target, setTarget] = useState<{ round: number; word: string } | null>(null);
 
-  // The word this Knower just sent, shown at once — in the chain, with the turn passed —
-  // per the spec's "no visible lag" submit, instead of waiting for the server round-trip.
-  // It only counts while the server's chain is still at index (see `pending` below); a
-  // rejection clears it.
-  const [sentWord, setSentWord] = useState<{ round: number; index: number; word: string } | null>(null);
+  // The word this Knower just sent, shown at once (in the feed, with the turn passed) rather
+  // than after the server round trip. It only counts while the server is still on the turn it
+  // was sent for (see `pending` below); a rejection clears it.
+  const [sentWord, setSentWord] = useState<{ round: number; turnIndex: number; word: string } | null>(null);
+  // Why the server refused this Knower's last word, shown on their screen.
+  const [wordNotice, setWordNotice] = useState<{ message: string } | null>(null);
+  useEffect(() => setWordNotice(null), [roomData?.round, roomData?.turnIndex]);
   const isGuesserThisRound = !!roomData && roomData.guesserUid === uid;
   useEffect(() => {
     if (!roomCode || !uid || roomData?.status !== 'playing' || isGuesserThisRound) return;
@@ -329,8 +354,10 @@ export default function RoundScreen() {
         guess={lastEntry.guess ?? null}
         guesserName={roomData.players[lastEntry.guesserUid]?.name ?? 'The Guesser'}
         isMyGuess={lastEntry.guesserUid === uid}
-        chain={lastEntry.chain ?? []}
-        linkChecks={lastEntry.linkChecks}
+        feed={lastEntry.feed ?? (lastEntry.chain ?? []).map((text): FeedEntry => ({ kind: 'word', text, by: '' }))}
+        players={roomData.players}
+        durationMs={lastEntry.durationMs}
+        wordCount={lastEntry.wordCount}
         results={history.map((h) => (h.outcome === 'won' ? 'won' : 'lost'))}
         isHost={isHost}
         onReport={onReport}
@@ -411,12 +438,11 @@ export default function RoundScreen() {
     );
   }
 
-  const serverChain: string[] = roomData.chain ?? [];
+  const serverFeed: FeedEntry[] = roomData.feed ?? [];
+  const turnIndex = roomData.turnIndex ?? 0;
   const pending =
-    sentWord && sentWord.round === roomData.round && serverChain.length === sentWord.index
-      ? sentWord
-      : null;
-  const chain = pending ? [...serverChain, pending.word] : serverChain;
+    sentWord && sentWord.round === roomData.round && sentWord.turnIndex === turnIndex ? sentWord : null;
+  const feed: FeedEntry[] = pending ? [...serverFeed, { kind: 'word', text: pending.word, by: uid }] : serverFeed;
   const typing = roomData.typing ?? {};
 
   // Knower, word not fetched yet for this round
@@ -432,7 +458,7 @@ export default function RoundScreen() {
   }
   const targetWord = target?.word ?? '';
 
-  // Active Knower — it's my turn to add a word
+  // Active Knower: it's my turn to add a word
   if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && !pending) {
     return renderWithDisconnectOverlay(
       <KnowerActiveScreen
@@ -440,31 +466,35 @@ export default function RoundScreen() {
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         category={roomData.category}
-        chain={chain}
-        durationSeconds={TURN_SECONDS}
-        secondsRemaining={secondsRemaining}
+        feed={feed}
+        players={roomData.players}
+        turnSeconds={turnSeconds}
+        roundSeconds={roundSeconds}
+        notice={wordNotice}
         onSubmitWord={(word) => {
           const round = roomData.round;
+          const turn = turnIndex;
           const attemptSubmit = () => {
-            setSentWord({ round, index: serverChain.length, word });
-            submitWord(roomCode!, round, word)
-              .then((index) => {
-                if (index > 0) checkLink(roomCode!, index).catch(console.error);
-              })
-              .catch((e) => {
-                console.error(e);
-                setSentWord(null); // hand the turn back on screen
-                if (e instanceof Error && e.message.includes('word not allowed')) {
-                  setSyncError({ message: 'That word isn’t allowed — try another one.' });
-                  return;
-                }
-                // Only offer a retry while it's still this player's turn in this round —
-                // otherwise the server rejected a stale move and retrying can't help.
+            setSentWord({ round, turnIndex: turn, word });
+            submitWord(roomCode!, round, turn, word).catch((e) => {
+              console.error(e);
+              setSentWord(null); // hand the turn back on screen
+              const rejection = wordRejection(e);
+              if (rejection) {
                 const latest = roomDataRef.current;
-                if (latest?.status === 'playing' && latest.round === round && latest.activeKnowerUid === uid) {
-                  setSyncError({ message: 'Your word might not have sent — check your connection.', retry: attemptSubmit });
-                }
-              });
+                const stillMine = latest?.status === 'playing' && latest.round === round && latest.activeKnowerUid === uid;
+                // Still my turn: say why on my screen. The turn moved on: say so in a banner.
+                if (stillMine) setWordNotice({ message: WORD_REJECTED[rejection] });
+                else if (latest?.status === 'playing') setSyncError({ message: WORD_REJECTED[rejection] });
+                return;
+              }
+              // Only offer a retry while it's still this player's turn in this round:
+              // otherwise retrying a stale move can't help.
+              const latest = roomDataRef.current;
+              if (latest?.status === 'playing' && latest.round === round && latest.activeKnowerUid === uid) {
+                setSyncError({ message: 'Your word might not have sent. Check your connection.', retry: attemptSubmit });
+              }
+            });
           };
           attemptSubmit();
         }}
@@ -475,7 +505,7 @@ export default function RoundScreen() {
     );
   }
 
-  // Waiting Knower — partner is active (or about to be, while my sent word is in flight)
+  // Waiting Knower: partner is active (or about to be, while my sent word is in flight)
   if (myPlayer.role === 'knower') {
     const partnerUid = pending
       ? Object.keys(roomData.players).find((u) => u !== uid && u !== roomData.guesserUid) ?? ''
@@ -487,13 +517,14 @@ export default function RoundScreen() {
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         category={roomData.category}
-        chain={chain}
+        feed={feed}
+        players={roomData.players}
         partnerName={partner?.name ?? 'Partner'}
         partnerColor={partner?.avatarColor}
         partnerIsTyping={!!typing[partnerUid]}
-        durationSeconds={TURN_SECONDS}
-        // The partner's turn starts fresh; the server's countdown is still on mine until it lands.
-        secondsRemaining={pending ? TURN_SECONDS : secondsRemaining}
+        // The partner's turn starts fresh; the clock is still on mine until my word lands.
+        turnSeconds={pending ? TURN_SECONDS : turnSeconds}
+        roundSeconds={roundSeconds}
       />
     );
   }
@@ -505,12 +536,12 @@ export default function RoundScreen() {
       round={roomData.round}
       maxRounds={roomData.maxRounds}
       category={roomData.category}
-      chain={chain}
+      feed={feed}
+      players={roomData.players}
       activeKnowerName={activeKnower?.name ?? 'Knower'}
       knowerIsTyping={!!typing[roomData.activeKnowerUid]}
-      durationSeconds={TURN_SECONDS}
-      secondsRemaining={secondsRemaining}
-      // Throws if the guess couldn't be submitted — GuesserScreen lets them retry.
+      roundSeconds={roundSeconds}
+      // Throws if the guess couldn't be sent: GuesserScreen lets them retry.
       onGuess={(guess) => submitGuess(roomCode!, roomData.round, guess)}
     />
   );

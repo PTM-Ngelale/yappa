@@ -3,8 +3,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { Eyebrow, OUTLINE, Pill, Screen, ScreenBody, Sticker, StickerButton, useShortScreen } from '../components/ui';
+import { DescriptionFeed } from '../components/DescriptionFeed';
 import { Pressable } from '../components/Pressable';
-import { WordChain } from '../components/WordChain';
+import type { FeedEntry, RoundOutcome } from '../supabase/room';
+import type { RoomPlayer } from '../store/gameStore';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 
 const AUTO_ADVANCE_SECONDS = 5;
@@ -12,16 +14,20 @@ const AUTO_ADVANCE_SECONDS = 5;
 interface RoundResolutionScreenProps {
   round: number;
   maxRounds: number;
-  outcome: 'won' | 'lost-guess' | 'lost-timeout';
+  outcome: RoundOutcome;
   targetWord: string;
-  /** What the Guesser typed — null on a timeout. Shown so lenient matches are visible. */
+  /** The winning guess: null when time ran out. Shown so lenient matches are visible. */
   guess: string | null;
   guesserName: string;
   /** True on the Guesser's own device, to say "You guessed" instead of their name. */
   isMyGuess: boolean;
-  chain: string[];
-  /** AI link-validation results keyed by chain index — advisory only, never affects score. */
-  linkChecks?: Record<number, 'valid' | 'invalid'>;
+  /** The round's description, guesses included. */
+  feed: FeedEntry[];
+  players: Record<string, RoomPlayer>;
+  /** How long the round took. */
+  durationMs?: number;
+  /** Words the Knowers needed. */
+  wordCount?: number;
   /** Outcome of every round played so far, in order, including this one. */
   results: Array<'won' | 'lost'>;
   isHost: boolean;
@@ -38,8 +44,10 @@ export function RoundResolutionScreen({
   guess,
   guesserName,
   isMyGuess,
-  chain,
-  linkChecks,
+  feed,
+  players,
+  durationMs,
+  wordCount,
   results,
   isHost,
   onReport,
@@ -49,7 +57,6 @@ export function RoundResolutionScreen({
   const p = useTheme();
   const short = useShortScreen();
   const won = outcome === 'won';
-  const [manualFlags, setManualFlags] = useState<Set<number>>(new Set());
   const [secondsLeft, setSecondsLeft] = useState(AUTO_ADVANCE_SECONDS);
   const advancedRef = useRef(false);
 
@@ -82,21 +89,6 @@ export function RoundResolutionScreen({
     onNextRound();
   };
 
-  // Chain + revealed target, as one visual sequence.
-  const fullChain = [...chain, targetWord];
-  const aiFlagged = Object.entries(linkChecks ?? {})
-    .filter(([, status]) => status === 'invalid')
-    .map(([i]) => Number(i));
-
-  const toggleFlag = (index: number) => {
-    setManualFlags((prev) => {
-      const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      return next;
-    });
-  };
-
   const ground = won ? p.blue : p.coral;
   const onGround = won ? p.onBlue : p.onCoral;
   const headline = won ? 'Got it!' : outcome === 'lost-timeout' ? 'Time’s up' : 'Not quite';
@@ -104,19 +96,15 @@ export function RoundResolutionScreen({
   const sub = won
     ? `${who} guessed “${guess ?? targetWord}”`
     : guess
-      ? `${who} guessed “${guess}” — it was ${targetWord}`
+      ? `${who} guessed “${guess}”. It was ${targetWord}`
       : `The word was ${targetWord}`;
+  const seconds = durationMs !== undefined ? Math.round(durationMs / 1000) : null;
+  const facts = [
+    won && wordCount !== undefined ? `Got it in ${wordCount} word${wordCount === 1 ? '' : 's'}` : null,
+    seconds !== null ? `${seconds}s` : null,
+  ].filter(Boolean).join(' · ');
   const wins = results.filter((r) => r === 'won').length;
   const isLastRound = round >= maxRounds;
-  const anyFlag = aiFlagged.length > 0 || manualFlags.size > 0;
-
-  let flagNote = 'Tap an arrow to flag a link that doesn’t work';
-  if (manualFlags.size > 0) {
-    flagNote = `Thanks — ${manualFlags.size} link${manualFlags.size === 1 ? '' : 's'} flagged`;
-  } else if (aiFlagged.length > 0) {
-    const i = aiFlagged[0];
-    flagNote = `${fullChain[i - 1]} → ${fullChain[i]} may not be a real link`;
-  }
 
   return (
     <Screen ground={ground}>
@@ -136,19 +124,15 @@ export function RoundResolutionScreen({
         </View>
 
         <Sticker radius={24} offset={6} contentStyle={styles.chainCard}>
-          <Eyebrow>How you got there</Eyebrow>
-          <WordChain
-            words={fullChain}
-            variant="wrap"
-            highlightLast
-            linkStatus={linkChecks}
-            flaggedIndices={manualFlags}
-            onLinkPress={toggleFlag}
-          />
-          <View style={styles.flagNote}>
-            <Feather name="flag" size={15} color={anyFlag ? p.danger : p.muted} />
-            <Text style={[styles.flagText, anyFlag && { color: p.danger }]}>{flagNote}</Text>
+          <Eyebrow>The description</Eyebrow>
+          <DescriptionFeed entries={feed} players={players} variant="recap" emptyLabel="No words this round" />
+          <View style={styles.answerRow}>
+            <Text style={styles.answerLabel}>The word</Text>
+            <Sticker bg={p.yellow} radius={10} offset={3} contentStyle={styles.answerChip}>
+              <Text style={[styles.answerText, { color: p.onYellow }]}>{targetWord}</Text>
+            </Sticker>
           </View>
+          {facts !== '' && <Text style={styles.facts}>{facts}</Text>}
         </Sticker>
 
         <View style={styles.score}>
@@ -233,8 +217,11 @@ const makeStyles = (p: Palette) =>
     headlineCompact: { fontSize: 38, lineHeight: 46 },
     sub: { fontFamily: fonts.bold, fontSize: 18, marginLeft: 4 },
     chainCard: { padding: 16, gap: 12 },
-    flagNote: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    flagText: { ...type.small, flex: 1, fontFamily: fonts.bold, color: p.muted },
+    answerRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    answerLabel: { fontFamily: fonts.bold, fontSize: 15, color: p.muted },
+    answerChip: { paddingHorizontal: 11, paddingVertical: 3 },
+    answerText: { fontFamily: fonts.black, fontSize: 21 },
+    facts: { ...type.small, fontFamily: fonts.bold, color: p.muted },
     score: { gap: 8 },
     scoreTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
     scoreText: { fontFamily: fonts.black, fontSize: 20 },

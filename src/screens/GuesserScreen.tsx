@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -10,92 +10,100 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { DescriptionFeed } from "../components/DescriptionFeed";
 import { GameHeader } from "../components/game";
 import { Pressable } from "../components/Pressable";
 import { TypingIndicator } from "../components/TypingIndicator";
-import { Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, StickerButton, useShortScreen } from "../components/ui";
-import { WordChain } from "../components/WordChain";
+import { Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from "../components/ui";
+import { GUESS_COOLDOWN_SECONDS, ROUND_SECONDS } from "../game/config";
 import { useShakeAnimation } from "../hooks/useShakeAnimation";
+import type { FeedEntry } from "../supabase/room";
+import type { GuessResult } from "../supabase/round";
+import type { RoomPlayer } from "../store/gameStore";
 import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from "../theme";
 
 interface GuesserScreenProps {
   round: number;
   maxRounds: number;
   category: string;
-  chain: string[];
+  feed: FeedEntry[];
+  players: Record<string, RoomPlayer>;
   activeKnowerName: string;
   /** True while the active Knower is typing (after their turn starts, before they submit) */
   knowerIsTyping: boolean;
-  durationSeconds: number;
-  secondsRemaining: number;
-  /** Hide the timer bar entirely rather than show a frozen/misleading one. */
+  /** The round's clock: get it before it runs out. */
+  roundSeconds: number;
+  /** Hide the round timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
-  /**
-   * Resolves to the verdict (judged server-side, may involve an AI check), or null if the
-   * round ended before the guess landed; rejects if it couldn't be submitted, so the
-   * Guesser can retry.
-   */
-  onGuess: (guess: string) => Promise<boolean | null>;
+  /** Judged server-side (may involve an AI check); rejects if it couldn't be sent, so they can retry. */
+  onGuess: (guess: string) => Promise<GuessResult>;
 }
 
 export function GuesserScreen({
   round,
   maxRounds,
   category,
-  chain,
+  feed,
+  players,
   activeKnowerName,
   knowerIsTyping,
-  durationSeconds,
-  secondsRemaining,
+  roundSeconds,
   showTimer = true,
   onGuess,
 }: GuesserScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
   const short = useShortScreen();
-  const [guessInputVisible, setGuessInputVisible] = useState(false);
   const [guess, setGuess] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
+  const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
+  // Guesses are 3 seconds apart: the button counts the wait down.
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const { shakeAnim, shake } = useShakeAnimation();
+
+  const cooldown = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
+  useEffect(() => {
+    if (cooldownUntil <= Date.now()) return;
+    const interval = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(interval);
+  }, [cooldownUntil]);
 
   const handleSubmitGuess = async () => {
     const trimmed = guess.trim();
-    if (trimmed.length === 0 || checking) return;
+    if (trimmed.length === 0 || checking || cooldown > 0) return;
     setChecking(true);
-    let correct: boolean | null = false;
+    setMessage("");
+    setCooldownUntil(Date.now() + GUESS_COOLDOWN_SECONDS * 1000);
+    setNow(Date.now());
+    let result: GuessResult;
     try {
-      correct = await onGuess(trimmed);
+      result = await onGuess(trimmed);
     } catch (e) {
-      // Never reached the judge — keep the guess so they can resend it.
+      // Never reached the judge: keep the guess so they can resend it.
       console.error(e);
-      setErrorMsg("Couldn't send your guess — check your connection and try again.");
+      setCooldownUntil(0);
+      setMessage("Couldn't send your guess. Check your connection and try again.");
       return;
     } finally {
       setChecking(false);
     }
-    // Too late — time ran out first. The screen is about to switch to the round result.
-    if (correct === null) return;
-    if (correct) {
+    if (result.status === "wrong") {
       setGuess("");
-      setGuessInputVisible(false);
-    } else {
       shake();
-      setErrorMsg("Not quite — that's not the word.");
-      // Safety net in case the round doesn't resolve promptly for some reason.
-      setTimeout(() => setErrorMsg(""), 3000);
+      setMessage("Not it! Keep guessing.");
+    } else if (result.status === "cooldown") {
+      setMessage("Hang on a second before guessing again.");
     }
+    // 'correct' and 'closed': the screen is about to switch to the round result.
   };
 
-  const isPreFirstWord = chain.length === 0;
-  const canSubmit = guess.trim().length > 0 && !checking;
+  const canSubmit = guess.trim().length > 0 && !checking && cooldown === 0;
+  const hasWords = feed.some((e) => e.kind === "word");
 
   return (
     <Screen>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScreenBody style={styles.body}>
           <GameHeader
             round={round}
@@ -103,12 +111,13 @@ export function GuesserScreen({
             role="You’re guessing"
             roleBg={p.coral}
             roleFg={p.onCoral}
-            durationSeconds={durationSeconds}
-            secondsRemaining={secondsRemaining}
+            durationSeconds={ROUND_SECONDS}
+            secondsRemaining={roundSeconds}
             showTimer={showTimer}
+            compact={short}
           />
 
-          {/* Category — the only hint the Guesser gets */}
+          {/* Category: the only hint the Guesser gets besides the description */}
           <View style={styles.categoryBlock}>
             {!short && <Eyebrow>The category is</Eyebrow>}
             <Text style={[styles.category, short && styles.categoryCompact]} adjustsFontSizeToFit numberOfLines={1}>
@@ -116,102 +125,65 @@ export function GuesserScreen({
             </Text>
           </View>
 
-          <Sticker style={[styles.chainWrap, short && styles.chainWrapCompact]} radius={26} offset={6} contentStyle={styles.chainCard}>
-            {isPreFirstWord ? (
+          <Sticker style={[styles.feedWrap, short && styles.feedWrapCompact]} radius={26} offset={6} contentStyle={styles.feedCard}>
+            {hasWords || feed.length > 0 ? (
+              <DescriptionFeed entries={feed} players={players} large style={styles.flex} />
+            ) : (
               <View style={styles.preWord}>
                 <Text style={styles.preWordTitle}>Your friends are thinking…</Text>
                 <Text style={styles.preWordSub}>{activeKnowerName} is up first</Text>
               </View>
-            ) : (
-              // A short screen has room for the newest word and the one before it.
-              <WordChain words={short ? chain.slice(-2) : chain} variant="center" style={styles.flex} />
             )}
             <View style={styles.typingRow} accessibilityLiveRegion="polite">
               <TypingIndicator active={knowerIsTyping} />
               <Text style={styles.typingText}>
-                {knowerIsTyping
-                  ? `${activeKnowerName} is typing`
-                  : `${activeKnowerName} is thinking`}
+                {knowerIsTyping ? `${activeKnowerName} is typing` : `${activeKnowerName} is thinking`}
               </Text>
             </View>
           </Sticker>
         </ScreenBody>
 
         <View style={styles.footer}>
-          {errorMsg !== "" && (
-            <Text style={styles.errorMsg} accessibilityLiveRegion="assertive">
-              {errorMsg}
+          {message !== "" && (
+            <Text style={styles.message} accessibilityLiveRegion="assertive">
+              {message}
             </Text>
           )}
-
-          {guessInputVisible ? (
-            <>
-              <Animated.View
-                style={[styles.guessRow, { transform: [{ translateX: shakeAnim }] }]}
-              >
-                <TextInput
-                  style={styles.guessInput}
-                  value={guess}
-                  onChangeText={(t) => {
-                    setGuess(t);
-                    if (errorMsg) setErrorMsg("");
-                  }}
-                  placeholder="What's the secret word?"
-                  placeholderTextColor={p.muted}
-                  autoFocus
-                  editable={!checking}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmitGuess}
-                  accessibilityLabel="Your guess"
-                />
-                <Pressable
-                  onPress={handleSubmitGuess}
-                  disabled={!canSubmit}
-                  accessibilityRole="button"
-                  accessibilityLabel={checking ? "Checking guess" : "Submit guess"}
-                  accessibilityState={{ busy: checking, disabled: !canSubmit }}
-                  style={[styles.submit, !canSubmit && !checking && styles.submitDisabled]}
-                >
-                  {checking ? (
-                    <ActivityIndicator color={p.onCoral} />
-                  ) : (
-                    <Feather name="check" size={28} color={canSubmit ? p.onCoral : p.onDisabled} />
-                  )}
-                </Pressable>
-              </Animated.View>
+          <Animated.View style={[styles.guessRow, { transform: [{ translateX: shakeAnim }] }]}>
+            <TextInput
+              style={styles.guessInput}
+              value={guess}
+              onChangeText={(t) => {
+                setGuess(t);
+                if (message) setMessage("");
+              }}
+              placeholder="What's the secret word?"
+              placeholderTextColor={p.muted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="send"
+              onSubmitEditing={handleSubmitGuess}
+              blurOnSubmit={false}
+              accessibilityLabel="Your guess"
+            />
+            <Pressable
+              onPress={handleSubmitGuess}
+              disabled={!canSubmit}
+              accessibilityRole="button"
+              accessibilityLabel={checking ? "Checking guess" : cooldown > 0 ? `Guess again in ${cooldown} seconds` : "Submit guess"}
+              accessibilityState={{ busy: checking, disabled: !canSubmit }}
+              style={[styles.submit, !canSubmit && !checking && styles.submitDisabled]}
+            >
               {checking ? (
-                <Text style={styles.cancelText} accessibilityLiveRegion="polite">
-                  Checking your guess…
-                </Text>
+                <ActivityIndicator color={p.onCoral} />
+              ) : cooldown > 0 ? (
+                <Text style={styles.cooldown}>{cooldown}s</Text>
               ) : (
-                <Pressable
-                  onPress={() => {
-                    setGuessInputVisible(false);
-                    setGuess("");
-                  }}
-                  accessibilityRole="button"
-                  accessibilityLabel="Cancel guess"
-                  style={styles.cancel}
-                >
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </Pressable>
+                <Feather name="check" size={28} color={canSubmit ? p.onCoral : p.onDisabled} />
               )}
-            </>
-          ) : (
-            <>
-              <StickerButton
-                label="I know it!"
-                icon="help-circle"
-                height={short ? 60 : 72}
-                fontSize={short ? 24 : 28}
-                onPress={() => setGuessInputVisible(true)}
-                accessibilityLabel="Make a guess"
-              />
-              {!short && <Text style={styles.footnote}>One guess. A wrong answer ends the round.</Text>}
-            </>
-          )}
+            </Pressable>
+          </Animated.View>
+          {!short && <Text style={styles.footnote}>Guess as often as you like. Get it before time runs out!</Text>}
         </View>
       </KeyboardAvoidingView>
     </Screen>
@@ -225,10 +197,11 @@ const makeStyles = (p: Palette) =>
     categoryBlock: { alignItems: "center", gap: 2 },
     category: { fontFamily: fonts.black, fontSize: 50, lineHeight: 56, letterSpacing: -1.5, color: p.ink },
     categoryCompact: { fontSize: 36, lineHeight: 42 },
-    // Room for the newest word, the one before it and the typing line.
-    chainWrap: { flex: 1, minHeight: 190 },
-    chainWrapCompact: { minHeight: 140 },
-    chainCard: { flex: 1, paddingVertical: 12, paddingHorizontal: 12 },
+    // Room for a few lines of description and the typing line.
+    feedWrap: { flex: 1, minHeight: 190 },
+    // Short screens: a fixed height, so the feed scrolls itself to the newest words.
+    feedWrapCompact: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 0, height: 160 },
+    feedCard: { flex: 1, paddingVertical: 14, paddingHorizontal: 14 },
     preWord: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 16 },
     preWordTitle: { fontFamily: fonts.black, fontSize: 24, color: p.ink, textAlign: "center" },
     preWordSub: { ...type.body, color: p.muted },
@@ -236,7 +209,7 @@ const makeStyles = (p: Palette) =>
     typingText: { fontFamily: fonts.bold, fontSize: 16, color: p.ink },
     footer: { paddingHorizontal: spacing.screen, paddingTop: 12, paddingBottom: 14, gap: 8 },
     footnote: { ...type.small, color: p.ink, textAlign: "center" },
-    errorMsg: { ...type.bodyBold, color: p.danger, textAlign: "center" },
+    message: { ...type.bodyBold, color: p.danger, textAlign: "center" },
     guessRow: { flexDirection: "row", gap: 10 },
     guessInput: {
       flex: 1,
@@ -261,6 +234,5 @@ const makeStyles = (p: Palette) =>
       justifyContent: "center",
     },
     submitDisabled: { backgroundColor: p.disabled },
-    cancel: { alignSelf: "center", paddingVertical: 10, paddingHorizontal: 16 },
-    cancelText: { fontFamily: fonts.bold, fontSize: 17, color: p.ink, textAlign: "center" },
+    cooldown: { fontFamily: fonts.black, fontSize: 20, color: p.onDisabled },
   });

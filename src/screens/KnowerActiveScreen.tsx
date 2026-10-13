@@ -1,5 +1,5 @@
 import { Feather } from '@expo/vector-icons';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   KeyboardAvoidingView,
@@ -9,11 +9,15 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { DescriptionFeed } from '../components/DescriptionFeed';
 import { GameHeader, SecretWordCard } from '../components/game';
 import { Pressable } from '../components/Pressable';
+import { TurnClock } from '../components/TurnClock';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, useShortScreen } from '../components/ui';
-import { WordChain } from '../components/WordChain';
+import { MAX_WORD_LENGTH, ONE_WORD, ROUND_SECONDS } from '../game/config';
 import { useShakeAnimation } from '../hooks/useShakeAnimation';
+import type { FeedEntry } from '../supabase/room';
+import type { RoomPlayer } from '../store/gameStore';
 import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 
 interface KnowerActiveScreenProps {
@@ -21,22 +25,26 @@ interface KnowerActiveScreenProps {
   maxRounds: number;
   targetWord: string;
   category: string;
-  chain: string[];
-  durationSeconds: number;
-  secondsRemaining: number;
-  /** Hide the timer bar entirely rather than show a frozen/misleading one. */
+  feed: FeedEntry[];
+  players: Record<string, RoomPlayer>;
+  /** This turn's clock: when it runs out the turn passes to the other Knower. */
+  turnSeconds: number;
+  /** The round's clock: when it runs out the round is lost. */
+  roundSeconds: number;
+  /** Hide the round timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
+  /** Why the server turned the last word down, if it did (a new object each time). */
+  notice?: { message: string } | null;
   onSubmitWord: (word: string) => void;
   onTypingChange?: (isTyping: boolean) => void;
 }
 
-/** Returns true if the candidate matches the target or an obvious variant */
+/** True if the candidate is the target or an obvious variant of it. Mirrors _is_target_variant(). */
 function matchesTarget(candidate: string, target: string): boolean {
   const norm = (s: string) => s.toLowerCase().trim();
   const c = norm(candidate);
   const t = norm(target);
   if (c === t) return true;
-  // Plurals and common inflections
   const variants = [
     t + 's',
     t + 'es',
@@ -44,10 +52,10 @@ function matchesTarget(candidate: string, target: string): boolean {
     t + 'ed',
     t + 'er',
     t + 'ers',
-    t.replace(/e$/, 'ing'),  // dance → dancing
-    t.replace(/e$/, 'ed'),   // dance → danced
-    t.replace(/y$/, 'ies'),  // berry → berries
-    t.replace(/y$/, 'ied'),  // carry → carried
+    t.replace(/e$/, 'ing'), // dance → dancing
+    t.replace(/e$/, 'ed'), // dance → danced
+    t.replace(/y$/, 'ies'), // berry → berries
+    t.replace(/y$/, 'ied'), // carry → carried
   ];
   return variants.includes(c);
 }
@@ -57,39 +65,59 @@ export function KnowerActiveScreen({
   maxRounds,
   targetWord,
   category,
-  chain,
-  durationSeconds,
-  secondsRemaining,
+  feed,
+  players,
+  turnSeconds,
+  roundSeconds,
   showTimer = true,
+  notice,
   onSubmitWord,
   onTypingChange,
 }: KnowerActiveScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
+  const short = useShortScreen();
   const [word, setWord] = useState('');
   const [validationMsg, setValidationMsg] = useState('');
   const { shakeAnim, shake } = useShakeAnimation();
   const inputRef = useRef<TextInput>(null);
-  const short = useShortScreen();
+
+  const refuse = (message: string) => {
+    shake();
+    setValidationMsg(message);
+  };
+
+  // A word the server refused: say why, and shake.
+  useEffect(() => {
+    if (notice) refuse(notice.message);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notice]);
+
+  const lastWord = [...feed].reverse().find((e) => e.kind === 'word') as { text: string } | undefined;
 
   const handleSend = () => {
     const trimmed = word.trim();
     if (trimmed.length === 0) return;
-
-    if (matchesTarget(trimmed, targetWord)) {
-      shake();
-      setValidationMsg("That's the secret word — try a different one.");
-      setTimeout(() => setValidationMsg(''), 3000);
+    // Problems the player can fix keep their turn: say what's wrong, don't send.
+    if (trimmed.length > MAX_WORD_LENGTH || !ONE_WORD.test(trimmed)) {
+      refuse(`One word only: letters, with ' or - inside. Up to ${MAX_WORD_LENGTH} letters.`);
       return;
     }
-
+    if (matchesTarget(trimmed, targetWord)) {
+      refuse('That’s the secret word. Try a different one.');
+      return;
+    }
+    if (lastWord && lastWord.text.toLowerCase() === trimmed.toLowerCase()) {
+      refuse('That was the last word. Try another one.');
+      return;
+    }
     setValidationMsg('');
     onTypingChange?.(false);
     onSubmitWord(trimmed);
     setWord('');
   };
 
-  // Spacebar submits — detect trailing space with content before it
+  // Space bar submits: a trailing space after some text sends the word.
   const handleChangeText = (text: string) => {
     if (text.endsWith(' ') && text.trim().length > 0) {
       setWord(text.trimEnd());
@@ -101,19 +129,15 @@ export function KnowerActiveScreen({
     onTypingChange?.(text.trim().length > 0);
   };
 
-  // Ref trick so handleSend closure inside handleChangeText sees latest state
+  // Ref trick so handleSend inside handleChangeText sees the latest state.
   const handleSendRef = useRef(handleSend);
   handleSendRef.current = handleSend;
 
   const canSend = word.trim().length > 0;
-  const lastWord = chain[chain.length - 1];
 
   return (
     <Screen>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScreenBody style={styles.body}>
           <GameHeader
             round={round}
@@ -121,35 +145,23 @@ export function KnowerActiveScreen({
             role="Your turn"
             roleBg={p.blue}
             roleFg={p.onBlue}
-            durationSeconds={durationSeconds}
-            secondsRemaining={secondsRemaining}
+            durationSeconds={ROUND_SECONDS}
+            secondsRemaining={roundSeconds}
             showTimer={showTimer}
+            compact={short}
           />
 
-          <SecretWordCard word={targetWord} category={category} hint="Don’t say it. Lead them to it." compact={short} />
+          <SecretWordCard word={targetWord} category={category} hint="Describe it. Don’t say it." compact={short} />
 
-          <View style={short ? styles.chainRow : styles.chainSection}>
-            {!short && <Eyebrow>The chain</Eyebrow>}
-            <WordChain
-              words={chain}
-              variant={short ? 'row' : 'stack'}
-              emphasiseLast
-              showPending
-              pendingLabel={chain.length === 0 ? 'first word…' : 'your word…'}
-              style={short ? undefined : styles.flex}
+          <View style={[styles.feedSection, short && styles.feedSectionShort]}>
+            {!short && <Eyebrow>The description</Eyebrow>}
+            <DescriptionFeed
+              entries={feed}
+              players={players}
+              pendingLabel={feed.some((e) => e.kind === 'word') ? 'your word…' : 'first word…'}
+              style={styles.flex}
             />
           </View>
-
-          <Text style={styles.hint}>
-            {lastWord ? (
-              <>
-                One word that makes a compound or phrase with{' '}
-                <Text style={styles.hintStrong}>{lastWord}</Text>.
-              </>
-            ) : (
-              'You go first — pick an opening word that points toward the secret.'
-            )}
-          </Text>
         </ScreenBody>
 
         <View style={styles.inputSection}>
@@ -158,7 +170,7 @@ export function KnowerActiveScreen({
               {validationMsg}
             </Text>
           )}
-          {!short && <Eyebrow>Your word</Eyebrow>}
+          <TurnClock label="Your word" seconds={turnSeconds} />
           <Animated.View style={[styles.inputRow, { transform: [{ translateX: shakeAnim }] }]}>
             <View style={styles.inputWrap}>
               <View style={styles.inputShadow} />
@@ -167,11 +179,12 @@ export function KnowerActiveScreen({
                 style={styles.input}
                 value={word}
                 onChangeText={handleChangeText}
-                placeholder="Type a word…"
+                placeholder="Add one word…"
                 placeholderTextColor={p.muted}
                 autoFocus
                 autoCapitalize="none"
                 autoCorrect={false}
+                maxLength={MAX_WORD_LENGTH + 1}
                 returnKeyType="send"
                 onSubmitEditing={handleSend}
                 accessibilityLabel="Your word"
@@ -187,13 +200,7 @@ export function KnowerActiveScreen({
               {({ pressed }) => (
                 <View style={styles.sendWrap}>
                   {canSend && <View style={styles.sendShadow} />}
-                  <View
-                    style={[
-                      styles.send,
-                      !canSend && styles.sendDisabled,
-                      pressed && canSend && styles.sendPressed,
-                    ]}
-                  >
+                  <View style={[styles.send, !canSend && styles.sendDisabled, pressed && canSend && styles.sendPressed]}>
                     <Feather name="arrow-right" size={26} color={canSend ? p.onCoral : p.onDisabled} />
                   </View>
                 </View>
@@ -211,12 +218,13 @@ const makeStyles = (p: Palette) =>
   StyleSheet.create({
     flex: { flex: 1 },
     body: { paddingHorizontal: spacing.screen, paddingTop: 10, gap: 16 },
-    // Never shorter than the word to link to plus the slot for yours.
-    chainSection: { flex: 1, gap: 10, minHeight: 150 },
-    chainRow: { flexGrow: 1 },
-    hint: { ...type.small, fontSize: 15, color: p.ink },
-    hintStrong: { fontFamily: fonts.black },
-    inputSection: { paddingHorizontal: spacing.screen, paddingTop: 10, paddingBottom: 12, gap: 6 },
+    // Room for a few lines of description however short the screen.
+    feedSection: { flex: 1, gap: 10, minHeight: 110 },
+    // Short screens: a fixed height, so the feed scrolls itself to the newest words (inside
+    // the screen's own scroll view a stretchy area would just grow to fit them all).
+    // (flexBasis 'auto': on the web a 0 basis would override the height.)
+    feedSectionShort: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 0, height: 92 },
+    inputSection: { paddingHorizontal: spacing.screen, paddingTop: 10, paddingBottom: 12, gap: 8 },
     validationMsg: { ...type.bodyBold, color: p.danger, textAlign: 'center' },
     inputRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
     inputWrap: { flex: 1, paddingRight: 4, paddingBottom: 4 },
