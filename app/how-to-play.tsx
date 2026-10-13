@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { PoweredBy } from '../src/components/PoweredBy';
 import { Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker } from '../src/components/ui';
 import { WordChain } from '../src/components/WordChain';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
@@ -77,6 +78,8 @@ export default function HowToPlayScreen() {
             ))}
           </View>
         </Section>
+
+        <PoweredBy />
       </ScrollView>
     </Screen>
   );
