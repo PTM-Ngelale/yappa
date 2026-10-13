@@ -51,6 +51,11 @@ const as = async (uid, sql, params) => {
   await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${uid ?? ''}', false), set_config('request.jwt.claim.role', '${role}', false); set role ${role};`);
   try { return await db.query(sql, params); } finally { await db.exec('reset role'); }
 };
+/** Runs `sql` as a visitor who isn't signed in (the web card page). */
+const asAnon = async (sql, params) => {
+  await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false), set_config('request.jwt.claim.role', 'anon', false); set role anon;`);
+  try { return await db.query(sql, params); } finally { await db.exec('reset role'); }
+};
 const fails = async (uid, sql, params) => { try { await as(uid, sql, params); return false; } catch { return true; } };
 const room = async (code = 'ABCD') => (await db.query(`select data from rooms where code = $1`, [code])).rows[0]?.data;
 const secretFor = async (round) =>
@@ -196,6 +201,19 @@ check(await fails(OUTSIDER, `select end_game('ABCD')`), 'a non-member cannot end
 check(await stat('games_created_private') === 1 && await stat('joins_code') === 2, 'stats: the room and both typed-code joins are counted');
 check(await stat('games_started') === 1 && await stat('games_finished') === 1 && await stat('games_ended_early') === 0, 'stats: a started and a finished game are counted');
 
+// --- Share cards (migration 012) ------------------------------------------------------------
+const cardId = (await as(P2, `select create_share_card('ABCD') id`)).rows[0].id;
+check(/^[A-Za-z0-9]{8}$/.test(cardId), 'a player can make a share card of a finished game');
+check((await as(P3, `select create_share_card('ABCD') id`)).rows[0].id === cardId, 'sharing the same game again gives the same card');
+check(await fails(OUTSIDER, `select create_share_card('ABCD')`), 'only players in the game can make its card');
+const card = (await asAnon(`select get_share_card($1) c`, [cardId])).rows[0].c;
+check(card.rounds.length === 9 && card.maxRounds === 9 && card.rounds[0].targetWord && Array.isArray(card.rounds[0].chain), 'anyone with the link can read the card');
+check(![HOST, P2, P3, 'ABCD'].some((x) => JSON.stringify(card).includes(x)), 'a card holds no player IDs or room code');
+check((await asAnon(`select get_share_card('nope') c`)).rows[0].c === null, 'an unknown card is empty');
+const readsCards = async (run) => { try { return (await run(`select * from share_cards`)).rows.length > 0; } catch { return false; } };
+check(!(await readsCards(asAnon)) && !(await readsCards((q) => as(P2, q))), 'the cards table is unreadable to clients');
+check(await (async () => { try { await asAnon(`select create_share_card('ABCD')`); return false; } catch { return true; } })(), 'visitors who are not signed in cannot make cards');
+
 // --- Host leaves, the game carries on --------------------------------------------------
 const nextInOrder = d.playerOrder.find((u) => u !== HOST);
 await as(HOST, `select leave_room('ABCD', $1)`, [HOST]);
@@ -311,6 +329,7 @@ await as(P3, `select join_room('STA1', $1, 'link')`, [player(P3)]);
 await as(OUTSIDER, `select join_room('STA1', $1, 'code')`, [player(OUTSIDER)]);
 check(await stat('games_created_private') === 1 && await stat('joins_link') === 1 && await stat('joins_code') === 1, 'stats: joins count by link or typed code');
 check(await fails(FIFTH, `select join_room('STA1', $1, 'link')`, [player(FIFTH)]) && await stat('joins_link') === 1, 'stats: a rejected join (room full) is not counted');
+check(await fails(P2, `select create_share_card('STA1')`), 'a game that is not over cannot be shared');
 await as(P2, `select start_game('STA1')`);
 await as(P3, `select end_game('STA1')`);
 await as(P3, `select reset_room_to_lobby('STA1')`);

@@ -1,6 +1,6 @@
 import type { Viewport } from 'next';
 import React from 'react';
-import { ClientShell } from '../components/ClientShell';
+import { ClientShell } from '../../components/ClientShell';
 import './globals.css';
 
 const TITLE = 'Yappa: Word Chain Party Game';

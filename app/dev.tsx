@@ -136,6 +136,7 @@ export default function DevScreen() {
             maxRounds={MOCK.maxRounds}
             onPlayAgain={() => {}}
             onBackToHome={() => router.back()}
+            onShare={async () => 'copied'}
           />
         )}
       </View>

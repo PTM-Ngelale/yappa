@@ -1,6 +1,8 @@
 import { Feather } from '@expo/vector-icons';
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { verdict } from '../lib/gameSummary';
+import type { ShareResult } from '../lib/shareRoom';
 import type { RoundHistoryEntry } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
 import { Pressable } from '../components/Pressable';
@@ -15,15 +17,8 @@ interface GameEndScreenProps {
   onBackToHome: () => void;
   /** Public games only: opens the report sheet. */
   onReport?: () => void;
-}
-
-function verdict(won: number, max: number): string {
-  const share = won / max;
-  if (won === max) return 'Perfect game!';
-  if (share >= 0.75) return 'Brilliant teamwork';
-  if (share >= 0.5) return 'Solid teamwork';
-  if (share >= 0.25) return 'Good effort';
-  return 'Tough crowd';
+  /** Shares a card of this game (a link whose preview is the score and best chain). */
+  onShare?: () => Promise<ShareResult>;
 }
 
 export function GameEndScreen({
@@ -33,10 +28,23 @@ export function GameEndScreen({
   onPlayAgain,
   onBackToHome,
   onReport,
+  onShare,
 }: GameEndScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
   const short = useShortScreen();
+  const [sharing, setSharing] = useState(false);
+  const [shareNote, setShareNote] = useState('');
+
+  const handleShare = async () => {
+    if (!onShare || sharing) return;
+    setSharing(true);
+    setShareNote('');
+    const result = await onShare();
+    setSharing(false);
+    if (result === 'copied') setShareNote('Link copied, paste it anywhere');
+    else if (result === 'failed') setShareNote('Couldn’t share. Check your connection and try again.');
+  };
   const sorted = [...history].sort((a, b) => a.round - b.round);
   const wonCount = sorted.filter((h) => h.outcome === 'won').length;
 
@@ -56,6 +64,26 @@ export function GameEndScreen({
           <Text style={styles.verdict} accessibilityRole="header">
             {verdict(wonCount, maxRounds)}
           </Text>
+          {onShare && (
+            <>
+              <StickerButton
+                label="Share results"
+                icon="share-2"
+                variant="blue"
+                height={48}
+                fontSize={18}
+                loading={sharing}
+                onPress={handleShare}
+                accessibilityLabel="Share your results"
+                style={styles.share}
+              />
+              {shareNote !== '' && (
+                <Text style={styles.shareNote} accessibilityLiveRegion="polite">
+                  {shareNote}
+                </Text>
+              )}
+            </>
+          )}
         </View>
 
         <Sticker style={styles.listWrap} radius={24} offset={5} contentStyle={styles.listCard}>
@@ -135,6 +163,8 @@ const makeStyles = (p: Palette) =>
     scoreBig: { fontFamily: fonts.black, fontSize: 92, lineHeight: 100, letterSpacing: -4, color: p.ink },
     scoreOf: { fontFamily: fonts.black, fontSize: 34, color: p.ink },
     verdict: { ...type.title, color: p.ink, marginTop: 4 },
+    share: { alignSelf: 'center', minWidth: 220, marginTop: 6 },
+    shareNote: { ...type.small, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
     scoreBigCompact: { fontSize: 60, lineHeight: 68 },
     // At least a few rounds in view; the list scrolls inside the card.
     listWrap: { flex: 1, minHeight: 170, marginHorizontal: spacing.screen, marginTop: 16 },

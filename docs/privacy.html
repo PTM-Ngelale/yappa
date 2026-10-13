@@ -60,6 +60,11 @@
         <td>Our database (Supabase)</td>
       </tr>
       <tr>
+        <td><strong>Shared game cards</strong>: only if someone taps <em>Share results</em> at the end of a game. The score and each round's secret word, chain of words and result. No player names or IDs.</td>
+        <td>So the shared link and its picture keep working after the game itself is deleted</td>
+        <td>Our database (Supabase); anyone with the link can see the card</td>
+      </tr>
+      <tr>
         <td><strong>Daily game totals</strong> — counts per day, such as games started and finished and how many players joined by invite link or code. No IDs, names, words or devices.</td>
         <td>To see whether the game works for people, without tracking anyone</td>
         <td>Our database (Supabase)</td>
@@ -93,6 +98,7 @@
   <ul>
     <li><strong>Games</strong> are deleted when every player has left, and in any case within 24 hours of being created.</li>
     <li><strong>Usage counters</strong> are deleted after one hour.</li>
+    <li><strong>Shared game cards</strong> are deleted one year after they're made.</li>
     <li><strong>Daily game totals</strong> are kept, since they contain no personal data.</li>
     <li><strong>Reports</strong> are deleted 90 days after they're made.</li>
     <li><strong>Anonymous player IDs</strong> are deleted after 30 days without use.</li>
