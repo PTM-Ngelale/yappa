@@ -29,6 +29,8 @@ export default function HomeScreen() {
   const { setRoomCode, setIsHost } = useGameStore();
 
   const [joinCode, setJoinCode] = useState("");
+  // The code an invite link filled in, so a join with it counts as "via link".
+  const [linkCode, setLinkCode] = useState("");
   const [showJoin, setShowJoin] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -43,6 +45,7 @@ export default function HomeScreen() {
     const code = (typeof room === "string" ? room : "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (code.length !== 4) return;
     setJoinCode(code);
+    setLinkCode(code);
     setShowJoin(true);
   }, [room]);
 
@@ -179,7 +182,7 @@ export default function HomeScreen() {
           avatarColor,
           role: "knower",
           lastSeenAt: Date.now(),
-        });
+        }, code === linkCode ? "link" : "code");
         const { startPresence } = await import("../src/supabase/presence");
         startPresence(code, uid);
       }
