@@ -17,6 +17,8 @@ nextEnv.loadEnvConfig(repoRoot, process.env.NODE_ENV !== 'production', undefined
 const nextConfig = {
   // Shared code lives outside web/ (../app, ../src, ../assets).
   outputFileTracingRoot: repoRoot,
+  // The share card picture reads its fonts from web/fonts at request time.
+  outputFileTracingIncludes: { '/c/[id]/image.png': ['./fonts/**/*'] },
   experimental: { externalDir: true },
   env: {
     EXPO_PUBLIC_SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',

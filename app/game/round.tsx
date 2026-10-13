@@ -12,6 +12,7 @@ import {
   submitWord,
 } from '../../src/supabase/round';
 import {
+  createShareCard,
   endGame,
   leaveRoom,
   listenToRoom,
@@ -21,6 +22,7 @@ import {
 import { onPresenceChange, stopPresence } from '../../src/supabase/presence';
 import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
+import { shareCard } from '../../src/lib/shareCard';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
 import { TURN_SECONDS, useTurnCountdown } from '../../src/hooks/useTurnCountdown';
 import { ReportSheet } from '../../src/components/ReportSheet';
@@ -354,6 +356,18 @@ export default function RoundScreen() {
           players={roomData.players}
           maxRounds={roomData.maxRounds}
           onReport={onReport}
+          onShare={async () => {
+            try {
+              const cardId = await createShareCard(roomCode!);
+              const won = history.filter((h) => h.outcome === 'won').length;
+              // A game ended early is scored out of the rounds played, as on the card.
+              const outOf = Math.min(history.length, roomData.maxRounds);
+              return await shareCard(cardId, `We scored ${won}/${outOf} on Yappa! Can you beat it?`);
+            } catch (e) {
+              console.error(e);
+              return 'failed';
+            }
+          }}
           onPlayAgain={() => {
             resetRoomToLobby(roomCode!).catch(console.error);
           }}

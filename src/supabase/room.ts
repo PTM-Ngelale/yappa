@@ -167,6 +167,16 @@ export async function reportPlayer(code: string, reportedUid: string, reason: Re
 }
 
 /** Disconnect overlay's "End game now" (or its countdown expiring) — ends the game for everyone. */
+/**
+ * Makes (or finds) the share card for this finished game and returns its id — see
+ * create_share_card() in migration 012. The card holds the rounds and score, no names.
+ */
+export async function createShareCard(code: string): Promise<string> {
+  const { data, error } = await supabase.rpc('create_share_card', { p_code: code });
+  if (error) throw error;
+  return data as string;
+}
+
 export async function endGame(code: string): Promise<void> {
   const { error } = await supabase.rpc('end_game', { p_code: code });
   if (error) throw error;
