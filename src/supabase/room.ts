@@ -56,10 +56,11 @@ export async function createRoom(code: string, hostPlayer: RoomPlayer): Promise<
 
 /**
  * Adds the caller to the room via join_room() (migrations 002/005). Rejects a full room,
- * an already-started game, or a mismatched uid with a real thrown error.
+ * an already-started game, or a mismatched uid with a real thrown error. `source` says
+ * whether they came by invite link or typed the code — counted in game_stats (migration 011).
  */
-export async function joinRoom(code: string, player: RoomPlayer): Promise<void> {
-  const { error } = await supabase.rpc('join_room', { p_code: code, p_player: player });
+export async function joinRoom(code: string, player: RoomPlayer, source: 'link' | 'code'): Promise<void> {
+  const { error } = await supabase.rpc('join_room', { p_code: code, p_player: player, p_source: source });
   if (error) throw error;
 }
 

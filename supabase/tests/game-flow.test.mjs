@@ -56,6 +56,8 @@ const room = async (code = 'ABCD') => (await db.query(`select data from rooms wh
 const secretFor = async (round) =>
   (await db.query(`select target_word from round_secrets where code = 'ABCD' and round = $1`, [round])).rows[0].target_word;
 const turnStart = async () => (await db.query(`select started_at t from turn_clocks where code = 'ABCD'`)).rows[0]?.t ?? null;
+const stat = async (metric) =>
+  (await db.query(`select coalesce(sum(count), 0)::int n from game_stats where metric = $1`, [metric])).rows[0].n;
 const player = (uid, extra = {}) => ({ uid, name: `P${uid[0]}`, avatarColor: '#123456', role: 'knower', lastSeenAt: 0, ...extra });
 
 // --- Migrations, with a legacy room in between ---------------------------------------
@@ -191,6 +193,9 @@ const deck = (await db.query(`select words from game_decks where code = 'ABCD'`)
 check(deck.length === 9 && new Set(deck.map((w) => w.category)).size >= 3, 'deck: 9 words across at least 3 categories');
 check(await fails(OUTSIDER, `select end_game('ABCD')`), 'a non-member cannot end a game');
 
+check(await stat('games_created_private') === 1 && await stat('joins_code') === 2, 'stats: the room and both typed-code joins are counted');
+check(await stat('games_started') === 1 && await stat('games_finished') === 1 && await stat('games_ended_early') === 0, 'stats: a started and a finished game are counted');
+
 // --- Host leaves, the game carries on --------------------------------------------------
 const nextInOrder = d.playerOrder.find((u) => u !== HOST);
 await as(HOST, `select leave_room('ABCD', $1)`, [HOST]);
@@ -298,6 +303,22 @@ await as(P3, `select join_room('PRIV', $1)`, [player(P3)]);
 await db.query(`update rooms set data = jsonb_set(data, array['players', $1, 'lastSeenAt'], '0') where code = 'PRIV'`, [P2]);
 await as(P3, `select lobby_heartbeat('PRIV')`);
 check((await room('PRIV')).hostUid === P3, 'the host role passes on when the host goes quiet');
+
+// --- Game stats (migration 011) ------------------------------------------------------------
+await db.exec(`delete from game_stats`);
+await as(P2, `select create_room('STA1', $1)`, [player(P2)]);
+await as(P3, `select join_room('STA1', $1, 'link')`, [player(P3)]);
+await as(OUTSIDER, `select join_room('STA1', $1, 'code')`, [player(OUTSIDER)]);
+check(await stat('games_created_private') === 1 && await stat('joins_link') === 1 && await stat('joins_code') === 1, 'stats: joins count by link or typed code');
+check(await fails(FIFTH, `select join_room('STA1', $1, 'link')`, [player(FIFTH)]) && await stat('joins_link') === 1, 'stats: a rejected join (room full) is not counted');
+await as(P2, `select start_game('STA1')`);
+await as(P3, `select end_game('STA1')`);
+await as(P3, `select reset_room_to_lobby('STA1')`);
+check(await stat('games_started') === 1 && await stat('games_ended_early') === 1 && await stat('rematches') === 1, 'stats: early endings and rematches are counted');
+check(await fails(P2, `select * from game_stats`) || (await as(P2, `select * from game_stats`)).rows.length === 0, 'stats are unreadable to clients');
+check(await fails(P2, `select _bump_stat('games_finished')`), 'clients cannot bump stats');
+const statColumns = (await db.query(`select column_name from information_schema.columns where table_name = 'game_stats' order by 1`)).rows.map((r) => r.column_name).join();
+check(statColumns === 'count,day,metric', 'stats hold only a day, a metric and a count');
 
 // --- Data retention (migration 008) -------------------------------------------------------
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');
