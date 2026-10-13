@@ -55,6 +55,7 @@ const fails = async (uid, sql, params) => { try { await as(uid, sql, params); re
 const room = async (code = 'ABCD') => (await db.query(`select data from rooms where code = $1`, [code])).rows[0]?.data;
 const secretFor = async (round) =>
   (await db.query(`select target_word from round_secrets where code = 'ABCD' and round = $1`, [round])).rows[0].target_word;
+const turnStart = async () => (await db.query(`select started_at t from turn_clocks where code = 'ABCD'`)).rows[0]?.t ?? null;
 const player = (uid, extra = {}) => ({ uid, name: `P${uid[0]}`, avatarColor: '#123456', role: 'knower', lastSeenAt: 0, ...extra });
 
 // --- Migrations, with a legacy room in between ---------------------------------------
@@ -95,6 +96,7 @@ check((await as(HOST, `select * from words`)).rows.length === 0 && (await as(HOS
 
 // --- Play 9 rounds -------------------------------------------------------------------
 let wins = 0;
+let turnStartBeforeWord;
 for (let round = 1; round <= 9; round++) {
   d = await room();
   const target = await secretFor(round);
@@ -121,12 +123,35 @@ for (let round = 1; round <= 9; round++) {
     check((await room()).secondsRemaining === 28, 'the host tick decrements the timer');
     await as(P2, `select tick_timer('ABCD', 1)`).catch(() => {});
     check((await room()).secondsRemaining === 28, 'a non-host cannot tick the timer');
+    const started = await turnStart();
+    check(started !== null, 'starting a round stamps the turn start');
+    check((await as(first, `select turn_elapsed_ms('ABCD') ms`)).rows[0].ms >= 0, 'a player can read how long the turn has run');
+    check(await fails(OUTSIDER, `select turn_elapsed_ms('ABCD')`), 'a non-member cannot read the turn clock');
+    await as(HOST, `select tick_timer('ABCD', 1)`);
+    check(+(await turnStart()) === +started, 'a timer tick does not restart the turn');
+    await as(first, `select set_typing('ABCD', false)`);
+    check(+(await turnStart()) === +started, 'the typing indicator does not restart the turn');
+    await as(P2, `select pause_turn_clock('ABCD')`);
+    const heldAt = (await as(first, `select turn_elapsed_ms('ABCD') ms`)).rows[0].ms;
+    await new Promise((r) => setTimeout(r, 30));
+    check((await as(first, `select turn_elapsed_ms('ABCD') ms`)).rows[0].ms === heldAt, 'a paused turn clock stands still');
+    await as(P3, `select pause_turn_clock('ABCD')`);
+    await as(P2, `select resume_turn_clock('ABCD')`);
+    await as(P3, `select resume_turn_clock('ABCD')`);
+    const clock = (await db.query(`select hold_started_at, held_ms from turn_clocks where code = 'ABCD'`)).rows[0];
+    check(clock.hold_started_at === null && clock.held_ms >= 0, 'resuming the turn clock is idempotent');
+    check(await fails(OUTSIDER, `select pause_turn_clock('ABCD')`), 'a non-member cannot pause the turn clock');
+    check((await db.query(`select * from turn_clocks`)).rows.length === 1 && (await as(HOST, `select * from turn_clocks`)).rows.length === 0, 'the turn clock table is unreadable to clients');
+    turnStartBeforeWord = started;
     check(await fails(first, `select mark_guess_pending('ABCD', 1)`), 'only the Guesser can mark a guess pending');
   }
 
   const i0 = (await as(first, `select submit_word('ABCD', $1, 'sun') i`, [round])).rows[0].i;
   d = await room();
   check(i0 === 0 && d.activeKnowerUid === second && d.secondsRemaining === 30 && !(first in (d.typing ?? {})), `round ${round}: word lands, turn passes, timer resets`);
+  if (round === 1) {
+    check(+(await turnStart()) > +turnStartBeforeWord, 'a word landing restarts the turn clock');
+  }
   check(await fails(first, `select submit_word('ABCD', $1, 'again')`, [round]), `round ${round}: no going twice in a row`);
   const i1 = (await as(second, `select submit_word('ABCD', $1, 'light') i`, [round])).rows[0].i;
   check(i1 === 1 && JSON.stringify((await room()).chain) === '["sun","light"]', `round ${round}: chain appended server-side`);

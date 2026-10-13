@@ -9,15 +9,15 @@ const TICK_FROM_SECONDS = 5;
  * Plays sounds for game events as the room changes: a new round, a word landing in the
  * chain, your turn coming round, the last seconds ticking, and each round's result.
  * Every device derives these from the same room state, so everyone hears the same cues.
+ * `secondsRemaining` is this device's turn countdown (see useTurnCountdown).
  */
-export function useGameSounds(roomData: RoomData | null, uid: string | null) {
+export function useGameSounds(roomData: RoomData | null, uid: string | null, secondsRemaining: number) {
   const prev = useRef<{ status: string; round: number; chainLength: number; activeKnowerUid: string } | null>(null);
 
   const status = roomData?.status;
   const round = roomData?.round ?? 0;
   const chainLength = roomData?.chain?.length ?? 0;
   const activeKnowerUid = roomData?.activeKnowerUid ?? '';
-  const secondsRemaining = roomData?.secondsRemaining ?? 0;
 
   useEffect(() => {
     if (!roomData || !status) return;

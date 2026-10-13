@@ -10,7 +10,6 @@ import {
   startGame,
   submitGuess,
   submitWord,
-  tickTimer,
 } from '../../src/supabase/round';
 import {
   endGame,
@@ -23,6 +22,7 @@ import { onPresenceChange, stopPresence } from '../../src/supabase/presence';
 import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
+import { TURN_SECONDS, useTurnCountdown } from '../../src/hooks/useTurnCountdown';
 import { ReportSheet } from '../../src/components/ReportSheet';
 import { SyncErrorBanner } from '../../src/components/SyncErrorBanner';
 import { Screen } from '../../src/components/ui';
@@ -40,7 +40,6 @@ import { fonts, useStyles, useTheme, type Palette } from '../../src/theme';
 const DISCONNECT_GRACE_MS = 3000;
 const DISCONNECT_COUNTDOWN_SECONDS = 30;
 
-const ROUND_SECONDS = 30;
 /** Max seconds the host holds an expired timer for a pending guess — just above validate-guess's 5s AI timeout. */
 const GUESS_HOLD_MAX_TICKS = 8;
 
@@ -50,14 +49,13 @@ export default function RoundScreen() {
   const [roomData, setRoomData] = useState<RoomData | null>(null);
   // From the room itself, so a player promoted after the host leaves picks up host duties.
   const isHost = !!roomData && !!uid && roomData.hostUid === uid;
-  useGameSounds(roomData, uid);
   useLeaveWarning(roomData?.status === 'playing' || roomData?.status === 'resolution');
   const styles = useStyles(makeStyles);
   const p = useTheme();
 
   // Surfaces a failed realtime write (submit, resolve, advance, ...) instead of leaving the
   // player's screen silently stuck — see the retry-wrapped call sites below. Purely cosmetic
-  // writes (typing indicator, per-tick timer sync) and the fail-open AI link check are left
+  // writes (typing indicator) and the fail-open AI link check are left
   // as console.error-only on purpose: showing an error for those would be noise with no
   // recovery value.
   const [syncError, setSyncError] = useState<{ message: string; retry?: () => void } | null>(null);
@@ -70,27 +68,19 @@ export default function RoundScreen() {
     });
   };
 
-  // Keep a ref for the timer interval closure — avoids stale secondsRemaining
+  // Latest room for interval and async closures (the guess hold, a rejected word's retry)
   const roomDataRef = useRef<RoomData | null>(null);
   useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
 
   // Round Intro: every device shows the role reveal for a moment when a round starts. The
-  // host holds the turn timer meanwhile, so the first Knower still gets the full 30 seconds.
+  // first turn's allowance covers it, so the first Knower still gets the full 30 seconds.
   const [introRound, setIntroRound] = useState<number | null>(null);
-  const introActiveRef = useRef(false);
   const playingRound = roomData?.status === 'playing' ? roomData.round : null;
   useEffect(() => {
     if (playingRound === null) return;
     setIntroRound(playingRound);
-    introActiveRef.current = true;
-    const timeout = setTimeout(() => {
-      introActiveRef.current = false;
-      setIntroRound(null);
-    }, ROUND_INTRO_MS);
-    return () => {
-      clearTimeout(timeout);
-      introActiveRef.current = false;
-    };
+    const timeout = setTimeout(() => setIntroRound(null), ROUND_INTRO_MS);
+    return () => clearTimeout(timeout);
   }, [playingRound]);
 
   // Subscribe to room in real time
@@ -173,6 +163,11 @@ export default function RoundScreen() {
     return () => clearInterval(interval);
   }, [confirmedDisconnected?.uid]);
 
+  // This device's turn countdown — the first turn's allowance covers the role reveal; held
+  // while someone's dropped.
+  const secondsRemaining = useTurnCountdown(roomCode, roomData, !!confirmedDisconnected);
+  useGameSounds(roomData, uid, secondsRemaining);
+
   // Public games: report a player from Round Result or Game End.
   const reportSheet =
     roomData?.isPublic && roomCode && uid ? (
@@ -216,34 +211,37 @@ export default function RoundScreen() {
     );
   }
 
-  // Host: drive the timer — one interval per playing session
+  // Host: when the turn countdown runs out, end the round. This is the timer's only write.
+  const timedOutRound = roomData?.status === 'playing' && secondsRemaining === 0 ? roomData.round : null;
   useEffect(() => {
-    if (!isHost || roomData?.status !== 'playing' || confirmedDisconnected) return;
+    if (!isHost || timedOutRound === null || confirmedDisconnected) return;
+    const attemptResolve = () => {
+      resolveRoundTimeout(roomCode!, timedOutRound).catch((e) => {
+        console.error(e);
+        setSyncError({ message: 'Could not end the round — check your connection.', retry: attemptResolve });
+      });
+    };
+    // A guess locked in before time ran out is still being judged — let it land rather
+    // than expiring the round under it. Capped so a stuck flag can't freeze the round.
+    if (!roomDataRef.current?.guessPending) {
+      attemptResolve();
+      return;
+    }
     let heldTicks = 0;
     const interval = setInterval(() => {
       const current = roomDataRef.current;
-      if (!current || current.status !== 'playing' || introActiveRef.current) return;
-      const next = Math.max(0, current.secondsRemaining - 1);
-      // A guess locked in before time ran out is still being judged — let it land rather
-      // than expiring the round under it. Capped so a stuck flag can't freeze the round.
-      if (next === 0 && current.guessPending && heldTicks < GUESS_HOLD_MAX_TICKS) {
-        heldTicks += 1;
+      if (!current || current.status !== 'playing' || current.round !== timedOutRound) {
+        clearInterval(interval);
         return;
       }
-      if (next === 0) {
-        const attemptResolve = () => {
-          resolveRoundTimeout(roomCode!, current.round).catch((e) => {
-            console.error(e);
-            setSyncError({ message: 'Could not end the round — check your connection.', retry: attemptResolve });
-          });
-        };
+      heldTicks += 1;
+      if (!current.guessPending || heldTicks >= GUESS_HOLD_MAX_TICKS) {
+        clearInterval(interval);
         attemptResolve();
-      } else {
-        tickTimer(roomCode!, current.round).catch(console.error);
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [isHost, roomData?.status, confirmedDisconnected]);
+  }, [isHost, timedOutRound, confirmedDisconnected]);
 
   // Knowers fetch this round's word from round_secrets. The Guesser never asks — and RLS
   // would return nothing if they did — so the answer never reaches their device.
@@ -427,8 +425,8 @@ export default function RoundScreen() {
         targetWord={targetWord}
         category={roomData.category}
         chain={chain}
-        durationSeconds={ROUND_SECONDS}
-        secondsRemaining={roomData.secondsRemaining}
+        durationSeconds={TURN_SECONDS}
+        secondsRemaining={secondsRemaining}
         onSubmitWord={(word) => {
           const round = roomData.round;
           const attemptSubmit = () => {
@@ -477,9 +475,9 @@ export default function RoundScreen() {
         partnerName={partner?.name ?? 'Partner'}
         partnerColor={partner?.avatarColor}
         partnerIsTyping={!!typing[partnerUid]}
-        durationSeconds={ROUND_SECONDS}
+        durationSeconds={TURN_SECONDS}
         // The partner's turn starts fresh; the server's countdown is still on mine until it lands.
-        secondsRemaining={pending ? ROUND_SECONDS : roomData.secondsRemaining}
+        secondsRemaining={pending ? TURN_SECONDS : secondsRemaining}
       />
     );
   }
@@ -494,8 +492,8 @@ export default function RoundScreen() {
       chain={chain}
       activeKnowerName={activeKnower?.name ?? 'Knower'}
       knowerIsTyping={!!typing[roomData.activeKnowerUid]}
-      durationSeconds={ROUND_SECONDS}
-      secondsRemaining={roomData.secondsRemaining}
+      durationSeconds={TURN_SECONDS}
+      secondsRemaining={secondsRemaining}
       // Throws if the guess couldn't be submitted — GuesserScreen lets them retry.
       onGuess={(guess) => submitGuess(roomCode!, roomData.round, guess)}
     />
