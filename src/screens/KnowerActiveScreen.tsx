@@ -148,11 +148,12 @@ export function KnowerActiveScreen({
             durationSeconds={ROUND_SECONDS}
             secondsRemaining={roundSeconds}
             showTimer={showTimer}
+            compact={short}
           />
 
           <SecretWordCard word={targetWord} category={category} hint="Describe it. Don’t say it." compact={short} />
 
-          <View style={styles.feedSection}>
+          <View style={[styles.feedSection, short && styles.feedSectionShort]}>
             {!short && <Eyebrow>The description</Eyebrow>}
             <DescriptionFeed
               entries={feed}
@@ -219,6 +220,10 @@ const makeStyles = (p: Palette) =>
     body: { paddingHorizontal: spacing.screen, paddingTop: 10, gap: 16 },
     // Room for a few lines of description however short the screen.
     feedSection: { flex: 1, gap: 10, minHeight: 110 },
+    // Short screens: a fixed height, so the feed scrolls itself to the newest words (inside
+    // the screen's own scroll view a stretchy area would just grow to fit them all).
+    // (flexBasis 'auto': on the web a 0 basis would override the height.)
+    feedSectionShort: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 0, height: 92 },
     inputSection: { paddingHorizontal: spacing.screen, paddingTop: 10, paddingBottom: 12, gap: 8 },
     validationMsg: { ...type.bodyBold, color: p.danger, textAlign: 'center' },
     inputRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },

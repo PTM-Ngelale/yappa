@@ -114,6 +114,7 @@ export function GuesserScreen({
             durationSeconds={ROUND_SECONDS}
             secondsRemaining={roundSeconds}
             showTimer={showTimer}
+            compact={short}
           />
 
           {/* Category: the only hint the Guesser gets besides the description */}
@@ -198,7 +199,8 @@ const makeStyles = (p: Palette) =>
     categoryCompact: { fontSize: 36, lineHeight: 42 },
     // Room for a few lines of description and the typing line.
     feedWrap: { flex: 1, minHeight: 190 },
-    feedWrapCompact: { minHeight: 130 },
+    // Short screens: a fixed height, so the feed scrolls itself to the newest words.
+    feedWrapCompact: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 0, height: 160 },
     feedCard: { flex: 1, paddingVertical: 14, paddingHorizontal: 14 },
     preWord: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 16 },
     preWordTitle: { fontFamily: fonts.black, fontSize: 24, color: p.ink, textAlign: "center" },

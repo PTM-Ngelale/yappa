@@ -14,6 +14,7 @@ export function GameHeader({
   durationSeconds,
   secondsRemaining,
   showTimer = true,
+  compact = false,
 }: {
   round: number;
   maxRounds: number;
@@ -23,8 +24,22 @@ export function GameHeader({
   durationSeconds: number;
   secondsRemaining: number;
   showTimer?: boolean;
+  /** Short screens: round and timer on one line, no role pill. */
+  compact?: boolean;
 }) {
   const styles = useStyles(makeStyles);
+  if (compact) {
+    return (
+      <View style={styles.compact}>
+        <Pill label={`${round} / ${maxRounds}`} />
+        {showTimer && (
+          <View style={styles.flex}>
+            <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
+          </View>
+        )}
+      </View>
+    );
+  }
   return (
     <View style={styles.header}>
       <View style={styles.pills}>
@@ -70,6 +85,8 @@ export function SecretWordCard({
 const makeStyles = (p: Palette) =>
   StyleSheet.create({
     header: { gap: 14 },
+    compact: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    flex: { flex: 1 },
     pills: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     secret: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16, gap: 4 },
     secretTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

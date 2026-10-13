@@ -58,11 +58,12 @@ export function KnowerWaitingScreen({
           durationSeconds={ROUND_SECONDS}
           secondsRemaining={roundSeconds}
           showTimer={showTimer}
+          compact={short}
         />
 
         <SecretWordCard word={targetWord} category={category} compact={short} />
 
-        <View style={styles.feedSection}>
+        <View style={[styles.feedSection, short && styles.feedSectionShort]}>
           {!short && <Eyebrow>The description</Eyebrow>}
           <DescriptionFeed
             entries={feed}
@@ -110,6 +111,10 @@ const makeStyles = (p: Palette) =>
     flex: { flex: 1 },
     body: { paddingHorizontal: spacing.screen, paddingTop: 10, gap: 16 },
     feedSection: { flex: 1, gap: 10, minHeight: 110 },
+    // Short screens: a fixed height, so the feed scrolls itself to the newest words (inside
+    // the screen's own scroll view a stretchy area would just grow to fit them all).
+    // (flexBasis 'auto': on the web a 0 basis would override the height.)
+    feedSectionShort: { flexGrow: 0, flexShrink: 0, flexBasis: 'auto', minHeight: 0, height: 92 },
     partnerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
     partnerTitle: { fontFamily: fonts.black, fontSize: 18, color: p.ink },
     partnerSub: { ...type.small, color: p.ink },

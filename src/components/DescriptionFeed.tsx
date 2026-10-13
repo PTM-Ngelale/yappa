@@ -54,7 +54,7 @@ export function DescriptionFeed({
       return (
         <View key={i} style={[styles.guess, e.correct && styles.guessCorrect]} accessibilityLabel={`Guess: ${e.text}, ${e.correct ? 'right' : 'wrong'}`}>
           <Feather name={e.correct ? 'check' : 'x'} size={large ? 18 : 16} color={e.correct ? p.onBlue : p.danger} />
-          <Text style={[styles.guessText, large && styles.guessTextLarge, e.correct && { color: p.onBlue }]}>{e.text}?</Text>
+          <Text style={[styles.guessText, large && styles.guessTextLarge, e.correct && { color: p.onBlue }]}>{e.text}{e.correct ? '!' : '?'}</Text>
         </View>
       );
     }
