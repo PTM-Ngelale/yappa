@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { PoweredBy } from "../src/components/PoweredBy";
 import { Pressable } from "../src/components/Pressable";
 import { SoundToggles } from "../src/components/SoundToggles";
 import { Avatar, Eyebrow, OUTLINE, Screen, Sticker, StickerButton } from "../src/components/ui";
@@ -363,6 +364,8 @@ export default function HomeScreen() {
               <Text style={styles.howToText}>Privacy</Text>
             </Pressable>
           </View>
+
+          <PoweredBy />
 
           {!SUPABASE_CONFIGURED && (
             <Text style={styles.configNotice}>

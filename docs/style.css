@@ -75,3 +75,20 @@ nav { margin-top: 28px; display: flex; gap: 18px; flex-wrap: wrap; font-size: 16
   text-decoration: none;
   font-weight: 800;
 }
+
+/* "Powered by Nanotek" credit at the foot of every page. */
+.site-footer { margin-top: 40px; display: flex; justify-content: center; }
+.site-footer__credit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.site-footer__credit img { width: 76px; height: auto; }
+@media (prefers-color-scheme: dark) {
+  /* The logo is dark navy: draw it light on the dark theme. */
+  .site-footer__credit img { filter: brightness(0) invert(0.92); }
+}

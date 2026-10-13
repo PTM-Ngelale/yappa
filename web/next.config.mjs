@@ -55,8 +55,22 @@ const nextConfig = {
     ];
     // Fonts, sounds and images required from shared code become plain URLs.
     // Only shared assets: web/app/icon.png etc. go through Next's own metadata loader.
+    // Next's image loader would otherwise also claim shared images and turn them into JS
+    // modules (served as the "image"), so keep it off the shared assets folder.
+    const sharedAssets = path.join(repoRoot, 'assets');
+    const excludeSharedAssets = (rules) => {
+      for (const rule of rules ?? []) {
+        if (!rule || typeof rule !== 'object') continue;
+        if (rule.oneOf) excludeSharedAssets(rule.oneOf);
+        if (rule.rules) excludeSharedAssets(rule.rules);
+        if (String(rule.loader ?? '').includes('next-image-loader')) {
+          rule.exclude = [...[rule.exclude ?? []].flat(), sharedAssets];
+        }
+      }
+    };
+    excludeSharedAssets(config.module.rules);
     config.module.rules.push({
-      test: /\.(ttf|otf|wav|mp3|m4a|png|jpe?g|gif)$/i,
+      test: /\.(ttf|otf|wav|mp3|m4a|png|jpe?g|gif|webp)$/i,
       include: [path.join(repoRoot, 'assets'), path.join(repoRoot, 'node_modules')],
       type: 'asset/resource',
       generator: { filename: 'static/media/[name].[contenthash:8][ext]' },
