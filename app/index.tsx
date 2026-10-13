@@ -1,5 +1,5 @@
-import { router } from "expo-router";
-import React, { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   KeyboardAvoidingView,
   Linking,
@@ -35,6 +35,16 @@ export default function HomeScreen() {
   const [matching, setMatching] = useState(false);
   const [showNotice, setShowNotice] = useState(false);
   const { onlineNoticeSeen, markOnlineNoticeSeen } = useSettingsStore();
+
+  // Invite links (/?room=ABCD, or /join/ABCD which redirects here) open the Join form with
+  // the code filled in. Only the web app gets these links.
+  const { room } = useLocalSearchParams<{ room?: string }>();
+  useEffect(() => {
+    const code = (typeof room === "string" ? room : "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (code.length !== 4) return;
+    setJoinCode(code);
+    setShowJoin(true);
+  }, [room]);
 
   const trimmedName = name.trim();
   const canProceed = trimmedName.length >= 2;

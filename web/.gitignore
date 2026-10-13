@@ -1,0 +1,4 @@
+# Next.js build output (this folder is the web version; see next.config.mjs)
+.next/
+next-env.d.ts
+*.tsbuildinfo

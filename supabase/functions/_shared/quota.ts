@@ -22,11 +22,27 @@ export async function takeAiQuota(admin: SupabaseClient, uid: string): Promise<b
   return data === true;
 }
 
+/**
+ * Lets the web version call these functions from the browser. Any origin is fine: callers
+ * authenticate with their JWT in the Authorization header, not cookies. Native apps ignore it.
+ */
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+/** The browser's CORS preflight: answer it before the auth check, which would reject it. */
+export function preflight(req: Request): Response | null {
+  return req.method === "OPTIONS" ? new Response("ok", { headers: CORS_HEADERS }) : null;
+}
+
 /** JSON response with headers that stop it being cached or content-sniffed. */
 export function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
+      ...CORS_HEADERS,
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",

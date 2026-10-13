@@ -22,6 +22,7 @@ import {
 import { onPresenceChange, stopPresence } from '../../src/supabase/presence';
 import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
+import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
 import { ReportSheet } from '../../src/components/ReportSheet';
 import { SyncErrorBanner } from '../../src/components/SyncErrorBanner';
 import { Screen } from '../../src/components/ui';
@@ -50,6 +51,7 @@ export default function RoundScreen() {
   // From the room itself, so a player promoted after the host leaves picks up host duties.
   const isHost = !!roomData && !!uid && roomData.hostUid === uid;
   useGameSounds(roomData, uid);
+  useLeaveWarning(roomData?.status === 'playing' || roomData?.status === 'resolution');
   const styles = useStyles(makeStyles);
   const p = useTheme();
 
@@ -111,14 +113,16 @@ export default function RoundScreen() {
     attemptStartGame();
   }, [isHost, roomData?.status]);
 
-  // Everyone: once a game has been seen in progress, a status flip back to 'lobby'
-  // means the host hit "Play Again" — return to the Lobby screen to start over.
-  const sawGameplayRef = useRef(false);
+  // Everyone: once the game has ended, a status flip back to 'lobby' means the host hit
+  // "Play Again" — return to the Lobby screen to start over. Only after 'gameover': starting
+  // a game also emits a 'lobby' update (start_game writes the room twice), and if that one
+  // arrives after 'playing' it must not be mistaken for Play Again.
+  const sawGameOverRef = useRef(false);
   useEffect(() => {
-    if (roomData && roomData.status !== 'lobby') sawGameplayRef.current = true;
+    if (roomData?.status === 'gameover') sawGameOverRef.current = true;
   }, [roomData?.status]);
   useEffect(() => {
-    if (roomData?.status === 'lobby' && sawGameplayRef.current) {
+    if (roomData?.status === 'lobby' && sawGameOverRef.current) {
       router.replace('/lobby');
     }
   }, [roomData?.status]);
