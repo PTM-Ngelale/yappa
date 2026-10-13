@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { GameHeader, SecretWordCard } from '../components/game';
 import { Pressable } from '../components/Pressable';
-import { Eyebrow, OUTLINE, Screen } from '../components/ui';
+import { Eyebrow, OUTLINE, Screen, ScreenBody, useShortScreen } from '../components/ui';
 import { WordChain } from '../components/WordChain';
 import { useShakeAnimation } from '../hooks/useShakeAnimation';
 import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from '../theme';
@@ -70,6 +70,7 @@ export function KnowerActiveScreen({
   const [validationMsg, setValidationMsg] = useState('');
   const { shakeAnim, shake } = useShakeAnimation();
   const inputRef = useRef<TextInput>(null);
+  const short = useShortScreen();
 
   const handleSend = () => {
     const trimmed = word.trim();
@@ -113,7 +114,7 @@ export function KnowerActiveScreen({
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.body}>
+        <ScreenBody style={styles.body}>
           <GameHeader
             round={round}
             maxRounds={maxRounds}
@@ -125,17 +126,17 @@ export function KnowerActiveScreen({
             showTimer={showTimer}
           />
 
-          <SecretWordCard word={targetWord} category={category} hint="Don’t say it. Lead them to it." />
+          <SecretWordCard word={targetWord} category={category} hint="Don’t say it. Lead them to it." compact={short} />
 
-          <View style={styles.chainSection}>
-            <Eyebrow>The chain</Eyebrow>
+          <View style={short ? styles.chainRow : styles.chainSection}>
+            {!short && <Eyebrow>The chain</Eyebrow>}
             <WordChain
               words={chain}
-              variant="stack"
+              variant={short ? 'row' : 'stack'}
               emphasiseLast
               showPending
               pendingLabel={chain.length === 0 ? 'first word…' : 'your word…'}
-              style={styles.flex}
+              style={short ? undefined : styles.flex}
             />
           </View>
 
@@ -149,7 +150,7 @@ export function KnowerActiveScreen({
               'You go first — pick an opening word that points toward the secret.'
             )}
           </Text>
-        </View>
+        </ScreenBody>
 
         <View style={styles.inputSection}>
           {validationMsg !== '' && (
@@ -157,7 +158,7 @@ export function KnowerActiveScreen({
               {validationMsg}
             </Text>
           )}
-          <Eyebrow>Your word</Eyebrow>
+          {!short && <Eyebrow>Your word</Eyebrow>}
           <Animated.View style={[styles.inputRow, { transform: [{ translateX: shakeAnim }] }]}>
             <View style={styles.inputWrap}>
               <View style={styles.inputShadow} />
@@ -199,7 +200,7 @@ export function KnowerActiveScreen({
               )}
             </Pressable>
           </Animated.View>
-          <Text style={styles.small}>Space bar sends it.</Text>
+          {!short && <Text style={styles.small}>Space bar sends it.</Text>}
         </View>
       </KeyboardAvoidingView>
     </Screen>
@@ -209,8 +210,10 @@ export function KnowerActiveScreen({
 const makeStyles = (p: Palette) =>
   StyleSheet.create({
     flex: { flex: 1 },
-    body: { flex: 1, paddingHorizontal: spacing.screen, paddingTop: 10, gap: 16 },
-    chainSection: { flex: 1, gap: 10, minHeight: 0 },
+    body: { paddingHorizontal: spacing.screen, paddingTop: 10, gap: 16 },
+    // Never shorter than the word to link to plus the slot for yours.
+    chainSection: { flex: 1, gap: 10, minHeight: 150 },
+    chainRow: { flexGrow: 1 },
     hint: { ...type.small, fontSize: 15, color: p.ink },
     hintStrong: { fontFamily: fonts.black },
     inputSection: { paddingHorizontal: spacing.screen, paddingTop: 10, paddingBottom: 12, gap: 6 },

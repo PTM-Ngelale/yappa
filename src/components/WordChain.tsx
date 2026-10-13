@@ -18,8 +18,9 @@ interface WordChainProps {
    * `stack` — Knower screens: words run down the screen.
    * `center` — Guesser: older words fade, the newest is big.
    * `wrap` — Round Resolution: words flow across and wrap, links are tappable.
+   * `row` — Knower screens on a short screen: one line, scrolled to the newest word.
    */
-  variant?: 'stack' | 'center' | 'wrap';
+  variant?: 'stack' | 'center' | 'wrap' | 'row';
   /** Highlight the last word as the one to link to (Knower screens). */
   emphasiseLast?: boolean;
   /** Show a dashed slot for the next word. */
@@ -106,6 +107,42 @@ export function WordChain({
     );
   }
 
+  if (variant === 'row') {
+    return (
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        style={style}
+        contentContainerStyle={styles.rowContent}
+        onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+        showsHorizontalScrollIndicator={false}
+        accessibilityLabel={label}
+      >
+        {words.map((word, i) => {
+          const emphasise = emphasiseLast && i === words.length - 1;
+          return (
+            <View key={i} style={styles.rowItem}>
+              {i > 0 && <Feather name="arrow-right" size={18} color={p.ink} />}
+              <Sticker bg={emphasise ? p.blue : p.card} radius={radius.sm} offset={3} contentStyle={styles.wrapChip}>
+                <Text style={[styles.wrapText, emphasise && { color: p.onBlue, fontFamily: fonts.black }]}>
+                  {word}
+                </Text>
+              </Sticker>
+            </View>
+          );
+        })}
+        {showPending && (
+          <View style={styles.rowItem}>
+            {words.length > 0 && <Feather name="more-horizontal" size={18} color={p.ink} />}
+            <View style={[styles.pending, styles.rowPending]}>
+              <Text style={[styles.pendingText, styles.rowPendingText]}>{pendingLabel}</Text>
+            </View>
+          </View>
+        )}
+      </ScrollView>
+    );
+  }
+
   if (variant === 'center') {
     return (
       <ScrollView
@@ -114,6 +151,7 @@ export function WordChain({
         contentContainerStyle={styles.centerContent}
         onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         showsVerticalScrollIndicator={false}
+        nestedScrollEnabled
         accessibilityLabel={label}
       >
         {words.map((word, i) => {
@@ -152,6 +190,7 @@ export function WordChain({
       contentContainerStyle={styles.stackContent}
       onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
       showsVerticalScrollIndicator={false}
+      nestedScrollEnabled
       accessibilityLabel={label}
     >
       {words.map((word, i) => {
@@ -244,6 +283,12 @@ const makeStyles = (p: Palette) =>
       backgroundColor: p.ghost,
     },
     pendingText: { fontFamily: fonts.bold, fontSize: 20, color: p.muted },
+
+    // row
+    rowContent: { alignItems: 'center', gap: 8, paddingRight: 4, paddingBottom: 4 },
+    rowItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    rowPending: { paddingHorizontal: 11, paddingVertical: 3, borderRadius: radius.sm },
+    rowPendingText: { fontSize: 17 },
 
     // center
     centerContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: 6, padding: 16 },

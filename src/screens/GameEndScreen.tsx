@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { RoundHistoryEntry } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
 import { Pressable } from '../components/Pressable';
-import { Eyebrow, Screen, Sticker, StickerButton } from '../components/ui';
+import { Eyebrow, Screen, ScreenBody, Sticker, StickerButton, useShortScreen } from '../components/ui';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 
 interface GameEndScreenProps {
@@ -36,38 +36,41 @@ export function GameEndScreen({
 }: GameEndScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
+  const short = useShortScreen();
   const sorted = [...history].sort((a, b) => a.round - b.round);
   const wonCount = sorted.filter((h) => h.outcome === 'won').length;
 
   return (
     <Screen>
-      <View style={styles.hero}>
-        <Eyebrow>Game over</Eyebrow>
-        <Sticker radius={28} offset={6} style={styles.scoreWrap} contentStyle={styles.score}>
-          <Text style={styles.scoreBig} accessibilityLabel={`${wonCount} of ${maxRounds} rounds won`}>
-            {wonCount}
+      <ScreenBody>
+        <View style={styles.hero}>
+          <Eyebrow>Game over</Eyebrow>
+          <Sticker radius={28} offset={6} style={styles.scoreWrap} contentStyle={styles.score}>
+            <Text style={[styles.scoreBig, short && styles.scoreBigCompact]} accessibilityLabel={`${wonCount} of ${maxRounds} rounds won`}>
+              {wonCount}
+            </Text>
+            <Text style={styles.scoreOf} accessibilityElementsHidden importantForAccessibility="no">
+              / {maxRounds}
+            </Text>
+          </Sticker>
+          <Text style={styles.verdict} accessibilityRole="header">
+            {verdict(wonCount, maxRounds)}
           </Text>
-          <Text style={styles.scoreOf} accessibilityElementsHidden importantForAccessibility="no">
-            / {maxRounds}
-          </Text>
-        </Sticker>
-        <Text style={styles.verdict} accessibilityRole="header">
-          {verdict(wonCount, maxRounds)}
-        </Text>
-      </View>
+        </View>
 
-      <Sticker style={styles.listWrap} radius={24} offset={5} contentStyle={styles.listCard}>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {sorted.map((entry, i) => (
-            <RoundRow
-              key={entry.round}
-              entry={entry}
-              guesser={players[entry.guesserUid]}
-              last={i === sorted.length - 1}
-            />
-          ))}
-        </ScrollView>
-      </Sticker>
+        <Sticker style={styles.listWrap} radius={24} offset={5} contentStyle={styles.listCard}>
+          <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled>
+            {sorted.map((entry, i) => (
+              <RoundRow
+                key={entry.round}
+                entry={entry}
+                guesser={players[entry.guesserUid]}
+                last={i === sorted.length - 1}
+              />
+            ))}
+          </ScrollView>
+        </Sticker>
+      </ScreenBody>
 
       <View style={styles.footer}>
         <StickerButton label="Play again" height={64} onPress={onPlayAgain} />
@@ -132,7 +135,9 @@ const makeStyles = (p: Palette) =>
     scoreBig: { fontFamily: fonts.black, fontSize: 92, lineHeight: 100, letterSpacing: -4, color: p.ink },
     scoreOf: { fontFamily: fonts.black, fontSize: 34, color: p.ink },
     verdict: { ...type.title, color: p.ink, marginTop: 4 },
-    listWrap: { flex: 1, marginHorizontal: spacing.screen, marginTop: 16 },
+    scoreBigCompact: { fontSize: 60, lineHeight: 68 },
+    // At least a few rounds in view; the list scrolls inside the card.
+    listWrap: { flex: 1, minHeight: 170, marginHorizontal: spacing.screen, marginTop: 16 },
     listCard: { flex: 1, paddingVertical: 4 },
     row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10 },
     rowDivider: { borderBottomWidth: 2, borderBottomColor: p.divider },

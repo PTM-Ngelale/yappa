@@ -3,7 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { GameHeader, SecretWordCard } from '../components/game';
 import { TypingIndicator } from '../components/TypingIndicator';
-import { Avatar, Eyebrow, OUTLINE, Screen, Sticker } from '../components/ui';
+import { Avatar, Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from '../components/ui';
 import { WordChain } from '../components/WordChain';
 import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 
@@ -38,10 +38,11 @@ export function KnowerWaitingScreen({
 }: KnowerWaitingScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
+  const short = useShortScreen();
 
   return (
     <Screen>
-      <View style={styles.body}>
+      <ScreenBody style={styles.body}>
         <GameHeader
           round={round}
           maxRounds={maxRounds}
@@ -51,17 +52,17 @@ export function KnowerWaitingScreen({
           showTimer={showTimer}
         />
 
-        <SecretWordCard word={targetWord} category={category} />
+        <SecretWordCard word={targetWord} category={category} compact={short} />
 
-        <View style={styles.chainSection}>
-          <Eyebrow>The chain</Eyebrow>
+        <View style={short ? styles.chainRow : styles.chainSection}>
+          {!short && <Eyebrow>The chain</Eyebrow>}
           <WordChain
             words={chain}
-            variant="stack"
+            variant={short ? 'row' : 'stack'}
             emphasiseLast
             showPending={chain.length === 0}
             pendingLabel={`${partnerName} goes first…`}
-            style={styles.flex}
+            style={short ? undefined : styles.flex}
           />
         </View>
 
@@ -77,11 +78,11 @@ export function KnowerWaitingScreen({
             <TypingIndicator active={partnerIsTyping} />
           </Sticker>
         </View>
-      </View>
+      </ScreenBody>
 
       {/* Locked input — same spot as on the active screen, so nothing jumps when the turn passes */}
       <View style={styles.inputSection}>
-        <Eyebrow style={{ color: p.muted }}>Your word</Eyebrow>
+        {!short && <Eyebrow style={{ color: p.muted }}>Your word</Eyebrow>}
         <View style={styles.inputRow}>
           <TextInput
             editable={false}
@@ -103,8 +104,9 @@ export function KnowerWaitingScreen({
 const makeStyles = (p: Palette) =>
   StyleSheet.create({
     flex: { flex: 1 },
-    body: { flex: 1, paddingHorizontal: spacing.screen, paddingTop: 10, gap: 16 },
-    chainSection: { flex: 1, gap: 10, minHeight: 0 },
+    body: { paddingHorizontal: spacing.screen, paddingTop: 10, gap: 16 },
+    chainSection: { flex: 1, gap: 10, minHeight: 130 },
+    chainRow: { flexGrow: 1 },
     partnerCard: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
     partnerTitle: { fontFamily: fonts.black, fontSize: 18, color: p.ink },
     partnerSub: { ...type.small, color: p.ink },
