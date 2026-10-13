@@ -12,7 +12,7 @@ import { KnowerActiveScreen } from '../src/screens/KnowerActiveScreen';
 import { KnowerWaitingScreen } from '../src/screens/KnowerWaitingScreen';
 import { RoundIntroScreen } from '../src/screens/RoundIntroScreen';
 import { RoundResolutionScreen } from '../src/screens/RoundResolutionScreen';
-import type { RoundHistoryEntry } from '../src/supabase/room';
+import type { FeedEntry, RoundHistoryEntry } from '../src/supabase/room';
 import { fonts, useStyles, type Palette } from '../src/theme';
 
 type DevScreen = 'intro' | 'knower-active' | 'knower-waiting' | 'guesser' | 'result' | 'game-end';
@@ -23,19 +23,31 @@ const MOCK = {
   maxRounds: 9,
   targetWord: 'Lighthouse',
   category: 'Places',
-  chain: ['sea', 'shell'],
-  durationSeconds: 30,
-  secondsRemaining: 18,
+  turnSeconds: 7,
+  roundSeconds: 38,
   partnerName: 'Tomi',
   partnerIsTyping: true,
   activeKnowerName: 'Tomi',
   knowerIsTyping: true,
 };
 
+// The spec's worked example (GAMEPLAY_REDESIGN.md, section 3): Kemi guesses, Tomi and Ade describe.
+const MOCK_FEED: FeedEntry[] = [
+  { kind: 'word', text: 'tall', by: 'b' },
+  { kind: 'word', text: 'thing', by: 'c' },
+  { kind: 'word', text: 'near', by: 'b' },
+  { kind: 'skip', by: 'c' },
+  { kind: 'word', text: 'rocks', by: 'b' },
+  { kind: 'guess', text: 'cliff', by: 'a', correct: false },
+  { kind: 'word', text: 'no', by: 'c' },
+  { kind: 'word', text: 'it', by: 'b' },
+  { kind: 'word', text: 'spins', by: 'c' },
+];
+
 const MOCK_HISTORY: RoundHistoryEntry[] = [
-  { round: 1, category: 'Objects', targetWord: 'Backpack', chain: ['back', 'pack'], guesserUid: 'b', outcome: 'won', guess: 'backpack', linkChecks: {} },
-  { round: 2, category: 'Animals', targetWord: 'Penguin', chain: ['ice', 'berg'], guesserUid: 'c', outcome: 'lost-timeout', guess: null, linkChecks: {} },
-  { round: 3, category: 'Places', targetWord: 'Lighthouse', chain: ['sea', 'shell', 'fish'], guesserUid: 'a', outcome: 'won', guess: 'lighthouse', linkChecks: {} },
+  { round: 1, category: 'Objects', targetWord: 'Backpack', chain: ['bag', 'on', 'your', 'back'], wordCount: 4, durationMs: 14000, guesserUid: 'b', outcome: 'won', guess: 'backpack' },
+  { round: 2, category: 'Animals', targetWord: 'Penguin', chain: ['cold', 'bird', 'tuxedo'], wordCount: 3, durationMs: 60000, guesserUid: 'c', outcome: 'lost-timeout', guess: null },
+  { round: 3, category: 'Places', targetWord: 'Lighthouse', chain: ['tall', 'thing', 'near', 'rocks', 'no', 'it', 'spins'], wordCount: 7, durationMs: 33000, guesserUid: 'a', outcome: 'won', guess: 'lighthouse' },
 ];
 const MOCK_PLAYERS = {
   a: { uid: 'a', name: 'Kemi', avatarColor: '#3B5BFF', role: 'knower' as const, lastSeenAt: 0 },
@@ -49,7 +61,7 @@ export default function DevScreen() {
   const params = useLocalSearchParams<{ screen?: string }>();
   const initial = SCREENS.find((s) => s === params.screen) ?? 'knower-active';
   const [screen, setScreen] = useState<DevScreen>(initial);
-  const [chain, setChain] = useState(MOCK.chain);
+  const [feed, setFeed] = useState<FeedEntry[]>(MOCK_FEED);
 
   // __DEV__ is false in production/release JS bundles — this screen is prototype-only
   // and must never be reachable (directly or via deep link) once shipped.
@@ -75,11 +87,12 @@ export default function DevScreen() {
             maxRounds={MOCK.maxRounds}
             targetWord={MOCK.targetWord}
             category={MOCK.category}
-            chain={chain}
-            durationSeconds={MOCK.durationSeconds}
-            secondsRemaining={MOCK.secondsRemaining}
+            feed={feed}
+            players={MOCK_PLAYERS}
+            turnSeconds={MOCK.turnSeconds}
+            roundSeconds={MOCK.roundSeconds}
             onSubmitWord={(w) => {
-              setChain((c) => [...c, w]);
+              setFeed((f) => [...f, { kind: 'word', text: w, by: 'c' }]);
               setScreen('knower-waiting');
             }}
           />
@@ -90,11 +103,12 @@ export default function DevScreen() {
             maxRounds={MOCK.maxRounds}
             targetWord={MOCK.targetWord}
             category={MOCK.category}
-            chain={chain}
+            feed={feed}
+            players={MOCK_PLAYERS}
             partnerName={MOCK.partnerName}
             partnerIsTyping={MOCK.partnerIsTyping}
-            durationSeconds={MOCK.durationSeconds}
-            secondsRemaining={MOCK.secondsRemaining}
+            turnSeconds={MOCK.turnSeconds}
+            roundSeconds={MOCK.roundSeconds}
           />
         )}
         {screen === 'guesser' && (
@@ -102,14 +116,14 @@ export default function DevScreen() {
             round={MOCK.round}
             maxRounds={MOCK.maxRounds}
             category={MOCK.category}
-            chain={chain}
+            feed={feed}
+            players={MOCK_PLAYERS}
             activeKnowerName={MOCK.activeKnowerName}
             knowerIsTyping={MOCK.knowerIsTyping}
-            durationSeconds={MOCK.durationSeconds}
-            secondsRemaining={MOCK.secondsRemaining}
+            roundSeconds={MOCK.roundSeconds}
             onGuess={async (g) => {
-              console.log('Guess:', g);
-              return false;
+              setFeed((f) => [...f, { kind: 'guess', text: g, by: 'a', correct: false }]);
+              return { status: 'wrong' };
             }}
           />
         )}
@@ -122,8 +136,10 @@ export default function DevScreen() {
             guess="lighthouse"
             guesserName="Kemi"
             isMyGuess={false}
-            chain={[...chain, 'fish', 'boat']}
-            linkChecks={{ [chain.length + 1]: 'invalid' }}
+            feed={[...feed, { kind: 'guess', text: 'lighthouse', by: 'a', correct: true }]}
+            players={MOCK_PLAYERS}
+            durationMs={33000}
+            wordCount={feed.filter((e) => e.kind === 'word').length}
             results={['won', 'lost', 'won']}
             isHost={false}
             onNextRound={() => {}}

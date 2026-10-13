@@ -1,19 +1,34 @@
 import { supabase } from './client';
 import type { RoomPlayer } from '../store/gameStore';
 
-export type RoundOutcome = 'won' | 'lost-guess' | 'lost-timeout';
+/** 'lost-guess' only appears in games played under the old chain rules. */
+export type RoundOutcome = 'won' | 'lost-timeout' | 'lost-guess';
+
+/**
+ * One item in a round's description feed (migration 013): a Knower's word, one of the
+ * Guesser's guesses, or a Knower's turn that ran out.
+ */
+export type FeedEntry =
+  | { kind: 'word'; text: string; by: string; struck?: boolean }
+  | { kind: 'guess'; text: string; by: string; correct: boolean }
+  | { kind: 'skip'; by: string };
 
 export interface RoundHistoryEntry {
   round: number;
   category: string;
   targetWord: string;
+  /** The round's description feed. Rounds from before migration 013 don't have one. */
+  feed?: FeedEntry[];
+  /** The Knowers' words alone, in order. */
   chain: string[];
+  /** Words the Knowers needed (struck words don't count). */
+  wordCount?: number;
+  /** How long the round ran, not counting the role reveal. */
+  durationMs?: number;
   guesserUid: string;
   outcome: RoundOutcome;
-  /** What the Guesser typed — null when the round timed out. Older rounds may lack it. */
+  /** The winning guess, or null when time ran out. */
   guess?: string | null;
-  /** AI link-validation results, keyed by chain index — see checkLink(). Advisory only, never affects score. */
-  linkChecks?: Record<number, 'valid' | 'invalid'>;
 }
 
 export interface RoomData {
@@ -23,24 +38,19 @@ export interface RoomData {
   maxRounds: number;
   /** Fixed player rotation order, shuffled once at game start; drives role assignment every round. */
   playerOrder: string[] | null;
-  chain: string[] | null;
+  /** This round's description so far. */
+  feed?: FeedEntry[] | null;
+  /** Counts turns this round (words and skips); a move names the turn it was made on. */
+  turnIndex?: number;
   /** Visible to everyone, including the Guesser. The target word itself is in round_secrets. */
   category: string;
-  secondsRemaining: number;
   activeKnowerUid: string;
   guesserUid: string;
   players: Record<string, RoomPlayer>;
   typing?: Record<string, boolean> | null;
-  /** AI link-validation results for the current round's chain, keyed by chain index — see checkLink(). */
-  linkChecks?: Record<number, 'valid' | 'invalid'> | null;
-  /**
-   * True while the Guesser's locked-in guess is judged (see submitGuess()). The host's
-   * timer won't expire the round while this is set, so a guess made at 1s isn't lost to latency.
-   */
-  guessPending?: boolean | null;
-  /** Keyed by round number (string) — one entry per completed round. */
+  /** Keyed by round number (string): one entry per completed round. */
   history?: Record<string, RoundHistoryEntry> | null;
-  /** Open to Play online — strangers can be matched in, and it starts itself when full. */
+  /** Open to Play online: strangers can be matched in, and it starts itself when full. */
   isPublic?: boolean;
   createdAt: number;
 }

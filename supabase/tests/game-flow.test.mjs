@@ -60,7 +60,6 @@ const fails = async (uid, sql, params) => { try { await as(uid, sql, params); re
 const room = async (code = 'ABCD') => (await db.query(`select data from rooms where code = $1`, [code])).rows[0]?.data;
 const secretFor = async (round) =>
   (await db.query(`select target_word from round_secrets where code = 'ABCD' and round = $1`, [round])).rows[0].target_word;
-const turnStart = async () => (await db.query(`select started_at t from turn_clocks where code = 'ABCD'`)).rows[0]?.t ?? null;
 const stat = async (metric) =>
   (await db.query(`select coalesce(sum(count), 0)::int n from game_stats where metric = $1`, [metric])).rows[0].n;
 const player = (uid, extra = {}) => ({ uid, name: `P${uid[0]}`, avatarColor: '#123456', role: 'knower', lastSeenAt: 0, ...extra });
@@ -101,9 +100,20 @@ await as(HOST, `select start_game('ABCD')`);
 check((await room()).status === 'playing', 'the host can start');
 check((await as(HOST, `select * from words`)).rows.length === 0 && (await as(HOST, `select * from game_decks`)).rows.length === 0, 'the word list and deck are unreadable');
 
-// --- Play 9 rounds -------------------------------------------------------------------
+// --- Play 9 rounds: describe it together (migration 013) ---------------------------------
+// Time is simulated by moving the clocks' start times back.
+const clockRow = async () => (await db.query(`select * from turn_clocks where code = 'ABCD'`)).rows[0];
+const age = (cols, ms) =>
+  db.query(`update turn_clocks set ${cols.map((c) => `${c} = ${c} - make_interval(secs => $1::float / 1000)`).join(', ')} where code = 'ABCD'`, [ms]);
+const ageTurn = (ms) => age(['started_at'], ms);
+const ageRound = (ms) => age(['started_at', 'round_started_at'], ms);
+const ageCooldown = () => age(['last_guess_at'], 4000);
+const guess = async (round, uid) => (await as(null, `select begin_guess('ABCD', $1, $2) r`, [round, uid])).rows[0].r;
+const record = async (round, text, correct) => (await as(null, `select record_guess('ABCD', $1, $2, $3) ok`, [round, text, correct])).rows[0].ok;
+const say = async (uid, round, turn, word) => (await as(uid, `select submit_word('ABCD', $1, $2, $3) i`, [round, turn, word])).rows[0].i;
+/** Same JSON content, whatever the key order (Postgres sorts jsonb keys). */
+const sameJson = (a, b) => JSON.stringify(a, Object.keys(a ?? {}).sort()) === JSON.stringify(b, Object.keys(b ?? {}).sort());
 let wins = 0;
-let turnStartBeforeWord;
 for (let round = 1; round <= 9; round++) {
   d = await room();
   const target = await secretFor(round);
@@ -111,78 +121,114 @@ for (let round = 1; round <= 9; round++) {
   check((await as(d.guesserUid, `select * from round_secrets where code = 'ABCD' and round = $1`, [round])).rows.length === 0, `round ${round}: the Guesser cannot read the target`);
   const first = d.activeKnowerUid;
   const second = Object.keys(d.players).find((u) => u !== first && u !== d.guesserUid);
+  const guesser = d.guesserUid;
   for (const k of [first, second]) {
     check((await as(k, `select target_word from round_secrets where code = 'ABCD' and round = $1`, [round])).rows[0]?.target_word === target, `round ${round}: a Knower can read the target`);
   }
+  check(d.turnIndex === 0 && Array.isArray(d.feed) && d.feed.length === 0 && d.chain === null && !('secondsRemaining' in d), `round ${round}: a fresh feed and turn counter`);
 
   if (round === 1) {
-    check(await fails(second, `select submit_word('ABCD', 1, 'sun')`), 'the waiting Knower cannot submit');
-    check(await fails(d.guesserUid, `select submit_word('ABCD', 1, 'sun')`), 'the Guesser cannot submit words');
-    check(await fails(first, `select submit_word('ABCD', 1, $1)`, [target.toLowerCase() + 's']), 'a Knower cannot submit the target (or its plural)');
-    check(await fails(first, `select submit_word('ABCD', 1, 'two words')`), 'multi-word submissions are rejected');
-    check(await fails(first, `select submit_word('ABCD', 2, 'sun')`), 'wrong-round submissions are rejected');
+    check(await fails(second, `select submit_word('ABCD', 1, 0, 'tall')`), 'the waiting Knower cannot submit');
+    check(await fails(guesser, `select submit_word('ABCD', 1, 0, 'tall')`), 'the Guesser cannot submit words');
+    check(await fails(first, `select submit_word('ABCD', 1, 0, $1)`, [target.toLowerCase() + 's']), 'a Knower cannot submit the target (or its plural)');
+    check(await fails(first, `select submit_word('ABCD', 1, 0, 'two words')`), 'two words at once are rejected');
+    check(await fails(first, `select submit_word('ABCD', 1, 0, '!!!')`), 'punctuation alone is rejected');
+    check(await fails(first, `select submit_word('ABCD', 1, 0, $1)`, ['a'.repeat(25)]), 'words over 24 letters are rejected');
+    check(await fails(first, `select submit_word('ABCD', 1, 3, 'tall')`), 'a stale turn index is rejected');
+    check(await fails(first, `select submit_word('ABCD', 2, 0, 'tall')`), 'wrong-round submissions are rejected');
     await as(first, `select set_typing('ABCD', true)`);
     await as(second, `select set_typing('ABCD', true)`);
     const t = (await room()).typing;
     check(t[first] === true && !(second in t), 'only the active Knower can set typing');
-    await as(HOST, `select tick_timer('ABCD', 1)`);
-    await as(HOST, `select tick_timer('ABCD', 1)`);
-    check((await room()).secondsRemaining === 28, 'the host tick decrements the timer');
-    await as(P2, `select tick_timer('ABCD', 1)`).catch(() => {});
-    check((await room()).secondsRemaining === 28, 'a non-host cannot tick the timer');
-    const started = await turnStart();
-    check(started !== null, 'starting a round stamps the turn start');
-    check((await as(first, `select turn_elapsed_ms('ABCD') ms`)).rows[0].ms >= 0, 'a player can read how long the turn has run');
-    check(await fails(OUTSIDER, `select turn_elapsed_ms('ABCD')`), 'a non-member cannot read the turn clock');
-    await as(HOST, `select tick_timer('ABCD', 1)`);
-    check(+(await turnStart()) === +started, 'a timer tick does not restart the turn');
-    await as(first, `select set_typing('ABCD', false)`);
-    check(+(await turnStart()) === +started, 'the typing indicator does not restart the turn');
+
+    const state = (await as(guesser, `select clock_state('ABCD') s`)).rows[0].s;
+    check(state.round === 1 && state.turnIndex === 0 && state.turnElapsedMs >= 0 && state.roundElapsedMs >= 0 && state.held === false, 'a player can read where both clocks stand');
+    check(await fails(OUTSIDER, `select clock_state('ABCD')`), 'a non-member cannot read the clocks');
+    check((await db.query(`select * from turn_clocks`)).rows.length === 1 && (await as(HOST, `select * from turn_clocks`)).rows.length === 0, 'the clock table is unreadable to clients');
+
+    // A pause freezes both clocks and blocks moves; resuming shifts both start times on.
     await as(P2, `select pause_turn_clock('ABCD')`);
-    const heldAt = (await as(first, `select turn_elapsed_ms('ABCD') ms`)).rows[0].ms;
-    await new Promise((r) => setTimeout(r, 30));
-    check((await as(first, `select turn_elapsed_ms('ABCD') ms`)).rows[0].ms === heldAt, 'a paused turn clock stands still');
+    const held = (await as(first, `select clock_state('ABCD') s`)).rows[0].s;
+    await new Promise((r) => setTimeout(r, 40));
+    const stillHeld = (await as(first, `select clock_state('ABCD') s`)).rows[0].s;
+    check(held.held && stillHeld.turnElapsedMs === held.turnElapsedMs && stillHeld.roundElapsedMs === held.roundElapsedMs, 'a pause freezes both clocks');
+    check(await fails(first, `select submit_word('ABCD', 1, 0, 'tall')`), 'no words while paused');
+    await ageTurn(20000);
+    check((await as(guesser, `select skip_turn('ABCD', 1, 0) ok`)).rows[0].ok === false, 'no skips while paused');
+    await ageTurn(-20000);
+    const before = await clockRow();
     await as(P3, `select pause_turn_clock('ABCD')`);
     await as(P2, `select resume_turn_clock('ABCD')`);
     await as(P3, `select resume_turn_clock('ABCD')`);
-    const clock = (await db.query(`select hold_started_at, held_ms from turn_clocks where code = 'ABCD'`)).rows[0];
-    check(clock.hold_started_at === null && clock.held_ms >= 0, 'resuming the turn clock is idempotent');
-    check(await fails(OUTSIDER, `select pause_turn_clock('ABCD')`), 'a non-member cannot pause the turn clock');
-    check((await db.query(`select * from turn_clocks`)).rows.length === 1 && (await as(HOST, `select * from turn_clocks`)).rows.length === 0, 'the turn clock table is unreadable to clients');
-    turnStartBeforeWord = started;
-    check(await fails(first, `select mark_guess_pending('ABCD', 1)`), 'only the Guesser can mark a guess pending');
+    const after = await clockRow();
+    check(after.hold_started_at === null && +after.started_at > +before.started_at && +after.round_started_at > +before.round_started_at, 'resuming shifts both clocks on by the pause, once');
+    check(await fails(OUTSIDER, `select pause_turn_clock('ABCD')`), 'a non-member cannot pause the clocks');
   }
 
-  const i0 = (await as(first, `select submit_word('ABCD', $1, 'sun') i`, [round])).rows[0].i;
+  // Turn 0: the first Knower describes; the turn passes and the turn clock restarts.
+  const turnStartedBefore = (await clockRow()).started_at;
+  check(await say(first, round, 0, 'tall') === 1, `round ${round}: a word lands`);
   d = await room();
-  check(i0 === 0 && d.activeKnowerUid === second && d.secondsRemaining === 30 && !(first in (d.typing ?? {})), `round ${round}: word lands, turn passes, timer resets`);
-  if (round === 1) {
-    check(+(await turnStart()) > +turnStartBeforeWord, 'a word landing restarts the turn clock');
-  }
-  check(await fails(first, `select submit_word('ABCD', $1, 'again')`, [round]), `round ${round}: no going twice in a row`);
-  const i1 = (await as(second, `select submit_word('ABCD', $1, 'light') i`, [round])).rows[0].i;
-  check(i1 === 1 && JSON.stringify((await room()).chain) === '["sun","light"]', `round ${round}: chain appended server-side`);
+  check(d.activeKnowerUid === second && d.turnIndex === 1 && !(first in (d.typing ?? {})), `round ${round}: the turn passes to the other Knower`);
+  check(sameJson(d.feed[0], { kind: 'word', text: 'tall', by: first }), `round ${round}: the word is in the feed with who said it`);
+  check(+(await clockRow()).started_at > +turnStartedBefore, `round ${round}: the turn clock restarts`);
+  check(await fails(first, `select submit_word('ABCD', $1, 1, 'again')`, [round]), `round ${round}: no going twice in a row`);
 
-  await as(null, `select record_link_check('ABCD', $1, 1, 'light', false)`, [round]);
-  await as(null, `select record_link_check('ABCD', $1, 1, 'stale', true)`, [round]);
-  check((await room()).linkChecks['1'] === 'invalid', `round ${round}: link verdict recorded, stale verdict ignored`);
+  if (round === 1) {
+    check(await fails(second, `select submit_word('ABCD', 1, 1, 'Tall')`), 'the previous word cannot be repeated');
+    // The turn clock runs out: an early skip does nothing; then the first call skips, once.
+    check((await as(guesser, `select skip_turn('ABCD', 1, 1) ok`)).rows[0].ok === false, 'a skip before the turn is over does nothing');
+    await ageTurn(10500);
+    const [a, b] = await Promise.all([
+      as(guesser, `select skip_turn('ABCD', 1, 1) ok`),
+      as(first, `select skip_turn('ABCD', 1, 1) ok`),
+    ]);
+    d = await room();
+    check([a.rows[0].ok, b.rows[0].ok].filter(Boolean).length === 1 && d.turnIndex === 2, 'two devices skipping at once skip one turn');
+    check(d.activeKnowerUid === first && sameJson(d.feed[1], { kind: 'skip', by: second }), 'the skip is in the feed and the turn passes');
+    check(d.status === 'playing', 'a skipped turn does not end the round');
+    // A word sent just as the turn ends still counts (grace); well after, it doesn't.
+    await ageTurn(10400);
+    check(await say(first, 1, 2, "don't") === 3, 'a word inside the grace period counts (apostrophes allowed)');
+    await ageTurn(12000);
+    check(await fails(second, `select submit_word('ABCD', 1, 3, 'thing')`), 'a word after the turn ran out is rejected');
+    await as(first, `select skip_turn('ABCD', 1, 3)`);
+    check(await say(first, 1, 4, 'x-ray') === 5, 'hyphenated words are allowed');
+    // Guesses: the Guesser only, 3 seconds apart, wrong ones go into the feed.
+    check(await guess(1, first) === 'not-the-guesser', 'only the Guesser can guess');
+    check(await guess(1, guesser) === 'ok', 'the Guesser can guess');
+    check(await guess(1, guesser) === 'cooldown', 'guesses are 3 seconds apart');
+    check(await record(1, 'cliff', false) === true, 'a wrong guess is recorded');
+    d = await room();
+    check(d.status === 'playing' && sameJson(d.feed.at(-1), { kind: 'guess', text: 'cliff', by: guesser, correct: false }), 'a wrong guess shows in the feed and play goes on');
+  }
 
   if (round % 3 === 0) {
-    await as(HOST, `select resolve_round_timeout('ABCD', $1)`, [round]);
+    // The round clock runs out, but waits for a guess that's still being judged.
+    check((await as(first, `select expire_round('ABCD', $1) ok`, [round])).rows[0].ok === false, `round ${round}: the round can't be ended early`);
+    check(await guess(round, guesser) === 'ok', `round ${round}: a last-second guess`);
+    await ageRound(63000);
+    check((await as(first, `select expire_round('ABCD', $1) ok`, [round])).rows[0].ok === false, `round ${round}: time's up, but the pending guess is waited for`);
+    await record(round, 'wrong', false);
+    const [x, y] = await Promise.all([
+      as(first, `select expire_round('ABCD', $1) ok`, [round]),
+      as(guesser, `select expire_round('ABCD', $1) ok`, [round]),
+    ]);
+    check([x.rows[0].ok, y.rows[0].ok].filter(Boolean).length === 1, `round ${round}: the round ends once, however many devices call it`);
+    await ageCooldown();
+    check(await guess(round, guesser) === 'round-over', `round ${round}: no guesses after time's up`);
   } else {
-    await as(d.guesserUid, `select mark_guess_pending('ABCD', $1)`, [round]);
-    check((await room()).guessPending === true, `round ${round}: guess marked pending`);
-    const correct = round % 3 === 1;
-    const r = await as(null, `select resolve_round_guess('ABCD', $1, $2, $3) ok`, [round, correct ? target : 'wrong', correct]);
-    check(r.rows[0].ok === true, `round ${round}: guess recorded`);
-    if (correct) wins++;
-    const again = await as(null, `select resolve_round_guess('ABCD', $1, 'late', true) ok`, [round]);
-    check(again.rows[0].ok === false, `round ${round}: a second resolution is a no-op`);
+    if (round !== 1) check(await guess(round, guesser) === 'ok', `round ${round}: a guess`);
+    else { await ageCooldown(); check(await guess(round, guesser) === 'ok', 'the next guess after the cooldown'); }
+    check(await record(round, target, true) === true, `round ${round}: the right guess wins`);
+    wins++;
+    check(await record(round, 'late', true) === false, `round ${round}: a second resolution is a no-op`);
   }
   const h = (await room()).history[String(round)];
-  check(h.targetWord === target && JSON.stringify(h.chain) === '["sun","light"]' && h.linkChecks['1'] === 'invalid', `round ${round}: history has target, chain and link checks`);
-  check(round % 3 === 0 ? h.outcome === 'lost-timeout' && h.guess === null : h.guess === (round % 3 === 1 ? target : 'wrong'), `round ${round}: outcome and guess recorded`);
-  check(await fails(first, `select submit_word('ABCD', $1, 'late')`, [round]), `round ${round}: no words after resolution`);
+  check(h.targetWord === target && Array.isArray(h.feed) && h.feed[0].text === 'tall' && h.chain[0] === 'tall' && h.wordCount === h.chain.length, `round ${round}: history has the feed, its words and the word count`);
+  check(typeof h.durationMs === 'number' && h.durationMs >= 0 && h.durationMs <= 60000, `round ${round}: history has how long the round took`);
+  check(round % 3 === 0 ? h.outcome === 'lost-timeout' && h.guess === null : h.outcome === 'won' && h.guess === target && h.feed.at(-1).correct === true, `round ${round}: outcome and guess recorded`);
+  check(await fails(second, `select submit_word('ABCD', $1, 1, 'late')`, [round]), `round ${round}: no words after the round`);
   await as(P2, `select reset_room_to_lobby('ABCD')`);
   check((await room()).status === 'resolution', `round ${round}: Play Again is a no-op mid-game`);
   await as(HOST, `select advance_round('ABCD', $1)`, [round]);
@@ -256,9 +302,9 @@ d = await room('INVS');
 const invTarget = (await db.query(`select target_word from round_secrets where code = 'INVS' and round = 1`)).rows[0].target_word;
 const invActive = d.activeKnowerUid;
 const hidden = invTarget.slice(0, 2) + '​' + invTarget.slice(2);
-check(await fails(invActive, `select submit_word('INVS', 1, $1)`, [hidden]), 'target word with a zero-width space inside is still rejected');
-await as(invActive, `select submit_word('INVS', 1, $1)`, ['sun​shine']);
-check((await room('INVS')).chain[0] === 'sunshine', 'invisible characters are stripped from chain words');
+check(await fails(invActive, `select submit_word('INVS', 1, 0, $1)`, [hidden]), 'target word with a zero-width space inside is still rejected');
+await as(invActive, `select submit_word('INVS', 1, 0, $1)`, ['sun​shine']);
+check((await room('INVS')).feed[0].text === 'sunshine', 'invisible characters are stripped from words');
 for (const u of [HOST, P2, P3]) await as(u, `select leave_room('INVS', $1)`, [u]);
 
 // --- Online play (migration 009) ------------------------------------------------------
@@ -284,12 +330,12 @@ for (const t of ['Scunthorpe', 'shell', 'class', 'Niger', 'cocktail', 'grape', '
 check(await fails(FIFTH, `select create_room('BADN', $1)`, [player(FIFTH, { name: 'Sh1t Head' })]), 'offensive names are rejected');
 check(await fails(FIFTH, `select quick_match($1)`, [player(FIFTH, { name: 'fuuuck' })]) , '…in Play online too');
 
-// The full public lobby plays; a blocked chain word is refused
+// The full public lobby plays; a blocked word is refused
 await as(HOST, `select start_game($1)`, [pub1]);
 d = await room(pub1);
-check(await fails(d.activeKnowerUid, `select submit_word($1, 1, 'sh1t')`, [pub1]), 'offensive chain words are rejected');
-await as(d.activeKnowerUid, `select submit_word($1, 1, 'sunny')`, [pub1]);
-check((await room(pub1)).chain[0] === 'sunny', 'normal words still go through');
+check(await fails(d.activeKnowerUid, `select submit_word($1, 1, 0, 'shit')`, [pub1]), 'offensive words are rejected');
+await as(d.activeKnowerUid, `select submit_word($1, 1, 0, 'sunny')`, [pub1]);
+check((await room(pub1)).feed[0].text === 'sunny', 'normal words still go through');
 
 // Reports
 check(await fails(P2, `select report_player($1, $2, 'words')`, [pub1, P2]), 'you cannot report yourself');
@@ -298,7 +344,7 @@ check(await fails(P2, `select report_player($1, $2, 'rude')`, [pub1, HOST]), 'un
 await as(P2, `select report_player($1, $2, 'words')`, [pub1, HOST]);
 const report = (await db.query(`select * from player_reports where room_code = $1`, [pub1])).rows[0];
 check(report?.reported_uid === HOST && report.reporter_uid === P2 && report.reported_name === 'P1', 'a report records who and why');
-check(report?.snapshot?.chain?.[0] === 'sunny' && report.snapshot.players[P3] === 'P3', '…with a snapshot of names and words');
+check(report?.snapshot?.feed?.[0]?.text === 'sunny' && report.snapshot.players[P3] === 'P3', '…with a snapshot of names and words');
 check(await fails(P2, `select * from player_reports`) || (await as(P2, `select * from player_reports`)).rows.length === 0, 'players cannot read reports');
 
 // Lobby heartbeat and going public

@@ -29,8 +29,8 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, gues
 
   const role = isGuesser ? 'Guesser' : 'Knower';
   const blurb = isGuesser
-    ? `${knowerNames.join(' and ')} know the word. Watch their chain and call it.`
-    : `You and ${knowerNames[0] ?? 'your partner'} know the word. Lead ${guesserName} to it.`;
+    ? `${knowerNames.join(' and ')} are describing a secret word, one word at a time. Shout out guesses anytime!`
+    : `Take turns with ${knowerNames[0] ?? 'your partner'} adding one word each to describe it to ${guesserName}.`;
 
   return (
     <Screen ground={p.coral}>

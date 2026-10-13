@@ -244,7 +244,7 @@ export default function HomeScreen() {
                 Yappa
               </Text>
             </Sticker>
-            <Text style={styles.tagline} maxFontSizeMultiplier={1.3}>Chain words. Guess the secret. Beat the clock.</Text>
+            <Text style={styles.tagline} maxFontSizeMultiplier={1.3}>Describe it together. Guess the secret. Beat the clock.</Text>
           </View>
 
           <Sticker radius={22} offset={5} contentStyle={styles.nameCard}>

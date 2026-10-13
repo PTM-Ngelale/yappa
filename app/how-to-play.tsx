@@ -2,12 +2,32 @@ import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { DescriptionFeed } from '../src/components/DescriptionFeed';
 import { PoweredBy } from '../src/components/PoweredBy';
 import { Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker } from '../src/components/ui';
-import { WordChain } from '../src/components/WordChain';
+import { ROUND_SECONDS, TURN_SECONDS } from '../src/game/config';
+import type { FeedEntry } from '../src/supabase/room';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
+
+// The spec's lighthouse example: Tomi (coral) and Ade (green) describe, Kemi guesses.
+const EXAMPLE_PLAYERS = {
+  k: { uid: 'k', name: 'Kemi', avatarColor: '#3B5BFF', role: 'guesser' as const, lastSeenAt: 0 },
+  t: { uid: 't', name: 'Tomi', avatarColor: '#FF5B4A', role: 'knower' as const, lastSeenAt: 0 },
+  a: { uid: 'a', name: 'Ade', avatarColor: '#2E9E6B', role: 'knower' as const, lastSeenAt: 0 },
+};
+const EXAMPLE_FEED: FeedEntry[] = [
+  { kind: 'word', text: 'Tall', by: 't' },
+  { kind: 'word', text: 'thing', by: 'a' },
+  { kind: 'word', text: 'near', by: 't' },
+  { kind: 'word', text: 'rocks', by: 'a' },
+  { kind: 'guess', text: 'cliff', by: 'k', correct: false },
+  { kind: 'word', text: 'no', by: 't' },
+  { kind: 'word', text: 'it', by: 'a' },
+  { kind: 'word', text: 'spins', by: 't' },
+  { kind: 'guess', text: 'lighthouse', by: 'k', correct: true },
+];
 
 export default function HowToPlayScreen() {
   const styles = useStyles(makeStyles);
@@ -26,49 +46,40 @@ export default function HowToPlayScreen() {
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <Text style={styles.tagline}>
-          Two Knowers build a word chain. One Guesser tries to figure out where it’s headed.
+          Two of you describe a secret word, one word at a time. The third guesses it before time runs out.
         </Text>
 
-        <Section title="The roles">
-          <RoleRow
-            icon="eye"
-            colour={p.blue}
-            title="Knowers (2 players)"
-            body="See the secret word. Take turns adding one word at a time — each new word must make a compound word or common phrase with the word before it."
-          />
-          <RoleRow
-            icon="search"
-            colour={p.coral}
-            title="Guesser (1 player)"
-            body="Doesn’t see the secret word. Watches the chain grow and can guess at any time — but only gets one shot per round."
-          />
+        <Section title="How it works">
+          <Step number={1} label="Each round:" text="one Guesser, two Knowers. Everyone takes turns." />
+          <Step number={2} label="Knowers:" text={`take turns adding one word each. You get ${TURN_SECONDS} seconds per word.`} />
+          <Step number={3} label="Guessers:" text={`guess as often as you like. Get it within ${ROUND_SECONDS} seconds to win the round.`} />
+          <Text style={styles.bodyText}>9 rounds. Everyone guesses 3 times. How many can you win?</Text>
         </Section>
 
         <Section title="See it in action">
           <Text style={styles.bodyText}>
             Secret word: <Text style={styles.strong}>Lighthouse</Text>
           </Text>
-          <WordChain words={['sun', 'light', 'house']} variant="wrap" />
+          <DescriptionFeed entries={EXAMPLE_FEED} players={EXAMPLE_PLAYERS} variant="recap" />
           <Text style={styles.caption}>
-            sun → light (sunlight) → house (lighthouse) → the Guesser calls it!
+            Tomi and Ade take turns adding a word. Kemi guesses “cliff”, they steer with “no”, and
+            Kemi gets it!
           </Text>
         </Section>
 
-        <Section title="How a round works">
-          <Step number={1} text="Knowers take turns, one word each, with 30 seconds per turn." />
-          <Step number={2} text="Knowers can’t play the secret word itself or an obvious variant." />
-          <Step
-            number={3}
-            text="The Guesser can guess at any point — but a wrong guess loses the round straight away, so wait for a strong hunch."
+        <Section title="The roles">
+          <RoleRow
+            icon="eye"
+            colour={p.blue}
+            title="Knowers (2 players)"
+            body="See the secret word. Describe it together, one word each. You can’t say the word itself."
           />
-          <Step number={4} text="Running out of time without a correct guess also loses the round." />
-        </Section>
-
-        <Section title="Scoring">
-          <Text style={styles.bodyText}>
-            A game is 9 rounds. Roles rotate every round, so everyone guesses 3 times. Your score is
-            how many rounds the team wins out of 9.
-          </Text>
+          <RoleRow
+            icon="search"
+            colour={p.coral}
+            title="Guesser (1 player)"
+            body="Doesn’t see the secret word. Watches the description form and guesses as often as they like."
+          />
         </Section>
 
         <Section title="Categories">
@@ -110,14 +121,17 @@ function RoleRow({ icon, colour, title, body }: { icon: IconName; colour: string
   );
 }
 
-function Step({ number, text }: { number: number; text: string }) {
+function Step({ number, label, text }: { number: number; label?: string; text: string }) {
   const styles = useStyles(makeStyles);
   return (
     <View style={styles.stepRow}>
       <View style={styles.stepBadge}>
         <Text style={styles.stepBadgeText}>{number}</Text>
       </View>
-      <Text style={[styles.bodyText, styles.flex]}>{text}</Text>
+      <Text style={[styles.bodyText, styles.flex]}>
+        {label ? <Text style={styles.strong}>{label} </Text> : null}
+        {text}
+      </Text>
     </View>
   );
 }

@@ -1,10 +1,9 @@
 import { supabase } from './client';
 
-// Round lifecycle (start, advance, resolve) runs server-side — see migration 004. The
-// target word lives in round_secrets, which only that round's Knowers can read, so the
-// Guesser's device never receives it.
+// Every move goes through a server function that checks the caller and the move
+// (migrations 005 and 013), so clients can't race or cheat each other.
 
-/** Host call, once, when leaving the lobby — the server shuffles play order and draws the 9 words. */
+/** Host call, once, when leaving the lobby: the server shuffles play order and draws the 9 words. */
 export async function startGame(code: string): Promise<void> {
   const { error } = await supabase.rpc('start_game', { p_code: code });
   if (error) throw error;
@@ -25,19 +24,58 @@ export async function fetchTargetWord(code: string, round: number): Promise<stri
   return (data?.target_word as string | undefined) ?? null;
 }
 
+/** Why the server turned a word down, in words a player can act on. */
+export type WordRejection = 'not-your-turn' | 'turn-over' | 'paused' | 'target' | 'repeat' | 'shape' | 'blocked';
+
+/** Maps submit_word()'s error to a WordRejection, or null if it wasn't a rule (a network error). */
+export function wordRejection(error: unknown): WordRejection | null {
+  const message = error instanceof Error ? error.message : String((error as { message?: unknown })?.message ?? '');
+  if (message.includes('not your turn') || message.includes('round is not in play')) return 'not-your-turn';
+  if (message.includes('turn is over')) return 'turn-over';
+  if (message.includes('game is paused')) return 'paused';
+  if (message.includes('that is the target word')) return 'target';
+  if (message.includes('same as the last word')) return 'repeat';
+  if (message.includes('one word')) return 'shape';
+  if (message.includes('word not allowed')) return 'blocked';
+  return null;
+}
+
 /**
- * Active Knower adds a word. The server appends it, hands the turn to the other Knower and
- * resets the per-turn 30s timer — it also rejects the move if it isn't the caller's turn or
- * the word is the target. Resolves to the word's index in the chain.
+ * Active Knower adds a word. `turnIndex` is the turn they're answering: if it has moved on
+ * (the turn ran out), the server turns the word down instead of putting it in the wrong turn.
+ * Resolves to the next turn's index; throws if the word was refused (see wordRejection).
  */
-export async function submitWord(code: string, round: number, word: string): Promise<number> {
+export async function submitWord(code: string, round: number, turnIndex: number, word: string): Promise<number> {
   const { data, error } = await supabase.rpc('submit_word', {
     p_code: code,
     p_round: round,
+    p_turn_index: turnIndex,
     p_word: word,
   });
   if (error) throw error;
   return data as number;
+}
+
+/**
+ * The turn clock ran out: pass the turn to the other Knower. Any device may call it; the
+ * server only acts once its own clock agrees, and only once per turn. Resolves to whether
+ * this call did the skip.
+ */
+export async function skipTurn(code: string, round: number, turnIndex: number): Promise<boolean> {
+  const { data, error } = await supabase.rpc('skip_turn', { p_code: code, p_round: round, p_turn_index: turnIndex });
+  if (error) throw error;
+  return data === true;
+}
+
+/**
+ * The round clock ran out: the round is lost. Any device may call it; false means the server
+ * isn't ready yet (its clock hasn't quite run out, or a guess is still being judged), so
+ * call again shortly.
+ */
+export async function expireRound(code: string, round: number): Promise<boolean> {
+  const { data, error } = await supabase.rpc('expire_round', { p_code: code, p_round: round });
+  if (error) throw error;
+  return data === true;
 }
 
 export async function setTyping(code: string, isTyping: boolean): Promise<void> {
@@ -45,44 +83,34 @@ export async function setTyping(code: string, isTyping: boolean): Promise<void> 
   if (error) throw error;
 }
 
-/**
- * Fire-and-forget AI check of whether chain[index] validly chains off chain[index - 1].
- * Runs after the word is already in the chain — never blocks or delays submission. The
- * validate-link edge function reads the words and writes room.linkChecks[index] itself,
- * for Round Resolution to display; any failure just means no flag is shown.
- */
-export async function checkLink(code: string, index: number): Promise<void> {
-  await supabase.functions.invoke('validate-link', { body: { code, index } });
-}
+/** What happened to a guess. */
+export type GuessResult =
+  | { status: 'correct' }
+  | { status: 'wrong' }
+  /** Sent too soon after the last guess. */
+  | { status: 'cooldown' }
+  /** The round ended (time ran out) before it was judged, or the game is paused. */
+  | { status: 'closed' };
 
 /**
- * Locks in the Guesser's guess. The validate-guess edge function judges it against the
- * hidden target (formatting differences instantly, synonyms/misspellings via AI) and
- * records the round's outcome itself. Resolves to whether the guess was correct, or null if
- * the round had already ended (the timer won the race); throws
- * if it couldn't be submitted, so the caller can let the Guesser retry.
+ * Sends a guess. The validate-guess edge function judges it against the hidden target
+ * (formatting differences instantly, synonyms and misspellings via AI) and records it: a
+ * correct guess wins the round, a wrong one goes into the feed. Throws if it couldn't be
+ * sent at all, so the Guesser can try again.
  */
-export async function submitGuess(code: string, round: number, guess: string): Promise<boolean | null> {
-  // Holds the host's timer at zero while the guess is judged — see RoomData.guessPending.
-  // Set from here rather than the edge function so it lands before any cold-start delay.
-  const { error: pendingError } = await supabase.rpc('mark_guess_pending', {
-    p_code: code,
-    p_round: round,
-  });
-  if (pendingError) console.error(pendingError);
-
+export async function submitGuess(code: string, round: number, guess: string): Promise<GuessResult> {
   const { data, error } = await supabase.functions.invoke('validate-guess', {
     body: { code, round, guess },
   });
   if (error) {
     const reason = await functionErrorReason(error);
-    // The timer ended the round while the guess was in flight — not a failure; the room
-    // update moving everyone to Resolution is already on its way.
-    if (reason === 'round-over') return null;
+    if (reason === 'cooldown') return { status: 'cooldown' };
+    if (reason === 'round-over' || reason === 'paused') return { status: 'closed' };
     throw new Error(`validate-guess failed: ${reason}`);
   }
   if (typeof data?.correct !== 'boolean') throw new Error('validate-guess returned no verdict');
-  return data.correct;
+  if (data.resolved === false) return { status: 'closed' };
+  return { status: data.correct ? 'correct' : 'wrong' };
 }
 
 /** The `error` code an edge function put in its JSON body, falling back to the HTTP status. */
@@ -97,35 +125,34 @@ async function functionErrorReason(error: unknown): Promise<string> {
   }
 }
 
-/**
- * How long the current turn has run, by the server's clock (migration 010) — null outside
- * play. Lets a device that loads the room mid-turn pick the countdown up where it is.
- */
-export async function turnElapsedMs(code: string): Promise<number | null> {
-  const { data, error } = await supabase.rpc('turn_elapsed_ms', { p_code: code });
+/** Where the server's clocks stand (migration 013), for a device catching up. Null outside play. */
+export type ClockState = {
+  round: number;
+  turnIndex: number;
+  turnElapsedMs: number;
+  roundElapsedMs: number;
+  held: boolean;
+};
+
+export async function clockState(code: string): Promise<ClockState | null> {
+  const { data, error } = await supabase.rpc('clock_state', { p_code: code });
   if (error) throw error;
-  return data as number | null;
+  return (data as ClockState | null) ?? null;
 }
 
-/** Someone has dropped — stop the server's turn clock. Each device calls it; only the first counts. */
+/** Someone has dropped: stop both clocks. Each device calls it; only the first counts. */
 export async function pauseTurnClock(code: string): Promise<void> {
   const { error } = await supabase.rpc('pause_turn_clock', { p_code: code });
   if (error) throw error;
 }
 
-/** They're back — start the server's turn clock again. */
+/** They're back: start both clocks again, shifted on by the time paused. */
 export async function resumeTurnClock(code: string): Promise<void> {
   const { error } = await supabase.rpc('resume_turn_clock', { p_code: code });
   if (error) throw error;
 }
 
-/** Host call when the turn timer hits zero — the server reveals the word into history. */
-export async function resolveRoundTimeout(code: string, round: number): Promise<void> {
-  const { error } = await supabase.rpc('resolve_round_timeout', { p_code: code, p_round: round });
-  if (error) throw error;
-}
-
-/** Host call from Round Resolution's "Next Round" — next round, or Game End after the last. */
+/** Host call from Round Resolution's "Next Round": next round, or Game End after the last. */
 export async function advanceRound(code: string, fromRound: number): Promise<void> {
   const { error } = await supabase.rpc('advance_round', { p_code: code, p_from_round: fromRound });
   if (error) throw error;
