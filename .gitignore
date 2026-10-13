@@ -42,3 +42,9 @@ yarn-error.*
 
 # Supabase CLI local state (project link, pooler URL) — machine-specific, not shared
 supabase/.temp/
+
+# Private planning docs: kept on this machine, never committed
+YAPPA_BRIEF.md
+Yappa Next Steps After Web Launch.md
+GAMEPLAY_REDESIGN.md
+assets/store/PLAY_STORE.md
