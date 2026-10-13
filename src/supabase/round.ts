@@ -97,9 +97,25 @@ async function functionErrorReason(error: unknown): Promise<string> {
   }
 }
 
-/** Host's once-a-second tick — the server decrements, so time can only move forward. */
-export async function tickTimer(code: string, round: number): Promise<void> {
-  const { error } = await supabase.rpc('tick_timer', { p_code: code, p_round: round });
+/**
+ * How long the current turn has run, by the server's clock (migration 010) — null outside
+ * play. Lets a device that loads the room mid-turn pick the countdown up where it is.
+ */
+export async function turnElapsedMs(code: string): Promise<number | null> {
+  const { data, error } = await supabase.rpc('turn_elapsed_ms', { p_code: code });
+  if (error) throw error;
+  return data as number | null;
+}
+
+/** Someone has dropped — stop the server's turn clock. Each device calls it; only the first counts. */
+export async function pauseTurnClock(code: string): Promise<void> {
+  const { error } = await supabase.rpc('pause_turn_clock', { p_code: code });
+  if (error) throw error;
+}
+
+/** They're back — start the server's turn clock again. */
+export async function resumeTurnClock(code: string): Promise<void> {
+  const { error } = await supabase.rpc('resume_turn_clock', { p_code: code });
   if (error) throw error;
 }
 
