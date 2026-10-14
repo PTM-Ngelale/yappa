@@ -9,9 +9,18 @@ import { fonts, spacing, type, useStyles, type Palette } from '../theme';
 import { Sticker } from './ui';
 
 const CAPTCHA_URL = 'https://ptm-ngelale.github.io/yappa/captcha.html';
-const TIMEOUT_MS = 30000;
+// Turnstile usually answers in a second or two; sign-in retries a check that doesn't (see
+// auth.ts). Once the player is shown the box to tap, give them longer.
+const TIMEOUT_MS = 20000;
+const INTERACTIVE_TIMEOUT_MS = 120000;
 
-type Pending = { id: number; resolve: (token: string) => void; reject: (e: Error) => void };
+type Pending = {
+  id: number;
+  resolve: (token: string) => void;
+  reject: (e: Error) => void;
+  /** Restarts the timeout with more time, for a player who has the box to tap. */
+  wait: (ms: number) => void;
+};
 
 let pending: Pending | null = null;
 let nextId = 1;
@@ -20,16 +29,22 @@ let notifyHost: ((p: Pending | null) => void) | null = null;
 /**
  * Gets a Turnstile token from <CaptchaHost /> (mounted in app/_layout.tsx). If the host hasn't
  * mounted yet (the app signs in while fonts are still loading) the request waits for it.
- * Rejects if the check fails or takes longer than 30s, and always on web (no WebView there).
+ * Rejects if the check fails or gets no answer within 20s, and always on web (no WebView there).
  */
 export function requestCaptchaToken(): Promise<string> {
   if (Platform.OS === 'web') return Promise.reject(new Error('captcha not supported on web'));
   if (pending) pending.reject(new Error('superseded'));
   return new Promise<string>((resolve, reject) => {
     const id = nextId++;
-    const timer = setTimeout(() => finish(id, new Error('captcha timed out')), TIMEOUT_MS);
+    let timer: ReturnType<typeof setTimeout>;
+    const wait = (ms: number) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => finish(id, new Error('captcha timed out')), ms);
+    };
+    wait(TIMEOUT_MS);
     pending = {
       id,
+      wait,
       resolve: (token) => {
         clearTimeout(timer);
         resolve(token);
@@ -78,8 +93,10 @@ export function CaptchaHost() {
     } catch {
       return;
     }
-    if (msg.type === 'interactive') setInteractive(true);
-    else if (msg.type === 'token' && msg.token) finish(request.id, msg.token);
+    if (msg.type === 'interactive') {
+      setInteractive(true);
+      request.wait(INTERACTIVE_TIMEOUT_MS);
+    } else if (msg.type === 'token' && msg.token) finish(request.id, msg.token);
     else if (msg.type === 'error') finish(request.id, new Error(`captcha failed (${msg.code ?? 'unknown'})`));
   }
 

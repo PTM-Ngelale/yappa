@@ -27,26 +27,35 @@ async function doSignIn(): Promise<string> {
   }
 
   // New anonymous accounts need a Cloudflare Turnstile token once CAPTCHA protection is on in
-  // Supabase (Auth → Attack Protection). If the check can't run, try without one: that still
+  // Supabase (Auth → Attack Protection). The check sometimes hangs or fails on a slow first
+  // load, so a failed check, or a token Supabase rejects, gets a fresh check (new page, new
+  // token) up to CAPTCHA_ATTEMPTS times. If no check works, try without a token: that still
   // works while protection is off, and fails with a clear error once it's on.
-  let captchaToken: string | undefined;
   let captchaProblem = 'no token';
-  try {
-    captchaToken = await requestCaptchaToken();
-  } catch (e) {
-    captchaProblem = e instanceof Error ? e.message : String(e);
-    console.warn('Captcha check failed:', e);
-  }
-
-  const { data, error } = await supabase.auth.signInAnonymously(
-    captchaToken ? { options: { captchaToken } } : undefined
-  );
-  if (error) {
-    // Name the actual cause so the player (and we) can see it on screen.
-    if (error.code === 'captcha_failed' || /captcha/i.test(error.message)) {
-      throw new Error(captchaToken ? `captcha rejected: ${error.message}` : `captcha: ${captchaProblem}`);
+  for (let attempt = 1; attempt <= CAPTCHA_ATTEMPTS; attempt++) {
+    if (attempt > 1) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+    let captchaToken: string | undefined;
+    try {
+      captchaToken = await requestCaptchaToken();
+    } catch (e) {
+      captchaProblem = e instanceof Error ? e.message : String(e);
+      console.warn(`Captcha check failed (attempt ${attempt} of ${CAPTCHA_ATTEMPTS}):`, e);
+      if (captchaProblem === 'superseded') throw e;
+      if (attempt < CAPTCHA_ATTEMPTS) continue;
     }
-    throw error;
+
+    const { data, error } = await supabase.auth.signInAnonymously(
+      captchaToken ? { options: { captchaToken } } : undefined
+    );
+    if (!error) return data.user!.id;
+    if (error.code !== 'captcha_failed' && !/captcha/i.test(error.message)) throw error;
+    // Name the actual cause so the player (and we) can see it on screen.
+    captchaProblem = captchaToken ? `captcha rejected: ${error.message}` : `captcha: ${captchaProblem}`;
+    if (!captchaToken || attempt === CAPTCHA_ATTEMPTS) throw new Error(captchaProblem);
+    console.warn(`Captcha token rejected (attempt ${attempt} of ${CAPTCHA_ATTEMPTS}):`, error.message);
   }
-  return data.user!.id;
+  throw new Error(captchaProblem); // not reached: the last attempt returns or throws
 }
+
+const CAPTCHA_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1000;
