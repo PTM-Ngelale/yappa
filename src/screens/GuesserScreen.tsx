@@ -99,6 +99,10 @@ export function GuesserScreen({
       setMessage("Not it! Keep guessing.");
     } else if (result.status === "cooldown") {
       setMessage("Hang on a second before guessing again.");
+    } else if (result.status === "rejected") {
+      // Never judged, so no wait before the next one.
+      setCooldownUntil(0);
+      setMessage(result.reason === "not-allowed" ? "That word isn’t allowed." : "Guess with words only: letters, up to 40.");
     }
     // 'correct' and 'closed': the screen is about to switch to the round result.
   };

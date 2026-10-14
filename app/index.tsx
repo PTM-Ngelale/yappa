@@ -179,22 +179,21 @@ export default function HomeScreen() {
     setError("");
     setLoading(true);
     try {
-      const code = generateRoomCode();
-      setRoomCode(code);
-      setIsHost(true);
+      let code = generateRoomCode();
       const uid = await getUid();
       if (uid) {
         const { createRoom } = await import("../src/supabase/room");
-        await createRoom(code, {
-          uid,
-          name: trimmedName,
-          avatarColor,
-          role: "knower",
-          lastSeenAt: Date.now(),
-        });
+        const host = { uid, name: trimmedName, avatarColor, role: "knower" as const, lastSeenAt: Date.now() };
+        // A code that's already in use comes back as taken: try a fresh one.
+        for (let attempt = 1; !(await createRoom(code, host)); attempt++) {
+          if (attempt === 3) throw new Error("no free room code");
+          code = generateRoomCode();
+        }
         const { startPresence } = await import("../src/supabase/presence");
         startPresence(code, uid);
       }
+      setRoomCode(code);
+      setIsHost(true);
       router.push("/lobby");
     } catch (e) {
       setError(
@@ -250,6 +249,8 @@ export default function HomeScreen() {
         setError("That name isn’t allowed — please pick another.");
       } else if (message.includes("is full")) {
         setError("That room is already full.");
+      } else if (message.includes("too many attempts")) {
+        setError("Too many codes tried. Wait a while, then try again.");
       } else {
         setError("Failed to join room. Check the code and your connection.");
       }

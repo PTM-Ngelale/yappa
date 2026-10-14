@@ -58,20 +58,31 @@ export interface RoomData {
 // Clients can read rooms but never write them directly — every change goes through a
 // narrow server function that checks the caller and the move (see migration 005).
 
-/** Creates the room with the caller as host; the server builds the initial state. */
-export async function createRoom(code: string, hostPlayer: RoomPlayer): Promise<void> {
-  const { error } = await supabase.rpc('create_room', { p_code: code, p_player: hostPlayer });
+/** Creates the room with the caller as host; the server builds the initial state. Returns
+ * false if the code is already in use, so the caller can pick another (migration 017). */
+export async function createRoom(code: string, hostPlayer: RoomPlayer): Promise<boolean> {
+  const { data, error } = await supabase.rpc('create_room', { p_code: code, p_player: hostPlayer });
   if (error) throw error;
+  return data !== 'taken';
 }
 
+/** join_room()'s reasons for turning a player away, as the errors Home shows. */
+const JOIN_REFUSED: Record<string, string> = {
+  'not-found': 'room not found',
+  started: 'room already started',
+  full: 'room is full',
+};
+
 /**
- * Adds the caller to the room via join_room() (migrations 002/005). Rejects a full room,
- * an already-started game, or a mismatched uid with a real thrown error. `source` says
- * whether they came by invite link or typed the code — counted in game_stats (migration 011).
+ * Adds the caller to the room via join_room() (migrations 002/005/017). Throws for a missing
+ * or full room, an already-started game, a mismatched uid, or too many missed codes.
+ * `source` says whether they came by invite link or typed the code — counted in game_stats
+ * (migration 011).
  */
 export async function joinRoom(code: string, player: RoomPlayer, source: 'link' | 'code'): Promise<void> {
-  const { error } = await supabase.rpc('join_room', { p_code: code, p_player: player, p_source: source });
+  const { data, error } = await supabase.rpc('join_room', { p_code: code, p_player: player, p_source: source });
   if (error) throw error;
+  if (typeof data === 'string' && data in JOIN_REFUSED) throw new Error(JOIN_REFUSED[data]);
 }
 
 /**
