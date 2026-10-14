@@ -120,7 +120,10 @@ export function CaptchaHost() {
     } catch {
       return;
     }
-    if (msg.type === 'stage' && msg.stage) setStage(request.id, msg.stage);
+    if (msg.type === 'stage' && msg.stage) {
+      // Once the box is up, "widget running" is expected; keep the more useful stage.
+      if (!interactive || msg.stage.startsWith('page error')) setStage(request.id, msg.stage);
+    }
     else if (msg.type === 'interactive') {
       setStage(request.id, 'waiting for the player to tap');
       setInteractive(true);
@@ -135,6 +138,12 @@ export function CaptchaHost() {
     <View
       style={interactive ? styles.overlay : styles.hidden}
       pointerEvents={interactive ? 'auto' : 'none'}
+      onLayout={(e) => {
+        if (__DEV__ && interactive) {
+          const { width, height } = e.nativeEvent.layout;
+          console.log(`Captcha check ${request.id}: box shown (${Math.round(width)}x${Math.round(height)})`);
+        }
+      }}
       accessibilityElementsHidden={!interactive}
       importantForAccessibility={interactive ? 'auto' : 'no-hide-descendants'}
     >
@@ -170,8 +179,15 @@ const makeStyles = (p: Palette) =>
   StyleSheet.create({
     // Laid out (so the page runs) but invisible and untouchable.
     hidden: { position: 'absolute', left: 0, top: 0, width: 320, height: 90, opacity: 0 },
+    // Every property `hidden` sets is set again here, so nothing from it lingers, and it sits
+    // above the screens (Android draws by elevation as well as order).
     overlay: {
       ...StyleSheet.absoluteFillObject,
+      width: '100%',
+      height: '100%',
+      opacity: 1,
+      zIndex: 1000,
+      elevation: 1000,
       backgroundColor: p.scrim,
       justifyContent: 'center',
       padding: spacing.screen,
