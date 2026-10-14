@@ -36,6 +36,14 @@ await db.exec(`
   grant usage on schema auth to anon, authenticated, service_role;
   grant execute on all functions in schema auth to anon, authenticated, service_role;
   create publication supabase_realtime;
+  -- Realtime Authorization: channel joins and presence are checked against realtime.messages.
+  create schema realtime;
+  create table realtime.messages (id serial primary key, topic text not null, extension text not null, payload jsonb, private boolean not null default true);
+  alter table realtime.messages enable row level security;
+  create function realtime.topic() returns text language sql stable as $$ select nullif(current_setting('realtime.topic', true), '') $$;
+  grant usage on schema realtime to anon, authenticated, service_role;
+  grant select, insert on realtime.messages to anon, authenticated;
+  grant usage on all sequences in schema realtime to anon, authenticated;
   -- Supabase's default grants: table access is governed by RLS, functions are executable.
   alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
   alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
@@ -430,6 +438,29 @@ d = await room('OPEN');
 check(d && !(HOST in d.players) && d.hostUid === PROBER, 'a host leaving a lobby that never started hands off to the player still there');
 await as(PROBER, `select leave_room('OPEN', $1)`, [PROBER]);
 check((await room('OPEN')) === undefined, '…and the last one out deletes it');
+
+// --- Private room channels (migration 019) ----------------------------------------------
+await as(HOST, `select create_room('CHAN', $1)`, [player(HOST)]);
+await as(P2, `select join_room('CHAN', $1)`, [player(P2)]);
+await db.query(`insert into realtime.messages (topic, extension) values ('room:CHAN', 'presence'), ('presence:room:CHAN', 'presence')`);
+/** As `uid` on Realtime channel `topic`: can they join (read), and can they track presence (write)? */
+const onChannel = async (uid, topic, sql) => {
+  await db.exec(`select set_config('realtime.topic', '${topic}', false)`);
+  try { return await as(uid, sql); } finally { await db.exec(`select set_config('realtime.topic', '', false)`); }
+};
+const canJoin = async (uid, topic) => (await onChannel(uid, topic, `select count(*)::int n from realtime.messages where topic = realtime.topic()`)).rows[0].n > 0;
+const canSend = async (uid, topic, extension) => {
+  try { await onChannel(uid, topic, `insert into realtime.messages (topic, extension) values (realtime.topic(), '${extension}')`); return true; } catch { return false; }
+};
+check(await canJoin(P2, 'presence:room:CHAN') && await canJoin(P2, 'room:CHAN'), 'a room player can join its presence and room channels');
+check(!(await canJoin(OUTSIDER, 'presence:room:CHAN')) && !(await canJoin(OUTSIDER, 'room:CHAN')), 'an outsider cannot join a room’s channels');
+check(await canSend(P2, 'presence:room:CHAN', 'presence'), 'a room player can track presence');
+check(!(await canSend(OUTSIDER, 'presence:room:CHAN', 'presence')), 'an outsider cannot track presence in the room');
+check(!(await canSend(P2, 'presence:room:CHAN', 'broadcast')) && !(await canSend(P2, 'room:CHAN', 'broadcast')), 'nobody can broadcast on room channels');
+check(!(await canJoin(P2, 'presence:room:chan')) && !(await canJoin(P2, 'something-else')), 'other topics are not opened up');
+await as(P2, `select leave_room('CHAN', $1)`, [P2]);
+check(!(await canJoin(P2, 'presence:room:CHAN')), 'a player who left can no longer join');
+await as(HOST, `select leave_room('CHAN', $1)`, [HOST]);
 
 // --- Data retention (migration 008) -------------------------------------------------------
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');

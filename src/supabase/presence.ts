@@ -46,8 +46,9 @@ async function checkInAfterResume(): Promise<void> {
 /** Joins a room's presence channel so other clients can detect this player going offline. */
 export function startPresence(roomCode: string, uid: string): void {
   stopPresence();
+  // Private: only the room's players may join (migration 019).
   const channel = supabase.channel(`presence:room:${roomCode}`, {
-    config: { presence: { key: uid } },
+    config: { presence: { key: uid }, private: true },
   });
   channel
     .on('presence', { event: 'sync' }, notifyListeners)
