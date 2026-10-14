@@ -74,7 +74,7 @@ export function KnowerWaitingScreen({
         {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}
 
         <View style={[styles.feedSection, short && styles.feedSectionShort]}>
-          {!short && <Eyebrow>The description</Eyebrow>}
+          {!short && <Eyebrow>The clues</Eyebrow>}
           <DescriptionFeed
             entries={feed}
             players={players}

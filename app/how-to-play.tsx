@@ -34,7 +34,7 @@ export default function HowToPlayScreen() {
 
         <Section title="How it works">
           <Step number={1} label="Each round:" text="one Guesser, two Knowers. Everyone takes turns." />
-          <Step number={2} label="Knowers:" text={`take turns adding one word each. You get ${TURN_SECONDS} seconds per word.`} />
+          <Step number={2} label="Knowers:" text={`take turns adding one word each, any word that helps. No need for sentences. You get ${TURN_SECONDS} seconds per word.`} />
           <Step number={3} label="Stuck?" text="Tap the secret word to see what it means." />
           <Step number={4} label="Guessers:" text={`guess as often as you like. Get it within ${ROUND_SECONDS} seconds to win the round.`} />
           <StickerButton
@@ -54,7 +54,7 @@ export default function HowToPlayScreen() {
           </Text>
           <DescriptionFeed entries={EXAMPLE_FEED} players={EXAMPLE_PLAYERS} variant="recap" />
           <Text style={styles.caption}>
-            Tomi and Ade take turns adding a word. Kemi guesses “cliff”, they steer with “no”, and
+            Tomi and Ade take turns adding a clue. Kemi guesses “cliff”, they steer with “no”, and
             Kemi gets it!
           </Text>
         </Section>
@@ -64,13 +64,13 @@ export default function HowToPlayScreen() {
             icon="eye"
             colour={p.blue}
             title="Knowers (2 players)"
-            body="See the secret word. Describe it together, one word each. You can’t say the word itself."
+            body="See the secret word. Take turns adding one-word clues. They don’t have to make a sentence. You can’t say the word itself."
           />
           <RoleRow
             icon="search"
             colour={p.coral}
             title="Guesser (1 player)"
-            body="Doesn’t see the secret word. Watches the description form and guesses as often as they like."
+            body="Doesn’t see the secret word. Watches the clues come in and guesses as often as they like."
           />
         </Section>
 

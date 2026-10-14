@@ -163,7 +163,7 @@ export function KnowerActiveScreen({
           <SecretWordCard
             word={targetWord}
             category={category}
-            hint="Describe it. Don’t say it."
+            hint="Give clues. Don’t say it."
             // Keep the keyboard up: on the web a tap elsewhere takes the focus from the input.
             meaning={meaning && { ...meaning, onToggle: () => { meaning.onToggle(); inputRef.current?.focus(); } }}
             compact={short}
@@ -171,7 +171,7 @@ export function KnowerActiveScreen({
           {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}
 
           <View style={[styles.feedSection, short && styles.feedSectionShort]}>
-            {!short && <Eyebrow>The description</Eyebrow>}
+            {!short && <Eyebrow>The clues</Eyebrow>}
             <DescriptionFeed
               entries={feed}
               players={players}

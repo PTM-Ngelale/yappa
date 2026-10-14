@@ -4,7 +4,7 @@
 export type TipId = 'knower-1' | 'guesser-1' | 'knower-2';
 
 export const TIPS: Record<TipId, string> = {
-  'knower-1': 'Small words like “the” and “is” count too. Use them to build a sentence.',
+  'knower-1': 'No need for sentences. Throw in any word that points to the secret word.',
   'guesser-1': 'Wrong guesses are fine. They help your Knowers steer.',
   'knower-2': 'Stuck? React to the guess. “no”, “bigger”, “close” all count.',
 };

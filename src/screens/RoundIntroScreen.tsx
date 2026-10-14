@@ -66,7 +66,7 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targ
             {isGuesser ? (
               <>
                 <Text style={styles.blurb}>
-                  {knowerNames.join(' and ')} are describing a secret word, one word at a time.
+                  {knowerNames.join(' and ')} are giving clues to a secret word, one word at a time.
                 </Text>
                 <Eyebrow style={{ color: p.heroAccent }}>Category</Eyebrow>
                 <Text style={styles.category}>{categoryLabel(category)}</Text>
@@ -79,7 +79,7 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targ
                   {targetWord ?? '…'}
                 </Text>
                 <Text style={styles.blurb}>
-                  Take turns with {knowerNames[0] ?? 'your partner'} adding one word each to describe it.
+                  Take turns with {knowerNames[0] ?? 'your partner'} adding one-word clues. No sentences needed.
                 </Text>
                 <Text style={styles.blurbSmall}>Stuck? Tap the word to see what it means.</Text>
               </>

@@ -528,7 +528,7 @@ export default function RoundScreen() {
         ? { text: `${nameOf(latestEntry.by)} was too slow. Your turn!`, tone: 'alert' }
         : { text: `Too slow! ${nameOf(roomData.activeKnowerUid)}’s turn`, tone: 'alert' };
     }
-    return meActive ? { text: 'Your word! Keep the description going', tone: 'calm' } : undefined;
+    return meActive ? { text: 'Your turn! Add a word that helps', tone: 'calm' } : undefined;
   };
 
   // Active Knower: it's my turn to add a word

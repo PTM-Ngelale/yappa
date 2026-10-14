@@ -128,7 +128,7 @@ export function RoundResolutionScreen({
         </View>
 
         <Sticker radius={24} offset={6} contentStyle={styles.chainCard}>
-          <Eyebrow>The description</Eyebrow>
+          <Eyebrow>The clues</Eyebrow>
           <DescriptionFeed entries={feed} players={players} variant="recap" emptyLabel="No words this round" />
           <View style={styles.answerRow}>
             <Text style={styles.answerLabel}>The word</Text>

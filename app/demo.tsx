@@ -17,7 +17,7 @@ const STEPS: Array<{ at: number; shown: number; caption: string }> = [
   { at: 0, shown: 0, caption: 'Tomi and Ade see the secret word. Kemi, the Guesser, doesn’t.' },
   { at: 2600, shown: 1, caption: 'Tomi and Ade take turns adding one word each.' },
   { at: 5000, shown: 2, caption: `Each turn lasts ${TURN_SECONDS} seconds. Too slow and the turn passes.` },
-  { at: 7400, shown: 3, caption: 'Word by word, they describe the secret together.' },
+  { at: 7400, shown: 3, caption: 'No sentences needed. Any word that helps Kemi counts.' },
   { at: 9800, shown: 4, caption: 'Kemi can guess at any time, as often as needed.' },
   { at: 12200, shown: 5, caption: 'Not cliff! Every guess shows up, so the Knowers can steer.' },
   { at: 14600, shown: 6, caption: '“No” counts as a word. Tomi steers Kemi away.' },
@@ -83,7 +83,7 @@ export default function DemoScreen() {
         <SecretWordCard word={EXAMPLE_WORD} category={EXAMPLE_CATEGORY} hint="Only Tomi and Ade see this." />
 
         <Sticker radius={22} offset={5} style={styles.feedWrap} contentStyle={styles.feedCard}>
-          <Eyebrow>The description</Eyebrow>
+          <Eyebrow>The clues</Eyebrow>
           <DescriptionFeed
             key={run}
             entries={EXAMPLE_FEED.slice(0, shown)}
