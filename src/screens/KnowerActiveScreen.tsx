@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { DescriptionFeed } from '../components/DescriptionFeed';
-import { GameHeader, SecretWordCard } from '../components/game';
+import { GameHeader, SecretWordCard, type WordMeaning } from '../components/game';
 import { Pressable } from '../components/Pressable';
 import { TurnClock } from '../components/TurnClock';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, useShortScreen } from '../components/ui';
@@ -24,6 +24,8 @@ interface KnowerActiveScreenProps {
   round: number;
   maxRounds: number;
   targetWord: string;
+  /** What the secret word means: tapping the card shows it. */
+  meaning?: WordMeaning;
   category: string;
   feed: FeedEntry[];
   players: Record<string, RoomPlayer>;
@@ -64,6 +66,7 @@ export function KnowerActiveScreen({
   round,
   maxRounds,
   targetWord,
+  meaning,
   category,
   feed,
   players,
@@ -151,7 +154,14 @@ export function KnowerActiveScreen({
             compact={short}
           />
 
-          <SecretWordCard word={targetWord} category={category} hint="Describe it. Don’t say it." compact={short} />
+          <SecretWordCard
+            word={targetWord}
+            category={category}
+            hint="Describe it. Don’t say it."
+            // Keep the keyboard up: on the web a tap elsewhere takes the focus from the input.
+            meaning={meaning && { ...meaning, onToggle: () => { meaning.onToggle(); inputRef.current?.focus(); } }}
+            compact={short}
+          />
 
           <View style={[styles.feedSection, short && styles.feedSectionShort]}>
             {!short && <Eyebrow>The description</Eyebrow>}

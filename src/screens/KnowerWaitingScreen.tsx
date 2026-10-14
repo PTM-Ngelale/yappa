@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { DescriptionFeed } from '../components/DescriptionFeed';
-import { GameHeader, SecretWordCard } from '../components/game';
+import { GameHeader, SecretWordCard, type WordMeaning } from '../components/game';
 import { TurnClock } from '../components/TurnClock';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { Avatar, Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from '../components/ui';
@@ -15,6 +15,8 @@ interface KnowerWaitingScreenProps {
   round: number;
   maxRounds: number;
   targetWord: string;
+  /** What the secret word means: tapping the card shows it. */
+  meaning?: WordMeaning;
   category: string;
   feed: FeedEntry[];
   players: Record<string, RoomPlayer>;
@@ -34,6 +36,7 @@ export function KnowerWaitingScreen({
   round,
   maxRounds,
   targetWord,
+  meaning,
   category,
   feed,
   players,
@@ -61,7 +64,7 @@ export function KnowerWaitingScreen({
           compact={short}
         />
 
-        <SecretWordCard word={targetWord} category={category} compact={short} />
+        <SecretWordCard word={targetWord} category={category} meaning={meaning} compact={short} />
 
         <View style={[styles.feedSection, short && styles.feedSectionShort]}>
           {!short && <Eyebrow>The description</Eyebrow>}

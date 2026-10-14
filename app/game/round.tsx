@@ -272,7 +272,9 @@ export default function RoundScreen() {
 
   // Knowers fetch this round's word from round_secrets. The Guesser never asks — and RLS
   // would return nothing if they did — so the answer never reaches their device.
-  const [target, setTarget] = useState<{ round: number; word: string } | null>(null);
+  const [target, setTarget] = useState<{ round: number; word: string; meaning: string } | null>(null);
+  // The round whose meaning this Knower has open: it stays open as the turn passes back and forth.
+  const [meaningOpenRound, setMeaningOpenRound] = useState<number | null>(null);
 
   // The word this Knower just sent, shown at once (in the feed, with the turn passed) rather
   // than after the server round trip. It only counts while the server is still on the turn it
@@ -289,10 +291,10 @@ export default function RoundScreen() {
     let cancelled = false;
     const attemptFetch = () => {
       fetchTargetWord(roomCode, round)
-        .then((word) => {
+        .then((secret) => {
           if (cancelled) return;
-          if (!word) throw new Error(`no target word visible for round ${round}`);
-          setTarget({ round, word });
+          if (!secret) throw new Error(`no target word visible for round ${round}`);
+          setTarget({ round, ...secret });
         })
         .catch((e) => {
           if (cancelled) return;
@@ -457,6 +459,11 @@ export default function RoundScreen() {
     );
   }
   const targetWord = target?.word ?? '';
+  const meaning = {
+    text: target?.meaning ?? '',
+    open: meaningOpenRound === roomData.round,
+    onToggle: () => setMeaningOpenRound((r) => (r === roomData.round ? null : roomData.round)),
+  };
 
   // Active Knower: it's my turn to add a word
   if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && !pending) {
@@ -465,6 +472,7 @@ export default function RoundScreen() {
         round={roomData.round}
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
+        meaning={meaning}
         category={roomData.category}
         feed={feed}
         players={roomData.players}
@@ -516,6 +524,7 @@ export default function RoundScreen() {
         round={roomData.round}
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
+        meaning={meaning}
         category={roomData.category}
         feed={feed}
         players={roomData.players}
