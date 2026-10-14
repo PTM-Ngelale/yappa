@@ -36,7 +36,7 @@ export default function HomeScreen() {
   // The code an invite link filled in, so a join with it counts as "via link".
   const [linkCode, setLinkCode] = useState("");
   const [showJoin, setShowJoin] = useState(false);
-  // Home offers Local play and Play online; Local play opens Create game / Join with a code.
+  // Home offers Play with friends and Play online; Play with friends opens Create game / Join with a code.
   const [localPlay, setLocalPlay] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -66,7 +66,7 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded]);
 
-  // Android back steps out of Local play before leaving Home.
+  // Android back steps out of Play with friends before leaving Home.
   useEffect(() => {
     if (!localPlay) return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -329,7 +329,7 @@ export default function HomeScreen() {
 
           {localPlay ? (
             <>
-              <Text style={styles.sectionTitle} accessibilityRole="header">Local play</Text>
+              <Text style={styles.sectionTitle} accessibilityRole="header">Play with friends</Text>
               <StickerButton
                 label={loading && !showJoin ? "Creating…" : "Create game"}
                 onPress={handleCreate}
@@ -392,7 +392,7 @@ export default function HomeScreen() {
               <Pressable
                 onPress={closeLocalPlay}
                 accessibilityRole="button"
-                accessibilityLabel="Back to Local play or Play online"
+                accessibilityLabel="Back to Play with friends or Play online"
                 style={styles.back}
               >
                 <Text style={styles.cancelText}>Back</Text>
@@ -401,7 +401,7 @@ export default function HomeScreen() {
           ) : (
             <>
               <StickerButton
-                label="Local play"
+                label="Play with friends"
                 icon="users"
                 height={64}
                 fontSize={22}
@@ -410,7 +410,7 @@ export default function HomeScreen() {
                   setLocalPlay(true);
                 }}
                 disabled={matching}
-                accessibilityLabel="Local play: create a game or join one with a code"
+                accessibilityLabel="Play with friends: create a game or join one with a code"
               />
 
               <StickerButton
