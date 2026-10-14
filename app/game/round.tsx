@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
 import {
   advanceRound,
   expireRound,
@@ -24,6 +24,7 @@ import {
 import { onPresenceChange, stopPresence } from '../../src/supabase/presence';
 import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
+import { LeaveGameContext, LeaveGameDialog } from '../../src/components/LeaveGame';
 import { shareCard } from '../../src/lib/shareCard';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
 import { TURN_SECONDS } from '../../src/game/config';
@@ -82,6 +83,33 @@ export default function RoundScreen() {
       setSyncError({ message: 'Could not end the game — check your connection.', retry: attemptEndGame });
     });
   };
+
+  // Leaving mid-game ends it for everyone (it needs all three), then takes this player Home
+  // straight away; the server calls finish in the background.
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const inGame = roomData?.status === 'playing' || roomData?.status === 'resolution';
+  const leaveGame = () => {
+    setLeaveOpen(false);
+    const code = roomCode;
+    if (code && uid) {
+      endGame(code)
+        .catch(console.error)
+        .then(() => leaveRoom(code, uid))
+        .catch(console.error);
+    }
+    stopPresence();
+    resetGameStore();
+    router.replace('/');
+  };
+  // Android back asks first instead of dropping out of the game.
+  useEffect(() => {
+    if (!inGame) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setLeaveOpen(true);
+      return true;
+    });
+    return () => sub.remove();
+  }, [inGame]);
 
   // Latest room for timer and async closures (skips, expiry, a rejected word's retry)
   const roomDataRef = useRef<RoomData | null>(null);
@@ -200,7 +228,8 @@ export default function RoundScreen() {
   function renderWithDisconnectOverlay(screen: React.ReactNode) {
     return (
       <View style={styles.overlayHost}>
-        {screen}
+        <LeaveGameContext.Provider value={inGame ? () => setLeaveOpen(true) : null}>{screen}</LeaveGameContext.Provider>
+        <LeaveGameDialog visible={leaveOpen && inGame} onLeave={leaveGame} onStay={() => setLeaveOpen(false)} />
         {syncError && (
           <SyncErrorBanner
             message={syncError.message}

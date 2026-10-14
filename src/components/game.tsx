@@ -3,6 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { categoryLabel } from '../game/categories';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
+import { LeaveGameButton } from './LeaveGame';
 import { Pressable } from './Pressable';
 import { TimerBar } from './TimerBar';
 import { Eyebrow, Pill, Sticker } from './ui';
@@ -40,6 +41,7 @@ export function GameHeader({
             <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
           </View>
         )}
+        <LeaveGameButton />
       </View>
     );
   }
@@ -47,7 +49,10 @@ export function GameHeader({
     <View style={styles.header}>
       <View style={styles.pills}>
         <Pill label={`Round ${round} / ${maxRounds}`} />
-        <Pill label={role} bg={roleBg} fg={roleFg} />
+        <View style={styles.pillsEnd}>
+          <Pill label={role} bg={roleBg} fg={roleFg} />
+          <LeaveGameButton />
+        </View>
       </View>
       {showTimer && <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />}
     </View>
@@ -173,7 +178,8 @@ const makeStyles = (p: Palette) =>
     header: { gap: 14 },
     compact: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     flex: { flex: 1 },
-    pills: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    pills: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+    pillsEnd: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
     secret: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16, gap: 4 },
     secretTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     category: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },

@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { Eyebrow, OUTLINE, Pill, Screen, ScreenBody, Sticker, StickerButton, useShortScreen } from '../components/ui';
 import { DescriptionFeed } from '../components/DescriptionFeed';
+import { LeaveGameButton } from '../components/LeaveGame';
 import { Pressable } from '../components/Pressable';
 import type { FeedEntry, RoundOutcome } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
@@ -111,7 +112,10 @@ export function RoundResolutionScreen({
       <View pointerEvents="none" style={[styles.blob, { backgroundColor: won ? p.yellow : p.blue }]} />
 
       <ScreenBody style={styles.body}>
-        <Pill label={`Round ${round} / ${maxRounds}`} />
+        <View style={styles.topRow}>
+          <Pill label={`Round ${round} / ${maxRounds}`} />
+          <LeaveGameButton />
+        </View>
 
         <View style={styles.hero}>
           <Sticker radius={22} offset={6} style={styles.headlineWrap} contentStyle={styles.headline}>
@@ -199,6 +203,7 @@ export function RoundResolutionScreen({
 
 const makeStyles = (p: Palette) =>
   StyleSheet.create({
+    topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     blob: {
       position: 'absolute',
       width: 260,
