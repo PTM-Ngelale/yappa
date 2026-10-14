@@ -6,25 +6,26 @@ import { DescriptionFeed } from '../src/components/DescriptionFeed';
 import { Prompt, SecretWordCard } from '../src/components/game';
 import { Pressable } from '../src/components/Pressable';
 import { Avatar, Eyebrow, Screen, ScreenBody, Sticker, StickerButton } from '../src/components/ui';
+import { ROUND_SECONDS, TURN_SECONDS } from '../src/game/config';
 import { EXAMPLE_CATEGORY, EXAMPLE_FEED, EXAMPLE_PLAYERS, EXAMPLE_WORD } from '../src/game/demo';
 import { useSettingsStore } from '../src/store/settingsStore';
 import { fonts, spacing, useStyles, useTheme, type Palette } from '../src/theme';
 
-// The demo (GAMEPLAY_REDESIGN.md, section 8): the lighthouse example played out, about 20
-// seconds. `shown` is how many feed entries are on screen from that moment on.
+// The demo (GAMEPLAY_REDESIGN.md, section 8): the lighthouse example played out, about 22
+// seconds, one rule per caption. `shown` is how many feed entries are on screen from then on.
 const STEPS: Array<{ at: number; shown: number; caption: string }> = [
-  { at: 0, shown: 0, caption: 'Tomi and Ade can see the secret word. Kemi can’t.' },
-  { at: 2200, shown: 1, caption: 'Tomi and Ade take turns adding one word each.' },
-  { at: 3800, shown: 2, caption: 'Tomi and Ade take turns adding one word each.' },
-  { at: 5400, shown: 3, caption: 'Tomi and Ade take turns adding one word each.' },
-  { at: 7000, shown: 4, caption: 'Kemi can guess at any time.' },
-  { at: 8800, shown: 5, caption: 'Not cliff! Wrong guesses help them steer.' },
-  { at: 10800, shown: 6, caption: 'So they steer Kemi away from cliffs.' },
-  { at: 12400, shown: 7, caption: 'So they steer Kemi away from cliffs.' },
-  { at: 14000, shown: 8, caption: 'So they steer Kemi away from cliffs.' },
-  { at: 16000, shown: 9, caption: 'Lighthouse! Round won.' },
+  { at: 0, shown: 0, caption: 'Tomi and Ade see the secret word. Kemi, the Guesser, doesn’t.' },
+  { at: 2600, shown: 1, caption: 'Tomi and Ade take turns adding one word each.' },
+  { at: 5000, shown: 2, caption: `Each turn lasts ${TURN_SECONDS} seconds. Too slow and the turn passes.` },
+  { at: 7400, shown: 3, caption: 'Word by word, they describe the secret together.' },
+  { at: 9800, shown: 4, caption: 'Kemi can guess at any time, as often as needed.' },
+  { at: 12200, shown: 5, caption: 'Not cliff! Every guess shows up, so the Knowers can steer.' },
+  { at: 14600, shown: 6, caption: '“No” counts as a word. Tomi steers Kemi away.' },
+  { at: 17000, shown: 7, caption: 'Ade carries on from there.' },
+  { at: 19400, shown: 8, caption: '“It spins.” Kemi is getting close.' },
+  { at: 21800, shown: 9, caption: `Lighthouse! Guessed inside ${ROUND_SECONDS} seconds. Round won.` },
 ];
-const DONE_AT = 16000;
+const DONE_AT = 21800;
 
 export default function DemoScreen() {
   const styles = useStyles(makeStyles);
