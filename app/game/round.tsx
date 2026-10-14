@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
 import {
   advanceRound,
   expireRound,
@@ -24,6 +24,7 @@ import {
 import { onPresenceChange, stopPresence } from '../../src/supabase/presence';
 import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
+import { LeaveGameContext, LeaveGameDialog } from '../../src/components/LeaveGame';
 import { shareCard } from '../../src/lib/shareCard';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
 import { TURN_SECONDS } from '../../src/game/config';
@@ -40,6 +41,8 @@ import { RoundResolutionScreen } from '../../src/screens/RoundResolutionScreen';
 import type { FeedEntry } from '../../src/supabase/room';
 import { useGameStore, type RoomPlayer } from '../../src/store/gameStore';
 import { usePlayerStore } from '../../src/store/playerStore';
+import { useSettingsStore } from '../../src/store/settingsStore';
+import { pickTip, TIPS, type TipId } from '../../src/game/tips';
 import { fonts, useStyles, useTheme, type Palette } from '../../src/theme';
 
 /** How long the disconnect overlay waits after losing presence before declaring someone offline. */
@@ -81,6 +84,33 @@ export default function RoundScreen() {
     });
   };
 
+  // Leaving mid-game ends it for everyone (it needs all three), then takes this player Home
+  // straight away; the server calls finish in the background.
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const inGame = roomData?.status === 'playing' || roomData?.status === 'resolution';
+  const leaveGame = () => {
+    setLeaveOpen(false);
+    const code = roomCode;
+    if (code && uid) {
+      endGame(code)
+        .catch(console.error)
+        .then(() => leaveRoom(code, uid))
+        .catch(console.error);
+    }
+    stopPresence();
+    resetGameStore();
+    router.replace('/');
+  };
+  // Android back asks first instead of dropping out of the game.
+  useEffect(() => {
+    if (!inGame) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setLeaveOpen(true);
+      return true;
+    });
+    return () => sub.remove();
+  }, [inGame]);
+
   // Latest room for timer and async closures (skips, expiry, a rejected word's retry)
   const roomDataRef = useRef<RoomData | null>(null);
   useEffect(() => { roomDataRef.current = roomData; }, [roomData]);
@@ -91,6 +121,7 @@ export default function RoundScreen() {
   const playingRound = roomData?.status === 'playing' ? roomData.round : null;
   useEffect(() => {
     if (playingRound === null) return;
+    // Every new round the role card comes up; tapping it puts it away early.
     setIntroRound(playingRound);
     const timeout = setTimeout(() => setIntroRound(null), ROUND_INTRO_MS);
     return () => clearTimeout(timeout);
@@ -197,7 +228,8 @@ export default function RoundScreen() {
   function renderWithDisconnectOverlay(screen: React.ReactNode) {
     return (
       <View style={styles.overlayHost}>
-        {screen}
+        <LeaveGameContext.Provider value={inGame ? () => setLeaveOpen(true) : null}>{screen}</LeaveGameContext.Provider>
+        <LeaveGameDialog visible={leaveOpen && inGame} onLeave={leaveGame} onStay={() => setLeaveOpen(false)} />
         {syncError && (
           <SyncErrorBanner
             message={syncError.message}
@@ -307,6 +339,24 @@ export default function RoundScreen() {
     // Re-runs per round/role; `target` is only read to skip a redundant fetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomCode, uid, roomData?.status, roomData?.round, isGuesserThisRound]);
+
+  // First-game tips: one per round, chosen when the round starts, each shown once per device.
+  const [tip, setTip] = useState<{ round: number; id: TipId } | null>(null);
+  const myRole = roomData && uid ? roomData.players[uid]?.role : undefined;
+  useEffect(() => {
+    if (playingRound === null || !myRole) return;
+    const settings = useSettingsStore.getState();
+    if (settings.firstGameDone) return;
+    const id = pickTip(myRole, settings.tipsSeen);
+    if (!id) return;
+    settings.markTipSeen(id);
+    setTip({ round: playingRound, id });
+    // Once per round; the role is read when the round starts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playingRound]);
+  useEffect(() => {
+    if (roomData?.status === 'gameover') useSettingsStore.getState().markFirstGameDone();
+  }, [roomData?.status]);
 
   // Loading — waiting for RTDB snapshot
   if (!roomData || !uid) {
@@ -435,7 +485,8 @@ export default function RoundScreen() {
         isGuesser={isGuesser}
         category={roomData.category}
         knowerNames={(isGuesser ? knowers : knowers.filter((k) => k.uid !== uid)).map((k) => k.name)}
-        guesserName={roomData.players[roomData.guesserUid]?.name ?? 'the Guesser'}
+        targetWord={target?.round === roomData.round ? target.word : null}
+        onDismiss={() => setIntroRound(null)}
       />
     );
   }
@@ -464,6 +515,21 @@ export default function RoundScreen() {
     open: meaningOpenRound === roomData.round,
     onToggle: () => setMeaningOpenRound((r) => (r === roomData.round ? null : roomData.round)),
   };
+  const roundTip =
+    tip?.round === roomData.round ? { text: TIPS[tip.id], onDismiss: () => setTip(null) } : undefined;
+
+  // What just happened, for the Knowers: a wrong guess to steer away from, or a turn that ran out.
+  const latestEntry = serverFeed[serverFeed.length - 1];
+  const nameOf = (u: string) => roomData.players[u]?.name ?? 'Your partner';
+  const knowerPrompt = (meActive: boolean): { text: string; tone: 'calm' | 'alert' } | undefined => {
+    if (latestEntry?.kind === 'guess' && !latestEntry.correct) return { text: `Not ${latestEntry.text}! Steer them away`, tone: 'alert' };
+    if (latestEntry?.kind === 'skip') {
+      return meActive
+        ? { text: `${nameOf(latestEntry.by)} was too slow. Your turn!`, tone: 'alert' }
+        : { text: `Too slow! ${nameOf(roomData.activeKnowerUid)}’s turn`, tone: 'alert' };
+    }
+    return meActive ? { text: 'Your turn! Add a word that helps', tone: 'calm' } : undefined;
+  };
 
   // Active Knower: it's my turn to add a word
   if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && !pending) {
@@ -473,6 +539,8 @@ export default function RoundScreen() {
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         meaning={meaning}
+        prompt={knowerPrompt(true)}
+        tip={roundTip}
         category={roomData.category}
         feed={feed}
         players={roomData.players}
@@ -525,6 +593,8 @@ export default function RoundScreen() {
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         meaning={meaning}
+        prompt={pending ? undefined : knowerPrompt(false)}
+        tip={roundTip}
         category={roomData.category}
         feed={feed}
         players={roomData.players}
@@ -550,6 +620,7 @@ export default function RoundScreen() {
       activeKnowerName={activeKnower?.name ?? 'Knower'}
       knowerIsTyping={!!typing[roomData.activeKnowerUid]}
       roundSeconds={roundSeconds}
+      tip={roundTip}
       // Throws if the guess couldn't be sent: GuesserScreen lets them retry.
       onGuess={(guess) => submitGuess(roomCode!, roomData.round, guess)}
     />

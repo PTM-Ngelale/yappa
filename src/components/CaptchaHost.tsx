@@ -5,13 +5,24 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
-import { fonts, spacing, type, useStyles, type Palette } from '../theme';
+import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 import { Sticker } from './ui';
 
 const CAPTCHA_URL = 'https://ptm-ngelale.github.io/yappa/captcha.html';
-const TIMEOUT_MS = 30000;
+// Turnstile usually answers in a second or two; sign-in retries a check that doesn't (see
+// auth.ts). Once the player is shown the box to tap, give them longer.
+const TIMEOUT_MS = 20000;
+const INTERACTIVE_TIMEOUT_MS = 120000;
 
-type Pending = { id: number; resolve: (token: string) => void; reject: (e: Error) => void };
+type Pending = {
+  id: number;
+  resolve: (token: string) => void;
+  reject: (e: Error) => void;
+  /** Restarts the timeout with more time, for a player who has the box to tap. */
+  wait: (ms: number) => void;
+  /** How far the check got, named in the timeout error so a stuck check says where. */
+  stage: string;
+};
 
 let pending: Pending | null = null;
 let nextId = 1;
@@ -20,16 +31,23 @@ let notifyHost: ((p: Pending | null) => void) | null = null;
 /**
  * Gets a Turnstile token from <CaptchaHost /> (mounted in app/_layout.tsx). If the host hasn't
  * mounted yet (the app signs in while fonts are still loading) the request waits for it.
- * Rejects if the check fails or takes longer than 30s, and always on web (no WebView there).
+ * Rejects if the check fails or gets no answer within 20s, and always on web (no WebView there).
  */
 export function requestCaptchaToken(): Promise<string> {
   if (Platform.OS === 'web') return Promise.reject(new Error('captcha not supported on web'));
   if (pending) pending.reject(new Error('superseded'));
   return new Promise<string>((resolve, reject) => {
     const id = nextId++;
-    const timer = setTimeout(() => finish(id, new Error('captcha timed out')), TIMEOUT_MS);
+    let timer: ReturnType<typeof setTimeout>;
+    const wait = (ms: number) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => finish(id, new Error(`captcha timed out (${pending?.stage ?? 'unknown'})`)), ms);
+    };
+    wait(TIMEOUT_MS);
     pending = {
       id,
+      wait,
+      stage: notifyHost ? 'page not loaded' : 'app not ready',
       resolve: (token) => {
         clearTimeout(timer);
         resolve(token);
@@ -43,6 +61,30 @@ export function requestCaptchaToken(): Promise<string> {
   });
 }
 
+function setStage(id: number, stage: string) {
+  if (!pending || pending.id !== id || pending.stage === stage) return;
+  pending.stage = stage;
+  if (__DEV__) console.log(`Captcha check ${id}: ${stage}`);
+}
+
+// Runs in the check page once it has loaded: reports how far Turnstile has got every second,
+// and any script error, so a check that never answers can say where it stopped.
+const WATCH_PAGE = `(function () {
+  function post(m) { try { window.ReactNativeWebView.postMessage(JSON.stringify(m)); } catch (e) {} }
+  window.addEventListener('error', function (e) { post({ type: 'stage', stage: 'page error: ' + e.message }); });
+  var widget = document.getElementById('widget');
+  function stage() {
+    if (!window.turnstile) return 'Turnstile script not loaded';
+    if (!widget || (!widget.childElementCount && !widget.shadowRoot)) return 'Turnstile loaded, widget not started';
+    var box = widget.getBoundingClientRect();
+    return 'Turnstile widget running, no answer (' + Math.round(box.width) + 'x' + Math.round(box.height) + ')';
+  }
+  post({ type: 'stage', stage: stage() });
+  var timer = setInterval(function () { post({ type: 'stage', stage: stage() }); }, 1000);
+  setTimeout(function () { clearInterval(timer); }, 150000);
+})();
+true;`;
+
 function finish(id: number, result: string | Error) {
   if (!pending || pending.id !== id) return;
   const p = pending;
@@ -54,11 +96,15 @@ function finish(id: number, result: string | Error) {
 
 export function CaptchaHost() {
   const styles = useStyles(makeStyles);
+  const p = useTheme();
   const [request, setRequest] = useState<Pending | null>(null);
+  // Android web views that start out invisible can stay blank once shown, so when Turnstile
+  // wants a tap the hidden page is swapped for a fresh one loaded in the visible card.
   const [interactive, setInteractive] = useState(false);
 
   useEffect(() => {
     notifyHost = (p) => {
+      if (p) setStage(p.id, 'page not loaded');
       setRequest(p);
       setInteractive(false);
     };
@@ -72,23 +118,31 @@ export function CaptchaHost() {
 
   function onMessage(e: WebViewMessageEvent) {
     if (!request) return;
-    let msg: { type?: string; token?: string; code?: string };
+    let msg: { type?: string; token?: string; code?: string; stage?: string };
     try {
       msg = JSON.parse(e.nativeEvent.data);
     } catch {
       return;
     }
-    if (msg.type === 'interactive') setInteractive(true);
-    else if (msg.type === 'token' && msg.token) finish(request.id, msg.token);
+    if (msg.type === 'stage' && msg.stage) setStage(request.id, msg.stage);
+    else if (msg.type === 'interactive') {
+      setStage(request.id, interactive ? 'waiting for the player to tap' : 'tap needed, reloading the check where it can be seen');
+      setInteractive(true);
+      request.wait(INTERACTIVE_TIMEOUT_MS);
+    } else if (msg.type === 'token' && msg.token) finish(request.id, msg.token);
     else if (msg.type === 'error') finish(request.id, new Error(`captcha failed (${msg.code ?? 'unknown'})`));
   }
 
-  // One WebView for the whole check; only its container's style changes, so showing it for
-  // a tap doesn't reload the page.
   return (
     <View
       style={interactive ? styles.overlay : styles.hidden}
       pointerEvents={interactive ? 'auto' : 'none'}
+      onLayout={(e) => {
+        if (__DEV__ && interactive) {
+          const { width, height } = e.nativeEvent.layout;
+          console.log(`Captcha check ${request.id}: box shown (${Math.round(width)}x${Math.round(height)})`);
+        }
+      }}
       accessibilityElementsHidden={!interactive}
       importantForAccessibility={interactive ? 'auto' : 'no-hide-descendants'}
     >
@@ -100,17 +154,21 @@ export function CaptchaHost() {
           </>
         )}
         <WebView
-          key={request.id}
+          key={`${request.id}-${interactive ? 'shown' : 'hidden'}`}
           source={{ uri: CAPTCHA_URL }}
           onMessage={onMessage}
+          onLoadStart={() => setStage(request.id, 'page loading')}
+          onLoadEnd={() => setStage(request.id, 'page loaded, script not run')}
+          injectedJavaScript={WATCH_PAGE}
           onError={(e) => finish(request.id, new Error(`captcha page failed to load (${e.nativeEvent.description})`))}
           onHttpError={(e) => finish(request.id, new Error(`captcha page failed to load (HTTP ${e.nativeEvent.statusCode})`))}
           style={styles.webview}
+          containerStyle={styles.webviewBox}
           originWhitelist={['https://*']}
           javaScriptEnabled
           scrollEnabled={false}
           setSupportMultipleWindows={false}
-          backgroundColor="transparent"
+          backgroundColor={p.card}
         />
       </Sticker>
     </View>
@@ -121,8 +179,15 @@ const makeStyles = (p: Palette) =>
   StyleSheet.create({
     // Laid out (so the page runs) but invisible and untouchable.
     hidden: { position: 'absolute', left: 0, top: 0, width: 320, height: 90, opacity: 0 },
+    // Every property `hidden` sets is set again here, so nothing from it lingers, and it sits
+    // above the screens (Android draws by elevation as well as order).
     overlay: {
       ...StyleSheet.absoluteFillObject,
+      width: '100%',
+      height: '100%',
+      opacity: 1,
+      zIndex: 1000,
+      elevation: 1000,
       backgroundColor: p.scrim,
       justifyContent: 'center',
       padding: spacing.screen,
@@ -131,5 +196,8 @@ const makeStyles = (p: Palette) =>
     card: { padding: 18, gap: 8 },
     title: { fontFamily: fonts.black, fontSize: 24, color: p.ink },
     body: { ...type.body, color: p.ink },
-    webview: { height: 80, backgroundColor: 'transparent' },
+    // The WebView's own wrapper is flex: 1, which collapses to nothing inside a card sized by
+    // its content; give the wrapper the height so the box has room.
+    webviewBox: { flex: 0, height: 80 },
+    webview: { height: 80 },
   });

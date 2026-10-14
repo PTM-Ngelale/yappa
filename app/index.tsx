@@ -1,10 +1,12 @@
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+  BackHandler,
   KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +16,8 @@ import {
 import { PoweredBy } from "../src/components/PoweredBy";
 import { Pressable } from "../src/components/Pressable";
 import { SoundToggles } from "../src/components/SoundToggles";
-import { Avatar, Eyebrow, OUTLINE, Screen, Sticker, StickerButton } from "../src/components/ui";
+import { Avatar, Eyebrow, IconButton, OUTLINE, Screen, Sticker, StickerButton } from "../src/components/ui";
+import { loadLatestApp } from "../src/lib/loadLatestApp";
 import { PRIVACY_POLICY_URL } from "../src/lib/links";
 import { SUPABASE_CONFIGURED } from "../src/supabase/config";
 import { generateRoomCode } from "../src/lib/roomCode";
@@ -33,9 +36,12 @@ export default function HomeScreen() {
   // The code an invite link filled in, so a join with it counts as "via link".
   const [linkCode, setLinkCode] = useState("");
   const [showJoin, setShowJoin] = useState(false);
+  // Home offers Local play and Play online; Local play opens Create game / Join with a code.
+  const [localPlay, setLocalPlay] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [matching, setMatching] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showNotice, setShowNotice] = useState(false);
   const { onlineNoticeSeen, markOnlineNoticeSeen } = useSettingsStore();
 
@@ -47,8 +53,35 @@ export default function HomeScreen() {
     if (code.length !== 4) return;
     setJoinCode(code);
     setLinkCode(code);
+    setLocalPlay(true);
     setShowJoin(true);
   }, [room]);
+
+  // First launch: play the demo before Home, unless an invite link brought them here to join.
+  const [settingsLoaded, setSettingsLoaded] = useState(() => useSettingsStore.persist.hasHydrated());
+  useEffect(() => useSettingsStore.persist.onFinishHydration(() => setSettingsLoaded(true)), []);
+  useEffect(() => {
+    if (settingsLoaded && !useSettingsStore.getState().demoSeen && !room) router.replace("/demo");
+    // Only on arrival: once the demo has run it marks itself seen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded]);
+
+  // Android back steps out of Local play before leaving Home.
+  useEffect(() => {
+    if (!localPlay) return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      closeLocalPlay();
+      return true;
+    });
+    return () => sub.remove();
+  }, [localPlay]);
+
+  function closeLocalPlay() {
+    setLocalPlay(false);
+    setShowJoin(false);
+    setJoinCode("");
+    setError("");
+  }
 
   const trimmedName = name.trim();
   const canProceed = trimmedName.length >= 2;
@@ -72,6 +105,23 @@ export default function HomeScreen() {
     return message.startsWith("captcha")
       ? `Couldn’t confirm you’re a real player (${message}). Try again.`
       : null;
+  }
+
+  // Refresh (button or pull down): load a newer app version if one is out, otherwise sign in
+  // again, which also recovers from a failed check on launch.
+  async function refresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    setError("");
+    try {
+      if (await loadLatestApp()) return;
+      await getUid();
+    } catch (e) {
+      setError(captchaError(e) ?? "Couldn’t connect. Check your connection and try again.");
+      console.error(e);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   function handlePlayOnline() {
@@ -222,8 +272,10 @@ export default function HomeScreen() {
           contentContainerStyle={styles.body}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={p.ink} colors={[p.coral]} />}
         >
           <View style={styles.topBar}>
+            <IconButton icon="refresh-cw" onPress={refresh} accessibilityLabel="Refresh" />
             <SoundToggles />
           </View>
 
@@ -275,76 +327,104 @@ export default function HomeScreen() {
             </Text>
           )}
 
-          <StickerButton
-            label={loading && !showJoin ? "Creating…" : "Create game"}
-            onPress={handleCreate}
-            disabled={!canProceed || loading || matching}
-            height={64}
-            fontSize={22}
-            accessibilityLabel="Create a new game"
-          />
-
-          {!showJoin ? (
-            <StickerButton
-              label="Join with a code"
-              icon="log-in"
-              variant="card"
-              fontSize={20}
-              onPress={() => setShowJoin(true)}
-              accessibilityLabel="Join an existing game"
-            />
-          ) : (
-            <Sticker radius={22} offset={5} contentStyle={styles.joinCard}>
-              <Eyebrow>Room code</Eyebrow>
-              <TextInput
-                style={styles.joinInput}
-                value={joinCode}
-                onChangeText={(t) => setJoinCode(t.toUpperCase())}
-                placeholder="ABCD"
-                placeholderTextColor={p.muted}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                maxLength={4}
-                returnKeyType="go"
-                onSubmitEditing={handleJoin}
-                accessibilityLabel="Room code"
-                autoFocus
-              />
+          {localPlay ? (
+            <>
+              <Text style={styles.sectionTitle} accessibilityRole="header">Local play</Text>
               <StickerButton
-                label={loading ? "Joining…" : "Join"}
-                icon="arrow-right"
-                variant="blue"
-                height={56}
-                fontSize={20}
-                onPress={handleJoin}
-                disabled={!canProceed || loading || joinCode.trim().length !== 4}
-                accessibilityLabel="Join room"
-                style={styles.stretch}
+                label={loading && !showJoin ? "Creating…" : "Create game"}
+                onPress={handleCreate}
+                disabled={!canProceed || loading || matching}
+                height={64}
+                fontSize={22}
+                accessibilityLabel="Create a new game"
               />
-              <Pressable
-                onPress={() => {
-                  setShowJoin(false);
-                  setJoinCode("");
-                }}
-                accessibilityRole="button"
-                style={styles.cancel}
-              >
-                <Text style={styles.cancelText}>Cancel</Text>
-              </Pressable>
-            </Sticker>
-          )}
 
-          <StickerButton
-            label={matching ? "Finding a game…" : "Play online"}
-            icon="globe"
-            variant="blue"
-            fontSize={20}
-            onPress={handlePlayOnline}
-            disabled={!canProceed || loading}
-            loading={matching}
-            accessibilityLabel="Play online with other players"
-          />
-          <Text style={styles.onlineHint}>No one to play with? We’ll match you with two other players.</Text>
+              {!showJoin ? (
+                <StickerButton
+                  label="Join with a code"
+                  icon="log-in"
+                  variant="card"
+                  fontSize={20}
+                  onPress={() => setShowJoin(true)}
+                  accessibilityLabel="Join an existing game"
+                />
+              ) : (
+                <Sticker radius={22} offset={5} contentStyle={styles.joinCard}>
+                  <Eyebrow>Room code</Eyebrow>
+                  <TextInput
+                    style={styles.joinInput}
+                    value={joinCode}
+                    onChangeText={(t) => setJoinCode(t.toUpperCase())}
+                    placeholder="ABCD"
+                    placeholderTextColor={p.muted}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    maxLength={4}
+                    returnKeyType="go"
+                    onSubmitEditing={handleJoin}
+                    accessibilityLabel="Room code"
+                    autoFocus
+                  />
+                  <StickerButton
+                    label={loading ? "Joining…" : "Join"}
+                    icon="arrow-right"
+                    variant="blue"
+                    height={56}
+                    fontSize={20}
+                    onPress={handleJoin}
+                    disabled={!canProceed || loading || joinCode.trim().length !== 4}
+                    accessibilityLabel="Join room"
+                    style={styles.stretch}
+                  />
+                  <Pressable
+                    onPress={() => {
+                      setShowJoin(false);
+                      setJoinCode("");
+                    }}
+                    accessibilityRole="button"
+                    style={styles.cancel}
+                  >
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </Pressable>
+                </Sticker>
+              )}
+
+              <Pressable
+                onPress={closeLocalPlay}
+                accessibilityRole="button"
+                accessibilityLabel="Back to Local play or Play online"
+                style={styles.back}
+              >
+                <Text style={styles.cancelText}>Back</Text>
+              </Pressable>
+            </>
+          ) : (
+            <>
+              <StickerButton
+                label="Local play"
+                icon="users"
+                height={64}
+                fontSize={22}
+                onPress={() => {
+                  setError("");
+                  setLocalPlay(true);
+                }}
+                disabled={matching}
+                accessibilityLabel="Local play: create a game or join one with a code"
+              />
+
+              <StickerButton
+                label={matching ? "Finding a game…" : "Play online"}
+                icon="globe"
+                variant="blue"
+                fontSize={20}
+                onPress={handlePlayOnline}
+                disabled={!canProceed || loading}
+                loading={matching}
+                accessibilityLabel="Play online with other players"
+              />
+            </>
+          )}
 
           <View style={styles.links}>
             <Pressable
@@ -435,7 +515,7 @@ const makeStyles = (p: Palette) =>
       paddingBottom: 24,
       gap: 16,
     },
-    topBar: { alignItems: "flex-end" },
+    topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     hero: { alignItems: "flex-start", gap: 14, marginTop: 20, marginBottom: 20 },
     wordmarkWrap: { transform: [{ rotate: "-4deg" }] },
     wordmark: { paddingHorizontal: 24, paddingBottom: 8, paddingTop: 2 },
@@ -460,8 +540,9 @@ const makeStyles = (p: Palette) =>
       color: p.ink,
     },
     cancel: { paddingVertical: 6, paddingHorizontal: 12 },
+    sectionTitle: { fontFamily: fonts.black, fontSize: 24, color: p.ink },
+    back: { alignSelf: "center", paddingVertical: 6, paddingHorizontal: 12 },
     cancelText: { fontFamily: fonts.bold, fontSize: 16, color: p.muted },
-    onlineHint: { ...type.small, fontSize: 14, color: p.ink, textAlign: "center", marginTop: -6 },
     links: { flexDirection: "row", justifyContent: "center", gap: 8 },
     scrim: { flex: 1, backgroundColor: p.scrim, justifyContent: "center", padding: spacing.screen },
     noticeCard: { padding: 20, gap: 10 },

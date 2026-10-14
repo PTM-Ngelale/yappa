@@ -9,7 +9,10 @@ import { Sticker } from './ui';
 
 const SITE_KEY = '0x4AAAAAAFUXaXeARxw6jnqw';
 const SCRIPT_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-const TIMEOUT_MS = 30000;
+// Turnstile usually answers in a second or two; sign-in retries a check that doesn't (see
+// auth.ts). Once the player is shown the box to tap, give them longer.
+const TIMEOUT_MS = 20000;
+const INTERACTIVE_TIMEOUT_MS = 120000;
 
 type Turnstile = {
   render(el: HTMLElement, options: Record<string, unknown>): string;
@@ -21,7 +24,13 @@ declare global {
   }
 }
 
-type Pending = { id: number; resolve: (token: string) => void; reject: (e: Error) => void };
+type Pending = {
+  id: number;
+  resolve: (token: string) => void;
+  reject: (e: Error) => void;
+  /** Restarts the timeout with more time, for a player who has the box to tap. */
+  wait: (ms: number) => void;
+};
 
 let pending: Pending | null = null;
 let nextId = 1;
@@ -32,9 +41,15 @@ export function requestCaptchaToken(): Promise<string> {
   if (pending) pending.reject(new Error('superseded'));
   return new Promise<string>((resolve, reject) => {
     const id = nextId++;
-    const timer = setTimeout(() => finish(id, new Error('captcha timed out')), TIMEOUT_MS);
+    let timer: ReturnType<typeof setTimeout>;
+    const wait = (ms: number) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => finish(id, new Error('captcha timed out')), ms);
+    };
+    wait(TIMEOUT_MS);
     pending = {
       id,
+      wait,
       resolve: (token) => {
         clearTimeout(timer);
         resolve(token);
@@ -106,7 +121,10 @@ export function CaptchaHost() {
           appearance: 'interaction-only',
           // The normal widget is a fixed 300px, wider than the card on small phones.
           size: window.innerWidth < 380 ? 'compact' : 'normal',
-          'before-interactive-callback': () => setInteractive(true),
+          'before-interactive-callback': () => {
+            setInteractive(true);
+            if (pending?.id === id) pending.wait(INTERACTIVE_TIMEOUT_MS);
+          },
           callback: (token: string) => finish(id, token),
           'error-callback': (code: string) => {
             finish(id, new Error(`captcha failed (${code})`));

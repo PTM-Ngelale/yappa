@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
-import React, { useRef } from 'react';
-import { ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { FeedEntry } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
 import { fonts, radius, useStyles, useTheme, type Palette } from '../theme';
@@ -17,6 +17,8 @@ interface DescriptionFeedProps {
   variant?: 'live' | 'recap';
   /** Bigger words, for the Guesser, who has nothing else to look at. */
   large?: boolean;
+  /** Each entry pops in as it's added (the demo). */
+  popIn?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -32,6 +34,7 @@ export function DescriptionFeed({
   emptyLabel,
   variant = 'live',
   large = false,
+  popIn = false,
   style,
 }: DescriptionFeedProps) {
   const styles = useStyles(makeStyles);
@@ -41,6 +44,11 @@ export function DescriptionFeed({
   const label = words.length ? `Description so far: ${words.join(' ')}` : 'No words yet';
 
   const items = entries.map((e, i) => {
+    const item = renderEntry(e, i);
+    return popIn ? <PopIn key={i}>{item}</PopIn> : item;
+  });
+
+  function renderEntry(e: FeedEntry, i: number) {
     if (e.kind === 'word') {
       const colour = players[e.by]?.avatarColor ?? p.card;
       return (
@@ -64,7 +72,7 @@ export function DescriptionFeed({
         <Text style={styles.skipText}>{players[e.by]?.name ?? 'Knower'} skipped</Text>
       </View>
     );
-  });
+  }
 
   const content = (
     <View style={styles.flow}>
@@ -99,6 +107,15 @@ export function DescriptionFeed({
       {content}
     </ScrollView>
   );
+}
+
+/** Grows its child in from small, once, when it first appears. */
+function PopIn({ children }: { children: React.ReactNode }) {
+  const scale = useRef(new Animated.Value(0.4)).current;
+  useEffect(() => {
+    Animated.spring(scale, { toValue: 1, friction: 5, tension: 160, useNativeDriver: true }).start();
+  }, [scale]);
+  return <Animated.View style={{ transform: [{ scale }] }}>{children}</Animated.View>;
 }
 
 /** A Knower's colour, softened enough to keep dark text readable on it. */

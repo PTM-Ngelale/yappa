@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { DescriptionFeed } from '../components/DescriptionFeed';
-import { GameHeader, SecretWordCard, type WordMeaning } from '../components/game';
+import { GameHeader, Prompt, SecretWordCard, TipCard, type WordMeaning } from '../components/game';
 import { Pressable } from '../components/Pressable';
 import { TurnClock } from '../components/TurnClock';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, useShortScreen } from '../components/ui';
@@ -26,6 +26,10 @@ interface KnowerActiveScreenProps {
   targetWord: string;
   /** What the secret word means: tapping the card shows it. */
   meaning?: WordMeaning;
+  /** What's happening right now: your turn, a wrong guess to steer from, a turn that ran out. */
+  prompt?: { text: string; tone: 'calm' | 'alert' };
+  /** This round's first-game tip, if any. */
+  tip?: { text: string; onDismiss: () => void };
   category: string;
   feed: FeedEntry[];
   players: Record<string, RoomPlayer>;
@@ -67,6 +71,8 @@ export function KnowerActiveScreen({
   maxRounds,
   targetWord,
   meaning,
+  prompt,
+  tip,
   category,
   feed,
   players,
@@ -157,14 +163,15 @@ export function KnowerActiveScreen({
           <SecretWordCard
             word={targetWord}
             category={category}
-            hint="Describe it. Don’t say it."
+            hint="Give clues. Don’t say it."
             // Keep the keyboard up: on the web a tap elsewhere takes the focus from the input.
             meaning={meaning && { ...meaning, onToggle: () => { meaning.onToggle(); inputRef.current?.focus(); } }}
             compact={short}
           />
+          {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}
 
           <View style={[styles.feedSection, short && styles.feedSectionShort]}>
-            {!short && <Eyebrow>The description</Eyebrow>}
+            {!short && <Eyebrow>The clues</Eyebrow>}
             <DescriptionFeed
               entries={feed}
               players={players}
@@ -175,10 +182,12 @@ export function KnowerActiveScreen({
         </ScreenBody>
 
         <View style={styles.inputSection}>
-          {validationMsg !== '' && (
+          {validationMsg !== '' ? (
             <Text style={styles.validationMsg} accessibilityLiveRegion="assertive">
               {validationMsg}
             </Text>
+          ) : (
+            prompt && <Prompt text={prompt.text} tone={prompt.tone} />
           )}
           <TurnClock label="Your word" seconds={turnSeconds} />
           <Animated.View style={[styles.inputRow, { transform: [{ translateX: shakeAnim }] }]}>

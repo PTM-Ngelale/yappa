@@ -3,6 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { categoryLabel } from '../game/categories';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
+import { LeaveGameButton } from './LeaveGame';
 import { Pressable } from './Pressable';
 import { TimerBar } from './TimerBar';
 import { Eyebrow, Pill, Sticker } from './ui';
@@ -40,6 +41,7 @@ export function GameHeader({
             <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
           </View>
         )}
+        <LeaveGameButton />
       </View>
     );
   }
@@ -47,7 +49,10 @@ export function GameHeader({
     <View style={styles.header}>
       <View style={styles.pills}>
         <Pill label={`Round ${round} / ${maxRounds}`} />
-        <Pill label={role} bg={roleBg} fg={roleFg} />
+        <View style={styles.pillsEnd}>
+          <Pill label={role} bg={roleBg} fg={roleFg} />
+          <LeaveGameButton />
+        </View>
       </View>
       {showTimer && <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />}
     </View>
@@ -113,12 +118,68 @@ export function SecretWordCard({
   );
 }
 
+/** A short line telling a player what's happening right now ("Your word!", "Not cliff!"). */
+export function Prompt({ text, tone = 'calm' }: { text: string; tone?: 'calm' | 'alert' }) {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
+  const alert = tone === 'alert';
+  return (
+    <View style={[styles.prompt, { backgroundColor: alert ? p.coral : p.yellow }]} accessibilityLiveRegion="polite">
+      <Text style={[styles.promptText, { color: alert ? p.onCoral : p.onYellow }]} numberOfLines={2}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+/** A first-game tip; tapping it puts it away. */
+export function TipCard({ text, onDismiss }: { text: string; onDismiss: () => void }) {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
+  return (
+    <Pressable onPress={onDismiss} accessibilityRole="button" accessibilityLabel={`Tip: ${text}. Tap to close.`} sound={false}>
+      <View style={styles.tip}>
+        <Feather name="star" size={16} color={p.ink} />
+        <Text style={styles.tipText}>
+          <Text style={styles.tipLabel}>Tip: </Text>
+          {text}
+        </Text>
+        <Feather name="x" size={16} color={p.muted} />
+      </View>
+    </Pressable>
+  );
+}
+
 const makeStyles = (p: Palette) =>
   StyleSheet.create({
+    prompt: {
+      alignSelf: 'stretch',
+      borderWidth: 2.5,
+      borderColor: p.line,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    promptText: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 21, textAlign: 'center' },
+    tip: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      borderWidth: 2,
+      borderStyle: 'dashed',
+      borderColor: p.line,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: p.card,
+    },
+    tipText: { ...type.small, flex: 1, color: p.ink },
+    tipLabel: { fontFamily: fonts.black },
     header: { gap: 14 },
     compact: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     flex: { flex: 1 },
-    pills: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    pills: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+    pillsEnd: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },
     secret: { paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16, gap: 4 },
     secretTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     category: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },

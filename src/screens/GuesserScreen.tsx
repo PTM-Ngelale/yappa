@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { categoryLabel } from "../game/categories";
 import { DescriptionFeed } from "../components/DescriptionFeed";
-import { GameHeader } from "../components/game";
+import { GameHeader, TipCard } from "../components/game";
 import { Pressable } from "../components/Pressable";
 import { TypingIndicator } from "../components/TypingIndicator";
 import { Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from "../components/ui";
@@ -36,6 +36,8 @@ interface GuesserScreenProps {
   roundSeconds: number;
   /** Hide the round timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
+  /** This round's first-game tip, if any. */
+  tip?: { text: string; onDismiss: () => void };
   /** Judged server-side (may involve an AI check); rejects if it couldn't be sent, so they can retry. */
   onGuess: (guess: string) => Promise<GuessResult>;
 }
@@ -50,6 +52,7 @@ export function GuesserScreen({
   knowerIsTyping,
   roundSeconds,
   showTimer = true,
+  tip,
   onGuess,
 }: GuesserScreenProps) {
   const styles = useStyles(makeStyles);
@@ -130,6 +133,7 @@ export function GuesserScreen({
               {label}
             </Text>
           </View>
+          {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}
 
           <Sticker style={[styles.feedWrap, short && styles.feedWrapCompact]} radius={26} offset={6} contentStyle={styles.feedCard}>
             {hasWords || feed.length > 0 ? (
