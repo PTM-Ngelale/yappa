@@ -284,6 +284,9 @@ const allIds = (await db.query(`select array_agg(id) ids from words`)).rows[0].i
 const starved = (await db.query(`select _draw_deck($1) d`, [allIds])).rows[0].d;
 check(starved.length === 9 && starved.map((w) => w.difficulty).join() === 'easy,easy,easy,medium,medium,medium,hard,hard,hard', 'with every word played, the draw falls back to played words');
 check((await db.query(`select count(distinct id)::int n, count(*)::int t from words`)).rows[0].n === allIds.length, 'every word has its own id');
+const wordList = (await db.query(`select id from words`)).rows.map((r) => r.id);
+check(wordList.length === 251 && wordList.includes('toothbrush') && !wordList.includes('sextant'), 'the reviewed word list swaps obscure words for familiar ones');
+check((await db.query(`select 1 from information_schema.columns where table_name = 'words' and column_name = 'forbidden'`)).rows.length === 0, 'words carry no forbidden lists');
 await as(P2, `select end_game('ABCD')`);
 check((await room()).status === 'gameover', 'any player can end the game (disconnect overlay)');
 
