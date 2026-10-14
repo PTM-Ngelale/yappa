@@ -26,11 +26,15 @@ async function doSignIn(): Promise<string> {
     await supabase.auth.signOut({ scope: 'local' });
   }
 
-  // New anonymous accounts need a Cloudflare Turnstile token once CAPTCHA protection is on in
-  // Supabase (Auth → Attack Protection). The check sometimes hangs or fails on a slow first
-  // load, so a failed check, or a token Supabase rejects, gets a fresh check (new page, new
-  // token) up to CAPTCHA_ATTEMPTS times. If no check works, try without a token: that still
-  // works while protection is off, and fails with a clear error once it's on.
+  // Try without a check first: with CAPTCHA protection off in Supabase (Auth → Attack
+  // Protection) that's all it takes, and the player never sees a check.
+  const first = await supabase.auth.signInAnonymously();
+  if (!first.error) return first.data.user!.id;
+  if (first.error.code !== 'captcha_failed' && !/captcha/i.test(first.error.message)) throw first.error;
+
+  // Protection is on, so new anonymous accounts need a Cloudflare Turnstile token. The check
+  // sometimes hangs or fails on a slow first load, so a failed check, or a token Supabase
+  // rejects, gets a fresh check (new page, new token) up to CAPTCHA_ATTEMPTS times.
   let captchaProblem = 'no token';
   for (let attempt = 1; attempt <= CAPTCHA_ATTEMPTS; attempt++) {
     if (attempt > 1) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
