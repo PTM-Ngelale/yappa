@@ -4,8 +4,10 @@
 // hits it, after which only exact and formatting matches count for them.
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 
-/** Per player, per rolling hour. */
-export const AI_CALLS_PER_USER_HOURLY = 300;
+/** Per player, per rolling hour. A Guesser has 3 rounds a game and seldom needs more than a
+ * handful of judged guesses each; 60 covers a couple of games, while one person needs many
+ * accounts to drain the global cap below. */
+export const AI_CALLS_PER_USER_HOURLY = 60;
 /** Everyone combined, per rolling hour — the cost circuit breaker. */
 export const AI_CALLS_GLOBAL_HOURLY = 5000;
 

@@ -17,7 +17,7 @@
 import Anthropic from "npm:@anthropic-ai/sdk";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { isLocalMatch } from "../_shared/guessMatch.ts";
-import { judgeGuess } from "../_shared/judges.ts";
+import { GUESS_PATTERN, judgeGuess } from "../_shared/judges.ts";
 import { json, preflight, takeAiQuota } from "../_shared/quota.ts";
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") });
@@ -33,7 +33,16 @@ const REFUSED: Record<string, number> = {
   "round-over": 409,
   paused: 409,
   cooldown: 429,
+  "not-allowed": 422,
 };
+
+/** Zero-width, bidi-override and control characters: the same set _strip_invisible() drops. */
+const INVISIBLE = /[\u0000-\u001F\u007F-\u009F\u00AD\u061C\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+
+/** The guess as it will show in the feed: no invisible characters, straight apostrophes, single spaces. */
+function cleanGuess(guess: string): string {
+  return guess.replace(INVISIBLE, "").replace(/[\u2018\u2019]/g, "'").replace(/\s+/g, " ").trim();
+}
 
 /** The AI's verdict, or false on any error/timeout: never hang or crash the round. */
 async function aiJudge(guess: string, target: string, category: string): Promise<boolean> {
@@ -68,14 +77,19 @@ Deno.serve(async (req) => {
   if (typeof code !== "string" || typeof round !== "number" || typeof guess !== "string") {
     return json({ error: "missing-input" }, 400);
   }
-  const trimmed = guess.trim().slice(0, 60);
+  const trimmed = cleanGuess(guess);
   if (trimmed.length === 0) return json({ error: "empty-guess" }, 400);
+  // Words only (letters, digits, spaces, apostrophes, hyphens; up to 40): it goes into
+  // everyone's feed, so nothing else gets in.
+  if (!GUESS_PATTERN.test(trimmed)) return json({ error: "invalid-guess" }, 400);
 
-  // The Guesser's next guess slot: checks it's them, the round is on, and 3s have passed.
+  // The Guesser's next guess slot: checks it's them, the round is on, the guess isn't a
+  // blocked word, and 3s have passed.
   const { data: slot, error: slotError } = await admin.rpc("begin_guess", {
     p_code: code,
     p_round: round,
     p_uid: user.id,
+    p_guess: trimmed,
   });
   if (slotError) {
     console.error(slotError);

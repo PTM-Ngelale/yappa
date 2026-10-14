@@ -78,14 +78,14 @@ check(await fails(HOST, `select create_room('ab', $1)`, [player(HOST)]), 'create
 await as(HOST, `select create_room('ABCD', $1)`, [player(HOST, { role: 'guesser', isAdmin: true })]);
 let d = await room();
 check(d.hostUid === HOST && d.status === 'lobby' && d.players[HOST].role === 'knower' && !('isAdmin' in d.players[HOST]), 'create_room builds clean state (forged fields dropped)');
-check(await fails(OUTSIDER, `select create_room('ABCD', $1)`, [player(OUTSIDER)]), 'cannot create over an existing room');
+check((await as(OUTSIDER, `select create_room('ABCD', $1) r`, [player(OUTSIDER)])).rows[0].r === 'taken' && (await room()).hostUid === HOST, 'cannot create over an existing room (reported as taken)');
 check(await fails(P2, `select join_room('ABCD', $1)`, [player(P3)]), 'cannot join as someone else');
 await as(P2, `select join_room('ABCD', $1)`, [player(P2, { name: '  Sam  ', avatarColor: 'javascript:x' })]);
 d = await room();
 check(d.players[P2].name === 'Sam' && d.players[P2].avatarColor === '#9E9E9E', 'join_room trims the name and rejects a bad colour');
 check(await fails(P3, `select start_game('ABCD')`), 'non-member cannot start');
 await as(P3, `select join_room('ABCD', $1)`, [player(P3)]);
-check(await fails(OUTSIDER, `select join_room('ABCD', $1)`, [player(OUTSIDER)]), 'a fourth player is rejected');
+check((await as(OUTSIDER, `select join_room('ABCD', $1) r`, [player(OUTSIDER)])).rows[0].r === 'full' && !(OUTSIDER in (await room()).players), 'a fourth player is rejected');
 
 // --- Direct writes are closed --------------------------------------------------------
 check(await fails(HOST, `select patch_room('ABCD', '[]'::jsonb)`), 'patch_room no longer exists');
@@ -199,11 +199,13 @@ for (let round = 1; round <= 9; round++) {
     check(await say(first, 1, 4, 'x-ray') === 5, 'hyphenated words are allowed');
     // Guesses: the Guesser only, 3 seconds apart, wrong ones go into the feed.
     check(await guess(1, first) === 'not-the-guesser', 'only the Guesser can guess');
-    check(await guess(1, guesser) === 'ok', 'the Guesser can guess');
+    const offensive = (await as(null, `select begin_guess('ABCD', 1, $1, $2) r`, [guesser, 'Sh1t\u200B'])).rows[0].r;
+    check(offensive === 'not-allowed', 'an offensive guess is refused');
+    check(await guess(1, guesser) === 'ok', 'the Guesser can guess (a refused guess takes no slot)');
     check(await guess(1, guesser) === 'cooldown', 'guesses are 3 seconds apart');
-    check(await record(1, 'cliff', false) === true, 'a wrong guess is recorded');
+    check(await record(1, '\u202Ecl\u200Biff ', false) === true, 'a wrong guess is recorded');
     d = await room();
-    check(d.status === 'playing' && sameJson(d.feed.at(-1), { kind: 'guess', text: 'cliff', by: guesser, correct: false }), 'a wrong guess shows in the feed and play goes on');
+    check(d.status === 'playing' && sameJson(d.feed.at(-1), { kind: 'guess', text: 'cliff', by: guesser, correct: false }), 'a wrong guess shows in the feed (invisible characters stripped) and play goes on');
   }
 
   if (round % 3 === 0) {
@@ -395,7 +397,7 @@ await as(P2, `select create_room('STA1', $1)`, [player(P2)]);
 await as(P3, `select join_room('STA1', $1, 'link')`, [player(P3)]);
 await as(OUTSIDER, `select join_room('STA1', $1, 'code')`, [player(OUTSIDER)]);
 check(await stat('games_created_private') === 1 && await stat('joins_link') === 1 && await stat('joins_code') === 1, 'stats: joins count by link or typed code');
-check(await fails(FIFTH, `select join_room('STA1', $1, 'link')`, [player(FIFTH)]) && await stat('joins_link') === 1, 'stats: a rejected join (room full) is not counted');
+check((await as(FIFTH, `select join_room('STA1', $1, 'link') r`, [player(FIFTH)])).rows[0].r === 'full' && await stat('joins_link') === 1, 'stats: a rejected join (room full) is not counted');
 check(await fails(P2, `select create_share_card('STA1')`), 'a game that is not over cannot be shared');
 await as(P2, `select start_game('STA1')`);
 await as(P3, `select end_game('STA1')`);
@@ -405,6 +407,25 @@ check(await fails(P2, `select * from game_stats`) || (await as(P2, `select * fro
 check(await fails(P2, `select _bump_stat('games_finished')`), 'clients cannot bump stats');
 const statColumns = (await db.query(`select column_name from information_schema.columns where table_name = 'game_stats' order by 1`)).rows.map((r) => r.column_name).join();
 check(statColumns === 'count,day,metric', 'stats hold only a day, a metric and a count');
+
+// --- Room codes can't be brute-forced (migration 017) -------------------------------------
+const PROBER = '66666666-6666-6666-6666-666666666666';
+await as(HOST, `select create_room('OPEN', $1)`, [player(HOST)]);
+const errorOf = async (uid, sql, params) => { try { await as(uid, sql, params); return null; } catch (e) { return e.message; } };
+const missingErr = await errorOf(PROBER, `select lobby_heartbeat('NONE')`);
+const existingErr = await errorOf(PROBER, `select lobby_heartbeat('OPEN')`);
+check(missingErr && missingErr.replace('NONE', 'X') === existingErr.replace('OPEN', 'X'), 'a non-member gets the same error whether or not a room exists');
+check((await errorOf(PROBER, `select set_room_public('NONE', true)`)).replace('NONE', 'X') === (await errorOf(PROBER, `select set_room_public('OPEN', true)`)).replace('OPEN', 'X'), 'host checks do not reveal whether a room exists either');
+check((await as(PROBER, `select join_room('NONE', $1, 'code') r`, [player(PROBER)])).rows[0].r === 'not-found', 'joining a missing room reports not-found');
+for (let i = 1; i < 19; i++) await as(PROBER, `select join_room($1, $2) r`, [`NO${String(i).padStart(2, '0')}`, player(PROBER)]);
+check((await as(PROBER, `select create_room('OPEN', $1) r`, [player(PROBER)])).rows[0].r === 'taken', 'creating over a live code counts as a miss');
+check(await fails(PROBER, `select join_room('OPEN', $1)`, [player(PROBER)]), 'after 20 misses in an hour, joining is refused');
+check(!(PROBER in (await room('OPEN')).players), '…even for a code that exists');
+check(await fails(PROBER, `select create_room('PRB1', $1)`, [player(PROBER)]), '…and so is creating a room');
+await db.query(`update join_failures set at = now() - interval '61 minutes' where uid = $1`, [PROBER]);
+check((await as(PROBER, `select join_room('OPEN', $1) r`, [player(PROBER)])).rows[0].r === 'ok' && PROBER in (await room('OPEN')).players, 'misses older than an hour no longer count');
+check(await fails(PROBER, `select * from join_failures`) || (await as(PROBER, `select * from join_failures`)).rows.length === 0, 'clients cannot read missed-code records');
+for (const u of [PROBER, HOST]) await as(u, `select leave_room('OPEN', $1)`, [u]);
 
 // --- Data retention (migration 008) -------------------------------------------------------
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');

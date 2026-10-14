@@ -94,7 +94,9 @@ export type GuessResult =
   /** Sent too soon after the last guess. */
   | { status: 'cooldown' }
   /** The round ended (time ran out) before it was judged, or the game is paused. */
-  | { status: 'closed' };
+  | { status: 'closed' }
+  /** Not sent to the judge: not a word ('invalid') or a blocked one ('not-allowed'). */
+  | { status: 'rejected'; reason: 'invalid' | 'not-allowed' };
 
 /**
  * Sends a guess. The validate-guess edge function judges it against the hidden target
@@ -110,6 +112,8 @@ export async function submitGuess(code: string, round: number, guess: string): P
     const reason = await functionErrorReason(error);
     if (reason === 'cooldown') return { status: 'cooldown' };
     if (reason === 'round-over' || reason === 'paused') return { status: 'closed' };
+    if (reason === 'invalid-guess') return { status: 'rejected', reason: 'invalid' };
+    if (reason === 'not-allowed') return { status: 'rejected', reason: 'not-allowed' };
     throw new Error(`validate-guess failed: ${reason}`);
   }
   if (typeof data?.correct !== 'boolean') throw new Error('validate-guess returned no verdict');
