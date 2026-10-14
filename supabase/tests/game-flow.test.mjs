@@ -125,6 +125,9 @@ for (let round = 1; round <= 9; round++) {
   for (const k of [first, second]) {
     check((await as(k, `select target_word from round_secrets where code = 'ABCD' and round = $1`, [round])).rows[0]?.target_word === target, `round ${round}: a Knower can read the target`);
   }
+  const meaning = (await as(first, `select meaning from round_secrets where code = 'ABCD' and round = $1`, [round])).rows[0]?.meaning;
+  const wordMeaning = (await db.query(`select meaning from words where word = $1`, [target])).rows[0]?.meaning;
+  check(meaning && meaning === wordMeaning && !JSON.stringify(d).includes(meaning), `round ${round}: Knowers get the word's meaning, kept out of room data`);
   check(d.turnIndex === 0 && Array.isArray(d.feed) && d.feed.length === 0 && d.chain === null && !('secondsRemaining' in d), `round ${round}: a fresh feed and turn counter`);
 
   if (round === 1) {
@@ -287,6 +290,9 @@ check((await db.query(`select count(distinct id)::int n, count(*)::int t from wo
 const wordList = (await db.query(`select id from words`)).rows.map((r) => r.id);
 check(wordList.length === 251 && wordList.includes('toothbrush') && !wordList.includes('sextant'), 'the reviewed word list swaps obscure words for familiar ones');
 check((await db.query(`select 1 from information_schema.columns where table_name = 'words' and column_name = 'forbidden'`)).rows.length === 0, 'words carry no forbidden lists');
+const meanings = (await db.query(`select word, meaning from words`)).rows;
+check(meanings.every((w) => w.meaning.length > 0 && w.meaning.length <= 120 && !w.meaning.toLowerCase().includes(w.word.toLowerCase())),
+  'every word has a short meaning that does not use the word itself');
 await as(P2, `select end_game('ABCD')`);
 check((await room()).status === 'gameover', 'any player can end the game (disconnect overlay)');
 

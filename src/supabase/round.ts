@@ -9,19 +9,23 @@ export async function startGame(code: string): Promise<void> {
   if (error) throw error;
 }
 
+/** The round's secret word and what it means (migration 016); the meaning may be empty. */
+export type SecretWord = { word: string; meaning: string };
+
 /**
  * The current round's target word, or null if the caller is this round's Guesser (RLS
  * returns no row) or the round hasn't been set up yet.
  */
-export async function fetchTargetWord(code: string, round: number): Promise<string | null> {
+export async function fetchTargetWord(code: string, round: number): Promise<SecretWord | null> {
   const { data, error } = await supabase
     .from('round_secrets')
-    .select('target_word')
+    .select('target_word, meaning')
     .eq('code', code)
     .eq('round', round)
     .maybeSingle();
   if (error) throw error;
-  return (data?.target_word as string | undefined) ?? null;
+  if (!data?.target_word) return null;
+  return { word: data.target_word as string, meaning: (data.meaning as string | null) ?? '' };
 }
 
 /** Why the server turned a word down, in words a player can act on. */

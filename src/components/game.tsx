@@ -1,7 +1,9 @@
+import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { categoryLabel } from '../game/categories';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
+import { Pressable } from './Pressable';
 import { TimerBar } from './TimerBar';
 import { Eyebrow, Pill, Sticker } from './ui';
 
@@ -52,22 +54,30 @@ export function GameHeader({
   );
 }
 
+/** What the secret word means, for a Knower stuck for words. Opened by tapping the card. */
+export type WordMeaning = { text: string; open: boolean; onToggle: () => void };
+
 /** The inverted card holding the word only the Knowers see. */
 export function SecretWordCard({
   word,
   category,
   hint,
+  meaning,
   compact = false,
 }: {
   word: string;
   category: string;
   hint?: string;
+  /** Tapping the card shows or hides it. Without a meaning the card isn't tappable. */
+  meaning?: WordMeaning;
   /** Short screens: smaller word, no hint. */
   compact?: boolean;
 }) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
-  return (
+  const hasMeaning = !!meaning?.text;
+  const open = hasMeaning && meaning.open;
+  const card = (
     <Sticker bg={p.hero} shadow={p.coral} radius={24} offset={5} contentStyle={styles.secret}>
       <View style={styles.secretTop}>
         <Eyebrow style={{ color: p.heroAccent }}>Secret word</Eyebrow>
@@ -78,8 +88,28 @@ export function SecretWordCard({
       <Text style={[styles.secretWord, compact && styles.secretWordCompact]} adjustsFontSizeToFit numberOfLines={1}>
         {word}
       </Text>
-      {hint && !compact && <Text style={styles.secretHint}>{hint}</Text>}
+      {open && <Text style={styles.meaning}>{meaning.text}</Text>}
+      {hint && !compact && !open && <Text style={styles.secretHint}>{hint}</Text>}
+      {hasMeaning && (
+        <View style={styles.meaningCue}>
+          <Feather name={open ? 'chevron-up' : 'info'} size={14} color={p.heroAccent} />
+          <Text style={[styles.meaningCueText, { color: p.heroAccent }]}>
+            {open ? 'Hide the meaning' : 'Tap for the meaning'}
+          </Text>
+        </View>
+      )}
     </Sticker>
+  );
+  if (!hasMeaning) return card;
+  return (
+    <Pressable
+      onPress={meaning.onToggle}
+      accessibilityRole="button"
+      accessibilityLabel={open ? `Hide what ${word} means` : `Show what ${word} means`}
+      accessibilityState={{ expanded: open }}
+    >
+      {card}
+    </Pressable>
   );
 }
 
@@ -96,4 +126,7 @@ const makeStyles = (p: Palette) =>
     secretWord: { fontFamily: fonts.black, fontSize: 44, lineHeight: 50, letterSpacing: -1, color: p.onHero },
     secretWordCompact: { fontSize: 32, lineHeight: 38 },
     secretHint: { ...type.small, color: p.onHero, opacity: 0.9 },
+    meaning: { ...type.bodyBold, color: p.onHero },
+    meaningCue: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
+    meaningCueText: { fontFamily: fonts.bold, fontSize: 13 },
   });
