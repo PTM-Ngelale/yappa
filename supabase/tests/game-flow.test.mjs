@@ -425,7 +425,11 @@ check(await fails(PROBER, `select create_room('PRB1', $1)`, [player(PROBER)]), '
 await db.query(`update join_failures set at = now() - interval '61 minutes' where uid = $1`, [PROBER]);
 check((await as(PROBER, `select join_room('OPEN', $1) r`, [player(PROBER)])).rows[0].r === 'ok' && PROBER in (await room('OPEN')).players, 'misses older than an hour no longer count');
 check(await fails(PROBER, `select * from join_failures`) || (await as(PROBER, `select * from join_failures`)).rows.length === 0, 'clients cannot read missed-code records');
-for (const u of [PROBER, HOST]) await as(u, `select leave_room('OPEN', $1)`, [u]);
+await as(HOST, `select leave_room('OPEN', $1)`, [HOST]);
+d = await room('OPEN');
+check(d && !(HOST in d.players) && d.hostUid === PROBER, 'a host leaving a lobby that never started hands off to the player still there');
+await as(PROBER, `select leave_room('OPEN', $1)`, [PROBER]);
+check((await room('OPEN')) === undefined, '…and the last one out deletes it');
 
 // --- Data retention (migration 008) -------------------------------------------------------
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');
