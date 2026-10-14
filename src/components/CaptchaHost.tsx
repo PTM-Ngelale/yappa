@@ -20,6 +20,8 @@ type Pending = {
   reject: (e: Error) => void;
   /** Restarts the timeout with more time, for a player who has the box to tap. */
   wait: (ms: number) => void;
+  /** How far the check got, named in the timeout error so a stuck check says where. */
+  stage: string;
 };
 
 let pending: Pending | null = null;
@@ -39,12 +41,13 @@ export function requestCaptchaToken(): Promise<string> {
     let timer: ReturnType<typeof setTimeout>;
     const wait = (ms: number) => {
       clearTimeout(timer);
-      timer = setTimeout(() => finish(id, new Error('captcha timed out')), ms);
+      timer = setTimeout(() => finish(id, new Error(`captcha timed out (${pending?.stage ?? 'unknown'})`)), ms);
     };
     wait(TIMEOUT_MS);
     pending = {
       id,
       wait,
+      stage: notifyHost ? 'page not loaded' : 'app not ready',
       resolve: (token) => {
         clearTimeout(timer);
         resolve(token);
@@ -57,6 +60,29 @@ export function requestCaptchaToken(): Promise<string> {
     notifyHost?.(pending);
   });
 }
+
+function setStage(id: number, stage: string) {
+  if (!pending || pending.id !== id || pending.stage === stage) return;
+  pending.stage = stage;
+  if (__DEV__) console.log(`Captcha check ${id}: ${stage}`);
+}
+
+// Runs in the check page once it has loaded: reports how far Turnstile has got every second,
+// and any script error, so a check that never answers can say where it stopped.
+const WATCH_PAGE = `(function () {
+  function post(m) { try { window.ReactNativeWebView.postMessage(JSON.stringify(m)); } catch (e) {} }
+  window.addEventListener('error', function (e) { post({ type: 'stage', stage: 'page error: ' + e.message }); });
+  var widget = document.getElementById('widget');
+  function stage() {
+    if (!window.turnstile) return 'Turnstile script not loaded';
+    if (!widget || (!widget.childElementCount && !widget.shadowRoot)) return 'Turnstile loaded, widget not started';
+    return 'Turnstile widget running, no answer';
+  }
+  post({ type: 'stage', stage: stage() });
+  var timer = setInterval(function () { post({ type: 'stage', stage: stage() }); }, 1000);
+  setTimeout(function () { clearInterval(timer); }, 150000);
+})();
+true;`;
 
 function finish(id: number, result: string | Error) {
   if (!pending || pending.id !== id) return;
@@ -74,6 +100,7 @@ export function CaptchaHost() {
 
   useEffect(() => {
     notifyHost = (p) => {
+      if (p) setStage(p.id, 'page not loaded');
       setRequest(p);
       setInteractive(false);
     };
@@ -87,13 +114,15 @@ export function CaptchaHost() {
 
   function onMessage(e: WebViewMessageEvent) {
     if (!request) return;
-    let msg: { type?: string; token?: string; code?: string };
+    let msg: { type?: string; token?: string; code?: string; stage?: string };
     try {
       msg = JSON.parse(e.nativeEvent.data);
     } catch {
       return;
     }
-    if (msg.type === 'interactive') {
+    if (msg.type === 'stage' && msg.stage) setStage(request.id, msg.stage);
+    else if (msg.type === 'interactive') {
+      setStage(request.id, 'waiting for the player to tap');
       setInteractive(true);
       request.wait(INTERACTIVE_TIMEOUT_MS);
     } else if (msg.type === 'token' && msg.token) finish(request.id, msg.token);
@@ -120,6 +149,9 @@ export function CaptchaHost() {
           key={request.id}
           source={{ uri: CAPTCHA_URL }}
           onMessage={onMessage}
+          onLoadStart={() => setStage(request.id, 'page loading')}
+          onLoadEnd={() => setStage(request.id, 'page loaded, script not run')}
+          injectedJavaScript={WATCH_PAGE}
           onError={(e) => finish(request.id, new Error(`captcha page failed to load (${e.nativeEvent.description})`))}
           onHttpError={(e) => finish(request.id, new Error(`captcha page failed to load (HTTP ${e.nativeEvent.statusCode})`))}
           style={styles.webview}
