@@ -6,6 +6,9 @@
 //
 // Refuses (and lists why) if any entry is malformed or still has a "check" note: delete the
 // note once you've fixed or accepted that word.
+//
+// Entries with "status": "cut" are deleted from the word list; entries with "isNew": true are
+// added (they need a category).
 import fs from 'node:fs';
 import path from 'node:path';
 import { MIGRATIONS_DIR, REVIEW_FILE, readWordList, slug } from './shared.mjs';
@@ -13,6 +16,7 @@ import { MIGRATIONS_DIR, REVIEW_FILE, readWordList, slug } from './shared.mjs';
 const FORBIDDEN_COUNT = { easy: 3, medium: 4, hard: 5 };
 const ONE_WORD = /^\p{L}+(['’-]\p{L}+)*$/u;
 const PHRASE = /^\p{L}+([ '’-]\p{L}+)*$/u;
+const CATEGORIES = ['Objects', 'Animals', 'Places', 'Food & Drink', 'Sports'];
 
 if (!fs.existsSync(REVIEW_FILE)) {
   console.error(`No review file at ${path.relative(process.cwd(), REVIEW_FILE)}. Run scripts/words/draft.mjs first.`);
@@ -25,10 +29,15 @@ const problems = [];
 const seen = new Set();
 for (const e of reviewed) {
   const where = e.word ?? e.id ?? '(no word)';
-  const word = words.get(e.id);
-  if (!word) { problems.push(`${where}: id "${e.id}" is not in the word list`); continue; }
   if (seen.has(e.id)) problems.push(`${where}: listed twice`);
   seen.add(e.id);
+  if (e.isNew) {
+    if (words.has(e.id)) { problems.push(`${where}: marked new but already in the word list`); continue; }
+    if (e.id !== slug(e.word ?? '')) problems.push(`${where}: id should be "${slug(e.word ?? '')}"`);
+    if (!CATEGORIES.includes(e.category)) problems.push(`${where}: category must be one of ${CATEGORIES.join(', ')}`);
+  } else if (!words.has(e.id)) { problems.push(`${where}: id "${e.id}" is not in the word list`); continue; }
+  if (e.status === 'cut') { if (e.isNew) problems.push(`${where}: a new word can't also be cut`); continue; }
+  const word = words.get(e.id) ?? { word: e.word };
   if (e.check) problems.push(`${where}: still has a check note ("${e.check}")`);
   if (!(e.difficulty in FORBIDDEN_COUNT)) { problems.push(`${where}: difficulty must be easy, medium or hard`); continue; }
   const forbidden = e.forbidden ?? [];
@@ -49,19 +58,26 @@ if (problems.length) {
 }
 
 const missing = [...words.keys()].filter((id) => !seen.has(id));
+const cut = reviewed.filter((e) => e.status === 'cut');
+const added = reviewed.filter((e) => e.isNew);
+const kept = reviewed.filter((e) => e.status !== 'cut');
 const tiers = { easy: 0, medium: 0, hard: 0 };
-for (const id of words.keys()) {
-  const e = reviewed.find((r) => r.id === id);
-  tiers[e?.difficulty ?? words.get(id).difficulty]++;
-}
+for (const id of missing) tiers[words.get(id).difficulty]++;
+for (const e of kept) tiers[e.difficulty]++;
 const short = Object.entries(tiers).filter(([, n]) => n < 30);
 
 const q = (s) => `'${s.toLowerCase().replace(/'/g, "''")}'`;
 const arr = (list = []) => (list.length ? `array[${list.map(q).join(', ')}]` : `'{}'::text[]`);
-const lines = reviewed.map((e) =>
-  `update words set difficulty = '${e.difficulty}', forbidden = ${arr(e.forbidden)}, ` +
-  `components = ${arr(e.components)}, variants = ${arr(e.variants)} where id = '${e.id}';`,
-);
+const word = (s) => `'${s.replace(/'/g, "''")}'`;
+const lines = [
+  ...(cut.length ? [`delete from words where id in (${cut.map((e) => `'${e.id}'`).join(', ')});`, ''] : []),
+  ...added.map((e) =>
+    `insert into words (id, word, category, difficulty) values ('${e.id}', ${word(e.word)}, ${word(e.category)}, '${e.difficulty}') on conflict (word) do nothing;`),
+  ...(added.length ? [''] : []),
+  ...kept.map((e) =>
+    `update words set difficulty = '${e.difficulty}', forbidden = ${arr(e.forbidden)}, ` +
+    `components = ${arr(e.components)}, variants = ${arr(e.variants)} where id = '${e.id}';`),
+];
 
 const last = fs.readdirSync(MIGRATIONS_DIR).filter((f) => /^\d{3}_/.test(f)).sort().at(-1);
 const next = String(Number(last.slice(0, 3)) + 1).padStart(3, '0');
@@ -74,7 +90,7 @@ fs.writeFileSync(
     lines.join('\n') + '\n',
 );
 
-console.log(`Wrote ${path.relative(process.cwd(), file)}: ${lines.length} words.`);
+console.log(`Wrote ${path.relative(process.cwd(), file)}: ${kept.length} words (${added.length} new), ${cut.length} cut.`);
 console.log(`Pool: ${tiers.easy} Easy, ${tiers.medium} Medium, ${tiers.hard} Hard.`);
 if (missing.length) {
   const names = missing.length > 12 ? `${missing.slice(0, 12).join(', ')} and ${missing.length - 12} more` : missing.join(', ');
