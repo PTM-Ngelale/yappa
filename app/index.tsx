@@ -6,6 +6,7 @@ import {
   Linking,
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,7 +16,8 @@ import {
 import { PoweredBy } from "../src/components/PoweredBy";
 import { Pressable } from "../src/components/Pressable";
 import { SoundToggles } from "../src/components/SoundToggles";
-import { Avatar, Eyebrow, OUTLINE, Screen, Sticker, StickerButton } from "../src/components/ui";
+import { Avatar, Eyebrow, IconButton, OUTLINE, Screen, Sticker, StickerButton } from "../src/components/ui";
+import { loadLatestApp } from "../src/lib/loadLatestApp";
 import { PRIVACY_POLICY_URL } from "../src/lib/links";
 import { SUPABASE_CONFIGURED } from "../src/supabase/config";
 import { generateRoomCode } from "../src/lib/roomCode";
@@ -39,6 +41,7 @@ export default function HomeScreen() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [matching, setMatching] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [showNotice, setShowNotice] = useState(false);
   const { onlineNoticeSeen, markOnlineNoticeSeen } = useSettingsStore();
 
@@ -102,6 +105,23 @@ export default function HomeScreen() {
     return message.startsWith("captcha")
       ? `Couldn’t confirm you’re a real player (${message}). Try again.`
       : null;
+  }
+
+  // Refresh (button or pull down): load a newer app version if one is out, otherwise sign in
+  // again, which also recovers from a failed check on launch.
+  async function refresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    setError("");
+    try {
+      if (await loadLatestApp()) return;
+      await getUid();
+    } catch (e) {
+      setError(captchaError(e) ?? "Couldn’t connect. Check your connection and try again.");
+      console.error(e);
+    } finally {
+      setRefreshing(false);
+    }
   }
 
   function handlePlayOnline() {
@@ -252,8 +272,10 @@ export default function HomeScreen() {
           contentContainerStyle={styles.body}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={p.ink} colors={[p.coral]} />}
         >
           <View style={styles.topBar}>
+            <IconButton icon="refresh-cw" onPress={refresh} accessibilityLabel="Refresh" />
             <SoundToggles />
           </View>
 
@@ -495,7 +517,7 @@ const makeStyles = (p: Palette) =>
       paddingBottom: 24,
       gap: 16,
     },
-    topBar: { alignItems: "flex-end" },
+    topBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     hero: { alignItems: "flex-start", gap: 14, marginTop: 20, marginBottom: 20 },
     wordmarkWrap: { transform: [{ rotate: "-4deg" }] },
     wordmark: { paddingHorizontal: 24, paddingBottom: 8, paddingTop: 2 },
