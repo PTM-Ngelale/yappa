@@ -412,7 +412,6 @@ export default function HomeScreen() {
                 disabled={matching}
                 accessibilityLabel="Local play: create a game or join one with a code"
               />
-              <Text style={styles.onlineHint}>Playing with friends? Start a game or join theirs with a code.</Text>
 
               <StickerButton
                 label={matching ? "Finding a game…" : "Play online"}
@@ -424,7 +423,6 @@ export default function HomeScreen() {
                 loading={matching}
                 accessibilityLabel="Play online with other players"
               />
-              <Text style={styles.onlineHint}>No one to play with? We’ll match you with two other players.</Text>
             </>
           )}
 
@@ -545,7 +543,6 @@ const makeStyles = (p: Palette) =>
     sectionTitle: { fontFamily: fonts.black, fontSize: 24, color: p.ink },
     back: { alignSelf: "center", paddingVertical: 6, paddingHorizontal: 12 },
     cancelText: { fontFamily: fonts.bold, fontSize: 16, color: p.muted },
-    onlineHint: { ...type.small, fontSize: 14, color: p.ink, textAlign: "center", marginTop: -6 },
     links: { flexDirection: "row", justifyContent: "center", gap: 8 },
     scrim: { flex: 1, backgroundColor: p.scrim, justifyContent: "center", padding: spacing.screen },
     noticeCard: { padding: 20, gap: 10 },
