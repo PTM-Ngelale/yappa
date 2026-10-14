@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
-import { fonts, spacing, type, useStyles, type Palette } from '../theme';
+import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 import { Sticker } from './ui';
 
 const CAPTCHA_URL = 'https://ptm-ngelale.github.io/yappa/captcha.html';
@@ -76,7 +76,8 @@ const WATCH_PAGE = `(function () {
   function stage() {
     if (!window.turnstile) return 'Turnstile script not loaded';
     if (!widget || (!widget.childElementCount && !widget.shadowRoot)) return 'Turnstile loaded, widget not started';
-    return 'Turnstile widget running, no answer';
+    var box = widget.getBoundingClientRect();
+    return 'Turnstile widget running, no answer (' + Math.round(box.width) + 'x' + Math.round(box.height) + ')';
   }
   post({ type: 'stage', stage: stage() });
   var timer = setInterval(function () { post({ type: 'stage', stage: stage() }); }, 1000);
@@ -95,7 +96,10 @@ function finish(id: number, result: string | Error) {
 
 export function CaptchaHost() {
   const styles = useStyles(makeStyles);
+  const p = useTheme();
   const [request, setRequest] = useState<Pending | null>(null);
+  // Android web views that start out invisible can stay blank once shown, so when Turnstile
+  // wants a tap the hidden page is swapped for a fresh one loaded in the visible card.
   const [interactive, setInteractive] = useState(false);
 
   useEffect(() => {
@@ -120,20 +124,15 @@ export function CaptchaHost() {
     } catch {
       return;
     }
-    if (msg.type === 'stage' && msg.stage) {
-      // Once the box is up, "widget running" is expected; keep the more useful stage.
-      if (!interactive || msg.stage.startsWith('page error')) setStage(request.id, msg.stage);
-    }
+    if (msg.type === 'stage' && msg.stage) setStage(request.id, msg.stage);
     else if (msg.type === 'interactive') {
-      setStage(request.id, 'waiting for the player to tap');
+      setStage(request.id, interactive ? 'waiting for the player to tap' : 'tap needed, reloading the check where it can be seen');
       setInteractive(true);
       request.wait(INTERACTIVE_TIMEOUT_MS);
     } else if (msg.type === 'token' && msg.token) finish(request.id, msg.token);
     else if (msg.type === 'error') finish(request.id, new Error(`captcha failed (${msg.code ?? 'unknown'})`));
   }
 
-  // One WebView for the whole check; only its container's style changes, so showing it for
-  // a tap doesn't reload the page.
   return (
     <View
       style={interactive ? styles.overlay : styles.hidden}
@@ -155,7 +154,7 @@ export function CaptchaHost() {
           </>
         )}
         <WebView
-          key={request.id}
+          key={`${request.id}-${interactive ? 'shown' : 'hidden'}`}
           source={{ uri: CAPTCHA_URL }}
           onMessage={onMessage}
           onLoadStart={() => setStage(request.id, 'page loading')}
@@ -168,7 +167,7 @@ export function CaptchaHost() {
           javaScriptEnabled
           scrollEnabled={false}
           setSupportMultipleWindows={false}
-          backgroundColor="transparent"
+          backgroundColor={p.card}
         />
       </Sticker>
     </View>
@@ -196,5 +195,5 @@ const makeStyles = (p: Palette) =>
     card: { padding: 18, gap: 8 },
     title: { fontFamily: fonts.black, fontSize: 24, color: p.ink },
     body: { ...type.body, color: p.ink },
-    webview: { height: 80, backgroundColor: 'transparent' },
+    webview: { height: 80 },
   });
