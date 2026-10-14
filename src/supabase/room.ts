@@ -130,8 +130,9 @@ export function listenToRoom(
   if (stale) supabase.removeChannel(stale);
 
   let joined = false;
+  // Private: only the room's players may join (migration 019).
   const channel = supabase
-    .channel(topic)
+    .channel(topic, { config: { private: true } })
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'rooms', filter: `code=eq.${code}` },
