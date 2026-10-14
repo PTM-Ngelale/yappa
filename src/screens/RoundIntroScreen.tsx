@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
+import { categoryLabel } from '../game/categories';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from '../components/ui';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
 
@@ -54,7 +55,7 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, gues
 
           <Sticker bg={p.hero} shadow={p.yellow} radius={24} offset={6} style={styles.cardWrap} contentStyle={styles.card}>
             <Eyebrow style={{ color: p.heroAccent }}>Category</Eyebrow>
-            <Text style={styles.category}>{category}</Text>
+            <Text style={styles.category}>{categoryLabel(category)}</Text>
             <Text style={styles.blurb}>{blurb}</Text>
           </Sticker>
 

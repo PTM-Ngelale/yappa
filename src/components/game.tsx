@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { categoryLabel } from '../game/categories';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
 import { TimerBar } from './TimerBar';
 import { Eyebrow, Pill, Sticker } from './ui';
@@ -71,7 +72,7 @@ export function SecretWordCard({
       <View style={styles.secretTop}>
         <Eyebrow style={{ color: p.heroAccent }}>Secret word</Eyebrow>
         <View style={[styles.category, { backgroundColor: p.heroAccent }]}>
-          <Text style={[styles.categoryText, { color: p.hero }]}>{category}</Text>
+          <Text style={[styles.categoryText, { color: p.hero }]}>{categoryLabel(category)}</Text>
         </View>
       </View>
       <Text style={[styles.secretWord, compact && styles.secretWordCompact]} adjustsFontSizeToFit numberOfLines={1}>
