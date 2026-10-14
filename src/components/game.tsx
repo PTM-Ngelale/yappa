@@ -113,8 +113,63 @@ export function SecretWordCard({
   );
 }
 
+/** A short line telling a player what's happening right now ("Your word!", "Not cliff!"). */
+export function Prompt({ text, tone = 'calm' }: { text: string; tone?: 'calm' | 'alert' }) {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
+  const alert = tone === 'alert';
+  return (
+    <View style={[styles.prompt, { backgroundColor: alert ? p.coral : p.yellow }]} accessibilityLiveRegion="polite">
+      <Text style={[styles.promptText, { color: alert ? p.onCoral : p.onYellow }]} numberOfLines={2}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+/** A first-game tip; tapping it puts it away. */
+export function TipCard({ text, onDismiss }: { text: string; onDismiss: () => void }) {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
+  return (
+    <Pressable onPress={onDismiss} accessibilityRole="button" accessibilityLabel={`Tip: ${text}. Tap to close.`} sound={false}>
+      <View style={styles.tip}>
+        <Feather name="star" size={16} color={p.ink} />
+        <Text style={styles.tipText}>
+          <Text style={styles.tipLabel}>Tip: </Text>
+          {text}
+        </Text>
+        <Feather name="x" size={16} color={p.muted} />
+      </View>
+    </Pressable>
+  );
+}
+
 const makeStyles = (p: Palette) =>
   StyleSheet.create({
+    prompt: {
+      alignSelf: 'stretch',
+      borderWidth: 2.5,
+      borderColor: p.line,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    promptText: { fontFamily: fonts.bold, fontSize: 16, lineHeight: 21, textAlign: 'center' },
+    tip: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      borderWidth: 2,
+      borderStyle: 'dashed',
+      borderColor: p.line,
+      borderRadius: 14,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: p.card,
+    },
+    tipText: { ...type.small, flex: 1, color: p.ink },
+    tipLabel: { fontFamily: fonts.black },
     header: { gap: 14 },
     compact: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     flex: { flex: 1 },

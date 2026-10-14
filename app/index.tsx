@@ -50,6 +50,15 @@ export default function HomeScreen() {
     setShowJoin(true);
   }, [room]);
 
+  // First launch: play the demo before Home, unless an invite link brought them here to join.
+  const [settingsLoaded, setSettingsLoaded] = useState(() => useSettingsStore.persist.hasHydrated());
+  useEffect(() => useSettingsStore.persist.onFinishHydration(() => setSettingsLoaded(true)), []);
+  useEffect(() => {
+    if (settingsLoaded && !useSettingsStore.getState().demoSeen && !room) router.replace("/demo");
+    // Only on arrival: once the demo has run it marks itself seen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded]);
+
   const trimmedName = name.trim();
   const canProceed = trimmedName.length >= 2;
 

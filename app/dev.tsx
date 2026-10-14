@@ -14,9 +14,12 @@ import { RoundIntroScreen } from '../src/screens/RoundIntroScreen';
 import { RoundResolutionScreen } from '../src/screens/RoundResolutionScreen';
 import type { FeedEntry, RoundHistoryEntry } from '../src/supabase/room';
 import { fonts, useStyles, type Palette } from '../src/theme';
+import { TIPS } from '../src/game/tips';
 
-type DevScreen = 'intro' | 'knower-active' | 'knower-waiting' | 'guesser' | 'result' | 'game-end';
-const SCREENS: DevScreen[] = ['intro', 'knower-active', 'knower-waiting', 'guesser', 'result', 'game-end'];
+type DevScreen = 'intro' | 'intro-knower' | 'knower-active' | 'knower-waiting' | 'guesser' | 'result' | 'game-end';
+const SCREENS: DevScreen[] = ['intro', 'intro-knower', 'knower-active', 'knower-waiting', 'guesser', 'result', 'game-end'];
+const MOCK_MEANING = 'A tall tower by the sea with a bright light that warns ships.';
+const MOCK_TIP = { text: TIPS['knower-1'], onDismiss: () => {} };
 
 const MOCK = {
   round: 3,
@@ -62,6 +65,8 @@ export default function DevScreen() {
   const initial = SCREENS.find((s) => s === params.screen) ?? 'knower-active';
   const [screen, setScreen] = useState<DevScreen>(initial);
   const [feed, setFeed] = useState<FeedEntry[]>(MOCK_FEED);
+  const [meaningOpen, setMeaningOpen] = useState(false);
+  const meaning = { text: MOCK_MEANING, open: meaningOpen, onToggle: () => setMeaningOpen((o) => !o) };
 
   // __DEV__ is false in production/release JS bundles — this screen is prototype-only
   // and must never be reachable (directly or via deep link) once shipped.
@@ -78,7 +83,18 @@ export default function DevScreen() {
             isGuesser
             category={MOCK.category}
             knowerNames={['Tomi', 'Ade']}
-            guesserName="Kemi"
+            targetWord={null}
+            onDismiss={() => setScreen('guesser')}
+          />
+        )}
+        {screen === 'intro-knower' && (
+          <RoundIntroScreen
+            round={MOCK.round}
+            isGuesser={false}
+            category={MOCK.category}
+            knowerNames={['Tomi']}
+            targetWord={MOCK.targetWord}
+            onDismiss={() => setScreen('knower-active')}
           />
         )}
         {screen === 'knower-active' && (
@@ -86,6 +102,9 @@ export default function DevScreen() {
             round={MOCK.round}
             maxRounds={MOCK.maxRounds}
             targetWord={MOCK.targetWord}
+            meaning={meaning}
+            prompt={{ text: 'Not cliff! Steer them away', tone: 'alert' }}
+            tip={MOCK_TIP}
             category={MOCK.category}
             feed={feed}
             players={MOCK_PLAYERS}
@@ -102,6 +121,9 @@ export default function DevScreen() {
             round={MOCK.round}
             maxRounds={MOCK.maxRounds}
             targetWord={MOCK.targetWord}
+            meaning={meaning}
+            prompt={{ text: 'Too slow! Tomi’s turn', tone: 'alert' }}
+            tip={MOCK_TIP}
             category={MOCK.category}
             feed={feed}
             players={MOCK_PLAYERS}
@@ -121,6 +143,7 @@ export default function DevScreen() {
             activeKnowerName={MOCK.activeKnowerName}
             knowerIsTyping={MOCK.knowerIsTyping}
             roundSeconds={MOCK.roundSeconds}
+            tip={{ text: TIPS['guesser-1'], onDismiss: () => {} }}
             onGuess={async (g) => {
               setFeed((f) => [...f, { kind: 'guess', text: g, by: 'a', correct: false }]);
               return { status: 'wrong' };

@@ -4,30 +4,13 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DescriptionFeed } from '../src/components/DescriptionFeed';
 import { PoweredBy } from '../src/components/PoweredBy';
-import { Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker } from '../src/components/ui';
+import { Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
+import { categoryLabel } from '../src/game/categories';
 import { ROUND_SECONDS, TURN_SECONDS } from '../src/game/config';
-import type { FeedEntry } from '../src/supabase/room';
+import { EXAMPLE_FEED, EXAMPLE_PLAYERS } from '../src/game/demo';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
-
-// The spec's lighthouse example: Tomi (coral) and Ade (green) describe, Kemi guesses.
-const EXAMPLE_PLAYERS = {
-  k: { uid: 'k', name: 'Kemi', avatarColor: '#3B5BFF', role: 'guesser' as const, lastSeenAt: 0 },
-  t: { uid: 't', name: 'Tomi', avatarColor: '#FF5B4A', role: 'knower' as const, lastSeenAt: 0 },
-  a: { uid: 'a', name: 'Ade', avatarColor: '#2E9E6B', role: 'knower' as const, lastSeenAt: 0 },
-};
-const EXAMPLE_FEED: FeedEntry[] = [
-  { kind: 'word', text: 'Tall', by: 't' },
-  { kind: 'word', text: 'thing', by: 'a' },
-  { kind: 'word', text: 'near', by: 't' },
-  { kind: 'word', text: 'rocks', by: 'a' },
-  { kind: 'guess', text: 'cliff', by: 'k', correct: false },
-  { kind: 'word', text: 'no', by: 't' },
-  { kind: 'word', text: 'it', by: 'a' },
-  { kind: 'word', text: 'spins', by: 't' },
-  { kind: 'guess', text: 'lighthouse', by: 'k', correct: true },
-];
 
 export default function HowToPlayScreen() {
   const styles = useStyles(makeStyles);
@@ -52,7 +35,16 @@ export default function HowToPlayScreen() {
         <Section title="How it works">
           <Step number={1} label="Each round:" text="one Guesser, two Knowers. Everyone takes turns." />
           <Step number={2} label="Knowers:" text={`take turns adding one word each. You get ${TURN_SECONDS} seconds per word.`} />
-          <Step number={3} label="Guessers:" text={`guess as often as you like. Get it within ${ROUND_SECONDS} seconds to win the round.`} />
+          <Step number={3} label="Stuck?" text="Tap the secret word to see what it means." />
+          <Step number={4} label="Guessers:" text={`guess as often as you like. Get it within ${ROUND_SECONDS} seconds to win the round.`} />
+          <StickerButton
+            label="Watch the demo"
+            icon="play"
+            variant="yellow"
+            height={52}
+            fontSize={18}
+            onPress={() => router.push({ pathname: '/demo', params: { from: 'how-to-play' } })}
+          />
           <Text style={styles.bodyText}>9 rounds. Everyone guesses 3 times. How many can you win?</Text>
         </Section>
 
@@ -85,7 +77,7 @@ export default function HowToPlayScreen() {
         <Section title="Categories">
           <View style={styles.categories}>
             {['Objects', 'Animals', 'Places', 'Food & Drink', 'Sports'].map((c) => (
-              <Pill key={c} label={c} size={14} />
+              <Pill key={c} label={categoryLabel(c)} size={14} />
             ))}
           </View>
         </Section>

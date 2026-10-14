@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { DescriptionFeed } from '../components/DescriptionFeed';
-import { GameHeader, SecretWordCard, type WordMeaning } from '../components/game';
+import { GameHeader, Prompt, SecretWordCard, TipCard, type WordMeaning } from '../components/game';
 import { TurnClock } from '../components/TurnClock';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { Avatar, Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from '../components/ui';
@@ -17,6 +17,10 @@ interface KnowerWaitingScreenProps {
   targetWord: string;
   /** What the secret word means: tapping the card shows it. */
   meaning?: WordMeaning;
+  /** What's happening right now: your turn, a wrong guess to steer from, a turn that ran out. */
+  prompt?: { text: string; tone: 'calm' | 'alert' };
+  /** This round's first-game tip, if any. */
+  tip?: { text: string; onDismiss: () => void };
   category: string;
   feed: FeedEntry[];
   players: Record<string, RoomPlayer>;
@@ -37,6 +41,8 @@ export function KnowerWaitingScreen({
   maxRounds,
   targetWord,
   meaning,
+  prompt,
+  tip,
   category,
   feed,
   players,
@@ -65,6 +71,7 @@ export function KnowerWaitingScreen({
         />
 
         <SecretWordCard word={targetWord} category={category} meaning={meaning} compact={short} />
+        {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}
 
         <View style={[styles.feedSection, short && styles.feedSectionShort]}>
           {!short && <Eyebrow>The description</Eyebrow>}
@@ -76,6 +83,7 @@ export function KnowerWaitingScreen({
           />
         </View>
 
+        {prompt && <Prompt text={prompt.text} tone={prompt.tone} />}
         <View accessibilityLiveRegion="polite">
           <Sticker contentStyle={styles.partnerCard}>
             <Avatar name={partnerName} color={partnerColor ?? p.coral} />
