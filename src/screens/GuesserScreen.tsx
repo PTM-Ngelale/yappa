@@ -10,6 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { categoryLabel } from "../game/categories";
 import { DescriptionFeed } from "../components/DescriptionFeed";
 import { GameHeader } from "../components/game";
 import { Pressable } from "../components/Pressable";
@@ -54,6 +55,7 @@ export function GuesserScreen({
   const styles = useStyles(makeStyles);
   const p = useTheme();
   const short = useShortScreen();
+  const label = categoryLabel(category);
   const [guess, setGuess] = useState("");
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
@@ -120,8 +122,12 @@ export function GuesserScreen({
           {/* Category: the only hint the Guesser gets besides the description */}
           <View style={styles.categoryBlock}>
             {!short && <Eyebrow>The category is</Eyebrow>}
-            <Text style={[styles.category, short && styles.categoryCompact]} adjustsFontSizeToFit numberOfLines={1}>
-              {category}
+            <Text
+              style={[styles.category, short && styles.categoryCompact, label.length > 12 && (short ? styles.categoryLongCompact : styles.categoryLong)]}
+              adjustsFontSizeToFit
+              numberOfLines={1}
+            >
+              {label}
             </Text>
           </View>
 
@@ -197,6 +203,9 @@ const makeStyles = (p: Palette) =>
     categoryBlock: { alignItems: "center", gap: 2 },
     category: { fontFamily: fonts.black, fontSize: 50, lineHeight: 56, letterSpacing: -1.5, color: p.ink },
     categoryCompact: { fontSize: 36, lineHeight: 42 },
+    // "🍲 Food & Drink": the web can't shrink text to fit, so size long labels down.
+    categoryLong: { fontSize: 38, lineHeight: 44 },
+    categoryLongCompact: { fontSize: 28, lineHeight: 34 },
     // Room for a few lines of description and the typing line.
     feedWrap: { flex: 1, minHeight: 190 },
     // Short screens: a fixed height, so the feed scrolls itself to the newest words.

@@ -242,6 +242,11 @@ const guessCounts = Object.values(d.history).reduce((m, h) => ((m[h.guesserUid] 
 check(Object.values(guessCounts).length === 3 && Object.values(guessCounts).every((n) => n === 3), 'each player guessed exactly 3 times');
 const deck = (await db.query(`select words from game_decks where code = 'ABCD'`)).rows[0].words;
 check(deck.length === 9 && new Set(deck.map((w) => w.category)).size >= 3, 'deck: 9 words across at least 3 categories');
+check(deck.map((w) => w.difficulty).join() === 'easy,easy,easy,medium,medium,medium,hard,hard,hard', 'deck: 3 Easy, then 3 Medium, then 3 Hard');
+const tiersByGuesser = Object.values(d.history).reduce((m, h) => ((m[h.guesserUid] = [...(m[h.guesserUid] ?? []), deck[h.round - 1].difficulty]), m), {});
+check(Object.values(tiersByGuesser).every((t) => t.join() === 'easy,medium,hard'), 'each Guesser gets one Easy, one Medium and one Hard word, in that order');
+const secretIds = (await db.query(`select word_id from round_secrets where code = 'ABCD' order by round`)).rows.map((r) => r.word_id);
+check(secretIds.join() === deck.map((w) => w.id).join(), 'each round records which word it plays');
 check(await fails(OUTSIDER, `select end_game('ABCD')`), 'a non-member cannot end a game');
 
 check(await stat('games_created_private') === 1 && await stat('joins_code') === 2, 'stats: the room and both typed-code joins are counted');
@@ -272,6 +277,13 @@ check(await fails(HOST, `select start_game('ABCD')`), 'the old host can no longe
 await as(OUTSIDER, `select join_room('ABCD', $1)`, [player(OUTSIDER)]);
 await as(nextInOrder, `select start_game('ABCD')`);
 check((await room()).status === 'playing', 'the new host can start the next game');
+const rematch = (await db.query(`select words, used_word_ids from game_decks where code = 'ABCD'`)).rows[0];
+check(rematch.words.every((w) => !deck.some((x) => x.id === w.id)), 'Play Again draws words the room has not played');
+check(rematch.used_word_ids.join() === deck.map((w) => w.id).join(), 'the room remembers the words it played');
+const allIds = (await db.query(`select array_agg(id) ids from words`)).rows[0].ids;
+const starved = (await db.query(`select _draw_deck($1) d`, [allIds])).rows[0].d;
+check(starved.length === 9 && starved.map((w) => w.difficulty).join() === 'easy,easy,easy,medium,medium,medium,hard,hard,hard', 'with every word played, the draw falls back to played words');
+check((await db.query(`select count(distinct id)::int n, count(*)::int t from words`)).rows[0].n === allIds.length, 'every word has its own id');
 await as(P2, `select end_game('ABCD')`);
 check((await room()).status === 'gameover', 'any player can end the game (disconnect overlay)');
 

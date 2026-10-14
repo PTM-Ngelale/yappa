@@ -8,6 +8,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "test:db": "node supabase/tests/game-flow.test.mjs",
+    "words:draft": "node scripts/words/draft.mjs",
+    "words:sql": "node scripts/words/to-sql.mjs",
     "sounds": "node scripts/generate-sounds.mjs",
     "eval:judges": "node --experimental-strip-types --no-warnings supabase/tests/judges.eval.mjs"
   },
