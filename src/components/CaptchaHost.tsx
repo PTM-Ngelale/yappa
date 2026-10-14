@@ -163,6 +163,7 @@ export function CaptchaHost() {
           onError={(e) => finish(request.id, new Error(`captcha page failed to load (${e.nativeEvent.description})`))}
           onHttpError={(e) => finish(request.id, new Error(`captcha page failed to load (HTTP ${e.nativeEvent.statusCode})`))}
           style={styles.webview}
+          containerStyle={styles.webviewBox}
           originWhitelist={['https://*']}
           javaScriptEnabled
           scrollEnabled={false}
@@ -195,5 +196,8 @@ const makeStyles = (p: Palette) =>
     card: { padding: 18, gap: 8 },
     title: { fontFamily: fonts.black, fontSize: 24, color: p.ink },
     body: { ...type.body, color: p.ink },
+    // The WebView's own wrapper is flex: 1, which collapses to nothing inside a card sized by
+    // its content; give the wrapper the height so the box has room.
+    webviewBox: { flex: 0, height: 80 },
     webview: { height: 80 },
   });
