@@ -42,7 +42,7 @@ const MOCK_FEED: FeedEntry[] = [
   { kind: 'skip', by: 'c' },
   { kind: 'word', text: 'rocks', by: 'b' },
   { kind: 'guess', text: 'cliff', by: 'a', correct: false },
-  { kind: 'word', text: 'no', by: 'c' },
+  { kind: 'word', text: 'beam', by: 'c' },
   { kind: 'word', text: 'it', by: 'b' },
   { kind: 'word', text: 'spins', by: 'c' },
 ];
@@ -50,7 +50,7 @@ const MOCK_FEED: FeedEntry[] = [
 const MOCK_HISTORY: RoundHistoryEntry[] = [
   { round: 1, category: 'Objects', targetWord: 'Backpack', chain: ['bag', 'on', 'your', 'back'], wordCount: 4, durationMs: 14000, guesserUid: 'b', outcome: 'won', guess: 'backpack' },
   { round: 2, category: 'Animals', targetWord: 'Penguin', chain: ['cold', 'bird', 'tuxedo'], wordCount: 3, durationMs: 60000, guesserUid: 'c', outcome: 'lost-timeout', guess: null },
-  { round: 3, category: 'Places', targetWord: 'Lighthouse', chain: ['tall', 'thing', 'near', 'rocks', 'no', 'it', 'spins'], wordCount: 7, durationMs: 33000, guesserUid: 'a', outcome: 'won', guess: 'lighthouse' },
+  { round: 3, category: 'Places', targetWord: 'Lighthouse', chain: ['tall', 'thing', 'near', 'rocks', 'beam', 'warns', 'ships'], wordCount: 7, durationMs: 33000, guesserUid: 'a', outcome: 'won', guess: 'lighthouse' },
 ];
 const MOCK_PLAYERS = {
   a: { uid: 'a', name: 'Kemi', avatarColor: '#3B5BFF', role: 'knower' as const, lastSeenAt: 0 },

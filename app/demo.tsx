@@ -19,10 +19,10 @@ const STEPS: Array<{ at: number; shown: number; caption: string }> = [
   { at: 5000, shown: 2, caption: `Each turn lasts ${TURN_SECONDS} seconds. Too slow and the turn passes.` },
   { at: 7400, shown: 3, caption: 'No sentences needed. Any word that helps Kemi counts.' },
   { at: 9800, shown: 4, caption: 'Kemi can guess at any time, as often as needed.' },
-  { at: 12200, shown: 5, caption: 'Not cliff! Every guess shows up, so the Knowers can steer.' },
-  { at: 14600, shown: 6, caption: '“No” counts as a word. Tomi steers Kemi away.' },
-  { at: 17000, shown: 7, caption: 'Ade carries on from there.' },
-  { at: 19400, shown: 8, caption: '“It spins.” Kemi is getting close.' },
+  { at: 12200, shown: 5, caption: 'Not cliff! Wrong guesses are marked for everyone.' },
+  { at: 14600, shown: 6, caption: 'No need to say “no”. Tomi just adds another clue.' },
+  { at: 17000, shown: 7, caption: 'Ade adds another.' },
+  { at: 19400, shown: 8, caption: 'A light that warns ships… Kemi is getting close.' },
   { at: 21800, shown: 9, caption: `Lighthouse! Guessed inside ${ROUND_SECONDS} seconds. Round won.` },
 ];
 const DONE_AT = 21800;

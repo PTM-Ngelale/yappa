@@ -18,8 +18,8 @@ export const EXAMPLE_FEED: FeedEntry[] = [
   { kind: 'word', text: 'near', by: 't' },
   { kind: 'word', text: 'rocks', by: 'a' },
   { kind: 'guess', text: 'cliff', by: 'k', correct: false },
-  { kind: 'word', text: 'no', by: 't' },
-  { kind: 'word', text: 'it', by: 'a' },
-  { kind: 'word', text: 'spins', by: 't' },
+  { kind: 'word', text: 'beam', by: 't' },
+  { kind: 'word', text: 'warns', by: 'a' },
+  { kind: 'word', text: 'ships', by: 't' },
   { kind: 'guess', text: 'lighthouse', by: 'k', correct: true },
 ];

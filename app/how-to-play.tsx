@@ -54,8 +54,8 @@ export default function HowToPlayScreen() {
           </Text>
           <DescriptionFeed entries={EXAMPLE_FEED} players={EXAMPLE_PLAYERS} variant="recap" />
           <Text style={styles.caption}>
-            Tomi and Ade take turns adding a clue. Kemi guesses “cliff”, they steer with “no”, and
-            Kemi gets it!
+            Tomi and Ade take turns adding a clue. Kemi guesses “cliff”, which is marked wrong, so
+            they keep the clues coming until Kemi gets it!
           </Text>
         </Section>
 

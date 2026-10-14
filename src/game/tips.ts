@@ -6,7 +6,7 @@ export type TipId = 'knower-1' | 'guesser-1' | 'knower-2';
 export const TIPS: Record<TipId, string> = {
   'knower-1': 'No need for sentences. Throw in any word that points to the secret word.',
   'guesser-1': 'Wrong guesses are fine. They help your Knowers steer.',
-  'knower-2': 'Stuck? React to the guess. “no”, “bigger”, “close” all count.',
+  'knower-2': 'Stuck? Use the wrong guesses. “bigger” or “close” can steer them.',
 };
 
 /** This round's tip for a player in `role`, given the tips already shown; null for none. */
