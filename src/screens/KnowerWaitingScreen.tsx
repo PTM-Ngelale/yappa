@@ -17,6 +17,8 @@ interface KnowerWaitingScreenProps {
   targetWord: string;
   /** What the secret word means: tapping the card shows it. */
   meaning?: WordMeaning;
+  /** Words the Knowers can't use this round (empty in games without them). */
+  offLimits?: string[];
   /** What's happening right now: your turn, a wrong guess to steer from, a turn that ran out. */
   prompt?: { text: string; tone: 'calm' | 'alert' };
   /** This round's first-game tip, if any. */
@@ -45,6 +47,7 @@ export function KnowerWaitingScreen({
   maxRounds,
   targetWord,
   meaning,
+  offLimits,
   prompt,
   tip,
   category,
@@ -76,7 +79,7 @@ export function KnowerWaitingScreen({
           compact={short}
         />
 
-        <SecretWordCard word={targetWord} category={category} meaning={meaning} compact={short} />
+        <SecretWordCard word={targetWord} category={category} meaning={meaning} offLimits={offLimits} compact={short} />
         {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}
 
         <View style={[styles.feedSection, short && styles.feedSectionShort]}>

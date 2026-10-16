@@ -78,7 +78,7 @@ await db.query(`insert into rooms (code, data) values ('OLD1', $1)`, [{ hostUid:
 await applyMigrations((f) => f >= '004');
 const legacy = await room('OLD1');
 check(!('targetWord' in legacy) && !('gameWords' in legacy), 'legacy room data loses its answers');
-check((await db.query('select count(*)::int n from words')).rows[0].n === 251, '251 words seeded');
+check((await db.query('select count(*)::int n from words')).rows[0].n === 318, '318 words after the 8-category deck');
 
 // --- Lobby -------------------------------------------------------------------------
 check(await fails(HOST, `insert into rooms (code, data) values ('ZZZZ', $1)`, [{ hostUid: HOST, players: { [HOST]: {} } }]), 'direct INSERT into rooms is rejected');
@@ -297,8 +297,12 @@ const starved = (await db.query(`select _draw_deck($1) d`, [allIds])).rows[0].d;
 check(starved.length === 9 && starved.map((w) => w.difficulty).join() === 'easy,easy,easy,medium,medium,medium,hard,hard,hard', 'with every word played, the draw falls back to played words');
 check((await db.query(`select count(distinct id)::int n, count(*)::int t from words`)).rows[0].n === allIds.length, 'every word has its own id');
 const wordList = (await db.query(`select id from words`)).rows.map((r) => r.id);
-check(wordList.length === 251 && wordList.includes('toothbrush') && !wordList.includes('sextant'), 'the reviewed word list swaps obscure words for familiar ones');
-check((await db.query(`select 1 from information_schema.columns where table_name = 'words' and column_name = 'forbidden'`)).rows.length === 0, 'words carry no forbidden lists');
+check(wordList.includes('toothbrush') && !wordList.includes('sextant') && !wordList.includes('trampolining'), 'the reviewed word list swaps obscure words for familiar ones');
+const cards = (await db.query(`select category, difficulty, forbidden from words`)).rows;
+check(new Set(cards.map((w) => w.category)).size === 8, 'words are filed in 8 categories');
+check(cards.every((w) => w.forbidden.length === { easy: 3, medium: 4, hard: 5 }[w.difficulty]), 'off-limits lists: 3 Easy, 4 Medium, 5 Hard');
+const hardBy = cards.filter((w) => w.difficulty === 'hard').reduce((m, w) => ((m[w.category] = (m[w.category] ?? 0) + 1), m), {});
+check(Object.values(hardBy).length === 8 && Object.values(hardBy).every((n) => n >= 8), 'every category has at least 8 Hard words');
 const meanings = (await db.query(`select word, meaning from words`)).rows;
 check(meanings.every((w) => w.meaning.length > 0 && w.meaning.length <= 120 && !w.meaning.toLowerCase().includes(w.word.toLowerCase())),
   'every word has a short meaning that does not use the word itself');
@@ -492,7 +496,7 @@ for (let round = 1; round <= 10; round++) {
   check(Object.values(d.players).filter((pl) => pl.role === 'knower').length === 4, `five players, round ${round}: everyone but the Guesser is a Knower`);
   if (round === 1) {
     const seen = [d.activeKnowerUid];
-    for (const [i, w] of ['tall', 'bright', 'coast', 'ships', 'beam'].entries()) {
+    for (const [i, w] of ['tall', 'bright', 'shore', 'ships', 'beam'].entries()) {
       await as((await room('FIVE')).activeKnowerUid, `select submit_word('FIVE', 1, $1, $2)`, [i, w]);
       seen.push((await room('FIVE')).activeKnowerUid);
     }
@@ -543,7 +547,7 @@ d = await room('PAIR');
 check(d.status === 'playing' && d.mode === 'duo' && d.clueBudget === 8 && d.maxRounds === 6, 'two players play duo: 6 rounds, 8 clues a round');
 check(tiers((await db.query(`select words from game_decks where code = 'PAIR'`)).rows[0].words) === 'eemmhh', 'the duo deck is 2 Easy, 2 Medium, 2 Hard');
 const ageDuo = (secs) => db.query(`update turn_clocks set started_at = started_at - make_interval(secs => $1), round_started_at = round_started_at - make_interval(secs => $1) where code = 'PAIR'`, [secs]);
-const duoClues = ['tall', 'white', 'tower', 'coast', 'light', 'beam', 'ships', 'rocks'];
+const duoClues = ['tall', 'white', 'tower', 'shore', 'glow', 'beam', 'ships', 'rocks'];
 const duoGuessers = {};
 for (let round = 1; round <= 6; round++) {
   d = await room('PAIR');
@@ -603,7 +607,7 @@ await as(FIFTH, `select leave_room('CLOK', $1)`, [FIFTH]);
 await as(HOST, `select start_game('CLOK', true)`);
 d = await room('CLOK');
 check((await clocks()) === '15000/75000', 'four players: 15 second turns, a 75 second round');
-await as(d.activeKnowerUid, `select submit_word('CLOK', 1, 0, 'tall')`);
+await as(d.activeKnowerUid, `select submit_word('CLOK', 1, 0, 'zorp')`);
 await ageClock(['started_at', 'round_started_at'], 12);
 check((await as(d.guesserUid, `select skip_turn('CLOK', 1, 1) ok`)).rows[0].ok === false, 'a turn is not over at 12 seconds');
 await ageClock(['started_at', 'round_started_at'], 3.5);
@@ -625,6 +629,56 @@ await as(HOST, `select start_game('CLOK', true)`);
 check((await room('CLOK')).mode === 'duo' && (await clocks()) === '15000/60000', 'duo keeps its 60 second round');
 await as(HOST, `select end_game('CLOK')`);
 for (const u of [P2, HOST]) await as(u, `select leave_room('CLOK', $1)`, [u]);
+
+// --- Categories and off-limits words (migrations 023 and 024) ------------------------------
+let spread = true;
+for (let i = 0; i < 20; i++) {
+  for (const n of [9, 10]) {
+    const cats = (await db.query(`select _draw_deck(null, $1) d`, [n])).rows[0].d.map((w) => w.category);
+    const most = Math.max(...Object.values(cats.reduce((m, c) => ((m[c] = (m[c] ?? 0) + 1), m), {})));
+    if (cats.length !== n || cats.some((c, j) => j > 0 && c === cats[j - 1]) || new Set(cats).size !== 8 || most > 2) spread = false;
+  }
+}
+check(spread, 'decks of 9 and 10 play all 8 categories, never the same one twice in a row');
+
+const fails2 = async (uid, sql, params) => {
+  try { await as(uid, sql, params); return ''; } catch (e) { return e.message; }
+};
+await as(HOST, `select create_room('OFFL', $1)`, [player(HOST)]);
+for (const u of [P2, P3]) await as(u, `select join_room('OFFL', $1)`, [player(u)]);
+await as(HOST, `select start_game('OFFL', true)`);
+d = await room('OFFL');
+check(d.offLimits === true, 'a game started by a newer app has off-limits words');
+const offCard = (await db.query(`select w.difficulty, s.forbidden from round_secrets s join words w on w.id = s.word_id where s.code = 'OFFL' and s.round = 1`)).rows[0];
+check(offCard.forbidden.length === 3, 'round 1 (Easy) has 3 off-limits words');
+const knowerSees = (await as(d.activeKnowerUid, `select forbidden from round_secrets where code = 'OFFL' and round = 1`)).rows[0]?.forbidden;
+check(knowerSees?.join() === offCard.forbidden.join(), 'Knowers can read the off-limits words');
+check((await as(d.guesserUid, `select forbidden from round_secrets where code = 'OFFL' and round = 1`)).rows.length === 0, 'the Guesser cannot');
+const off = offCard.forbidden[0];
+check((await fails2(d.activeKnowerUid, `select submit_word('OFFL', 1, 0, $1)`, [off])).includes('word not allowed: off limits'), 'an off-limits word is turned down');
+check((await fails2(d.activeKnowerUid, `select submit_word('OFFL', 1, 0, $1)`, [`${off}s`])).includes('off limits'), '…and so is a simple form of it');
+// Round 1's word, swapped for one with parts and a variant spelling.
+await db.query(`update round_secrets set target_word = 'Bicycle', word_id = 'bicycle' where code = 'OFFL' and round = 1`);
+check((await fails2(d.activeKnowerUid, `select submit_word('OFFL', 1, 0, 'bikes')`)).includes('that is the target word'), "the word's own spellings count as the word (bikes for Bicycle)");
+await db.query(`update round_secrets set target_word = 'Lighthouse', word_id = 'lighthouse' where code = 'OFFL' and round = 1`);
+check((await fails2(d.activeKnowerUid, `select submit_word('OFFL', 1, 0, 'house')`)).includes('that is the target word'), "…and so do its parts (house for Lighthouse)");
+await db.query(`update round_secrets set target_word = 'Bowling', word_id = 'bowling' where code = 'OFFL' and round = 1`);
+check((await fails2(d.activeKnowerUid, `select submit_word('OFFL', 1, 0, 'bowl')`)).includes('that is the target word'), '…and simple forms match both ways (bowl for Bowling)');
+check((await fails2(d.activeKnowerUid, `select submit_word('OFFL', 1, 0, 'zorp')`)) === '', 'an ordinary clue still goes in');
+await as(null, `select begin_guess('OFFL', 1, $1)`, [d.guesserUid]);
+await as(null, `select record_guess('OFFL', 1, 'Bowling', true)`);
+d = await room('OFFL');
+check(d.history['1'].forbidden.join() === offCard.forbidden.join(), "the round's history keeps its off-limits words for the result screen");
+await as(HOST, `select end_game('OFFL')`);
+await as(HOST, `select reset_room_to_lobby('OFFL')`);
+await as(HOST, `select start_game('OFFL')`);
+d = await room('OFFL');
+const oldOff = (await db.query(`select forbidden from round_secrets where code = 'OFFL' and round = 1`)).rows[0].forbidden;
+check(!('offLimits' in d) && oldOff.length === 0, 'a game started by an older app has no off-limits words');
+const realOff = (await db.query(`select w.forbidden from round_secrets s join words w on w.id = s.word_id where s.code = 'OFFL' and s.round = 1`)).rows[0].forbidden;
+check((await fails2(d.activeKnowerUid, `select submit_word('OFFL', 1, 0, $1)`, [realOff[0]])) === '', '…so its Knowers can use them');
+await as(HOST, `select end_game('OFFL')`);
+for (const u of [P2, P3, HOST]) await as(u, `select leave_room('OFFL', $1)`, [u]);
 
 // --- Data retention (migration 008) -------------------------------------------------------
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');

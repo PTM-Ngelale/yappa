@@ -68,11 +68,14 @@ export function SecretWordCard({
   category,
   hint,
   meaning,
+  offLimits = [],
   compact = false,
 }: {
   word: string;
   category: string;
   hint?: string;
+  /** Words the Knowers can't use, shown under the word. */
+  offLimits?: readonly string[];
   /** Tapping the card shows or hides it. Without a meaning the card isn't tappable. */
   meaning?: WordMeaning;
   /** Short screens: smaller word, no hint. */
@@ -93,6 +96,7 @@ export function SecretWordCard({
       <Text style={[styles.secretWord, compact && styles.secretWordCompact]} adjustsFontSizeToFit numberOfLines={1}>
         {word}
       </Text>
+      {offLimits.length > 0 && <OffLimits words={offLimits} onHero compact={compact} />}
       {open && <Text style={styles.meaning}>{meaning.text}</Text>}
       {hint && !compact && !open && <Text style={styles.secretHint}>{hint}</Text>}
       {hasMeaning && (
@@ -115,6 +119,37 @@ export function SecretWordCard({
     >
       {card}
     </Pressable>
+  );
+}
+
+/** The words the Knowers can't use, as struck-through chips. `onHero`: on the dark word card. */
+export function OffLimits({
+  words,
+  onHero = false,
+  compact = false,
+}: {
+  words: readonly string[];
+  onHero?: boolean;
+  compact?: boolean;
+}) {
+  const styles = useStyles(makeStyles);
+  const p = useTheme();
+  const ink = onHero ? p.onHero : p.ink;
+  return (
+    <View
+      style={styles.offLimits}
+      accessible
+      accessibilityLabel={`Off-limits: ${words.join(', ')}`}
+    >
+      <Text style={[styles.offLimitsLabel, { color: onHero ? p.heroAccent : p.muted }]}>Off-limits</Text>
+      <View style={styles.offLimitsChips}>
+        {words.map((w) => (
+          <View key={w} style={[styles.offLimitsChip, compact && styles.offLimitsChipCompact, { borderColor: onHero ? p.heroAccent : p.line }]}>
+            <Text style={[styles.offLimitsText, compact && styles.offLimitsTextCompact, { color: ink }]}>{w}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
   );
 }
 
@@ -190,4 +225,11 @@ const makeStyles = (p: Palette) =>
     meaning: { ...type.bodyBold, color: p.onHero },
     meaningCue: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 },
     meaningCueText: { fontFamily: fonts.bold, fontSize: 13 },
+    offLimits: { gap: 5, marginTop: 4 },
+    offLimitsLabel: { fontFamily: fonts.bold, fontSize: 12, letterSpacing: 0.6, textTransform: 'uppercase' },
+    offLimitsChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+    offLimitsChip: { borderWidth: 1.5, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
+    offLimitsChipCompact: { paddingHorizontal: 7, paddingVertical: 1 },
+    offLimitsText: { fontFamily: fonts.bold, fontSize: 14, textDecorationLine: 'line-through' },
+    offLimitsTextCompact: { fontSize: 13 },
   });

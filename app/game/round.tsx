@@ -11,6 +11,7 @@ import {
   submitGuess,
   submitWord,
   wordRejection,
+  type SecretWord,
   type WordRejection,
 } from '../../src/supabase/round';
 import {
@@ -55,7 +56,8 @@ const WORD_REJECTED: Record<WordRejection, string> = {
   'not-your-turn': 'Too slow! The turn passed.',
   'turn-over': 'Too slow! The turn passed.',
   paused: 'The game is paused. Hang on.',
-  target: 'That’s the secret word. Try a different one.',
+  target: 'Too close to the secret word. Try another one.',
+  'off-limits': 'That one’s off-limits. Try another word.',
   repeat: 'That was the last word. Try another one.',
   shape: 'One word only, please. Try another.',
   blocked: 'That word isn’t allowed. Try another one.',
@@ -309,7 +311,7 @@ export default function RoundScreen() {
 
   // Knowers fetch this round's word from round_secrets. The Guesser never asks — and RLS
   // would return nothing if they did — so the answer never reaches their device.
-  const [target, setTarget] = useState<{ round: number; word: string; meaning: string } | null>(null);
+  const [target, setTarget] = useState<({ round: number } & SecretWord) | null>(null);
   // The round whose meaning this Knower has open: it stays open as the turn passes back and forth.
   const [meaningOpenRound, setMeaningOpenRound] = useState<number | null>(null);
 
@@ -408,6 +410,7 @@ export default function RoundScreen() {
         maxRounds={roomData.maxRounds}
         outcome={lastEntry.outcome}
         targetWord={lastEntry.targetWord}
+        offLimits={lastEntry.forbidden}
         guess={lastEntry.guess ?? null}
         guesserName={roomData.players[lastEntry.guesserUid]?.name ?? 'The Guesser'}
         isMyGuess={lastEntry.guesserUid === uid}
@@ -494,6 +497,7 @@ export default function RoundScreen() {
         roundLength={clocks.roundSeconds}
         clueBudget={roomData.mode === 'duo' ? roomData.clueBudget ?? DUO_CLUES : undefined}
         targetWord={target?.round === roomData.round ? target.word : null}
+        offLimits={target?.round === roomData.round ? target.forbidden : undefined}
         onDismiss={() => setIntroRound(null)}
       />
     );
@@ -523,6 +527,7 @@ export default function RoundScreen() {
     );
   }
   const targetWord = target?.word ?? '';
+  const offLimits = target?.forbidden ?? [];
   const meaning = {
     text: target?.meaning ?? '',
     open: meaningOpenRound === roomData.round,
@@ -553,6 +558,7 @@ export default function RoundScreen() {
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         meaning={meaning}
+        offLimits={offLimits}
         prompt={knowerPrompt(true)}
         tip={roundTip}
         category={roomData.category}
@@ -609,6 +615,7 @@ export default function RoundScreen() {
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         meaning={meaning}
+        offLimits={offLimits}
         prompt={pending ? undefined : knowerPrompt(false)}
         tip={roundTip}
         category={roomData.category}

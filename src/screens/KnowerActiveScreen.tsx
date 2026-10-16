@@ -16,6 +16,7 @@ import { ClueBudget } from '../components/ClueBudget';
 import { TurnClock } from '../components/TurnClock';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, useShortScreen } from '../components/ui';
 import { MAX_WORD_LENGTH, ONE_WORD, ROUND_SECONDS } from '../game/config';
+import { offLimitsMatch, sameWord } from '../game/words';
 import { useShakeAnimation } from '../hooks/useShakeAnimation';
 import type { FeedEntry } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
@@ -27,6 +28,8 @@ interface KnowerActiveScreenProps {
   targetWord: string;
   /** What the secret word means: tapping the card shows it. */
   meaning?: WordMeaning;
+  /** Words the Knowers can't use this round (empty in games without them). */
+  offLimits?: string[];
   /** What's happening right now: your turn, a wrong guess to steer from, a turn that ran out. */
   prompt?: { text: string; tone: 'calm' | 'alert' };
   /** This round's first-game tip, if any. */
@@ -52,32 +55,12 @@ interface KnowerActiveScreenProps {
   onTypingChange?: (isTyping: boolean) => void;
 }
 
-/** True if the candidate is the target or an obvious variant of it. Mirrors _is_target_variant(). */
-function matchesTarget(candidate: string, target: string): boolean {
-  const norm = (s: string) => s.toLowerCase().trim();
-  const c = norm(candidate);
-  const t = norm(target);
-  if (c === t) return true;
-  const variants = [
-    t + 's',
-    t + 'es',
-    t + 'ing',
-    t + 'ed',
-    t + 'er',
-    t + 'ers',
-    t.replace(/e$/, 'ing'), // dance → dancing
-    t.replace(/e$/, 'ed'), // dance → danced
-    t.replace(/y$/, 'ies'), // berry → berries
-    t.replace(/y$/, 'ied'), // carry → carried
-  ];
-  return variants.includes(c);
-}
-
 export function KnowerActiveScreen({
   round,
   maxRounds,
   targetWord,
   meaning,
+  offLimits,
   prompt,
   tip,
   category,
@@ -124,8 +107,13 @@ export function KnowerActiveScreen({
       refuse(`One word only: letters, with ' or - inside. Up to ${MAX_WORD_LENGTH} letters.`);
       return;
     }
-    if (matchesTarget(trimmed, targetWord)) {
-      refuse('That’s the secret word. Try a different one.');
+    if (sameWord(trimmed, targetWord)) {
+      refuse('Too close to the secret word. Try another one.');
+      return;
+    }
+    const offLimit = offLimitsMatch(trimmed, offLimits ?? []);
+    if (offLimit) {
+      refuse(`“${offLimit}” is off-limits. Try another word.`);
       return;
     }
     if (lastWord && lastWord.text.toLowerCase() === trimmed.toLowerCase()) {
@@ -178,6 +166,7 @@ export function KnowerActiveScreen({
             hint="Give clues. Don’t say it."
             // Keep the keyboard up: on the web a tap elsewhere takes the focus from the input.
             meaning={meaning && { ...meaning, onToggle: () => { meaning.onToggle(); inputRef.current?.focus(); } }}
+            offLimits={offLimits}
             compact={short}
           />
           {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}

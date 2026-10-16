@@ -3,11 +3,12 @@ import { router } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DescriptionFeed } from '../src/components/DescriptionFeed';
+import { OffLimits } from '../src/components/game';
 import { PoweredBy } from '../src/components/PoweredBy';
 import { Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
-import { categoryLabel } from '../src/game/categories';
+import { CATEGORIES, categoryLabel } from '../src/game/categories';
 import { DUO_CLUES, roundSecondsFor, TURN_SECONDS } from '../src/game/config';
-import { EXAMPLE_FEED, EXAMPLE_PLAYERS } from '../src/game/demo';
+import { EXAMPLE_FEED, EXAMPLE_OFF_LIMITS, EXAMPLE_PLAYERS } from '../src/game/demo';
 import { roundsFor } from '../src/game/players';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
 
@@ -36,8 +37,9 @@ export default function HowToPlayScreen() {
         <Section title="How it works">
           <Step number={1} label="Each round:" text="one Guesser, everyone else is a Knower. Everyone takes a turn guessing." />
           <Step number={2} label="Knowers:" text={`take turns adding one word each, any word that helps. No need for sentences. You get ${TURN_SECONDS} seconds per word.`} />
-          <Step number={3} label="Stuck?" text="Tap the secret word to see what it means." />
-          <Step number={4} label="Guessers:" text={`guess as often as you like. Get it before the round clock runs out: ${roundSecondsFor(3)} seconds with 3 players, ${roundSecondsFor(4)} with 4, ${roundSecondsFor(5)} with 5.`} />
+          <Step number={3} label="Off-limits:" text="each secret word comes with 3 to 5 words the Knowers can’t say, and harder words have more. The word’s own parts are out too (no “house” for Lighthouse)." />
+          <Step number={4} label="Stuck?" text="Tap the secret word to see what it means." />
+          <Step number={5} label="Guessers:" text={`guess as often as you like. Get it before the round clock runs out: ${roundSecondsFor(3)} seconds with 3 players, ${roundSecondsFor(4)} with 4, ${roundSecondsFor(5)} with 5.`} />
           <StickerButton
             label="Watch the demo"
             icon="play"
@@ -60,10 +62,11 @@ export default function HowToPlayScreen() {
           <Text style={styles.bodyText}>
             Secret word: <Text style={styles.strong}>Lighthouse</Text>
           </Text>
+          <OffLimits words={EXAMPLE_OFF_LIMITS} />
           <DescriptionFeed entries={EXAMPLE_FEED} players={EXAMPLE_PLAYERS} variant="recap" />
           <Text style={styles.caption}>
-            Tomi and Ade take turns adding a clue. Kemi guesses “cliff”, which is marked wrong, so
-            they keep the clues coming until Kemi gets it!
+            Tomi and Ade take turns adding a clue, steering clear of “beacon”, “coast” and “ships”.
+            Kemi guesses “cliff”, which is marked wrong, so they keep the clues coming until Kemi gets it!
           </Text>
         </Section>
 
@@ -72,7 +75,7 @@ export default function HowToPlayScreen() {
             icon="eye"
             colour={p.blue}
             title="Knowers (everyone else)"
-            body="See the secret word. Take turns adding one-word clues. They don’t have to make a sentence. You can’t say the word itself."
+            body="See the secret word. Take turns adding one-word clues. They don’t have to make a sentence. You can’t say the word itself or its off-limits words."
           />
           <RoleRow
             icon="search"
@@ -84,7 +87,7 @@ export default function HowToPlayScreen() {
 
         <Section title="Categories">
           <View style={styles.categories}>
-            {['Objects', 'Animals', 'Places', 'Food & Drink', 'Sports'].map((c) => (
+            {CATEGORIES.map((c) => (
               <Pill key={c} label={categoryLabel(c)} size={14} />
             ))}
           </View>

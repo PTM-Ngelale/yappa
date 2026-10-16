@@ -29,6 +29,8 @@ export interface RoundHistoryEntry {
   outcome: RoundOutcome;
   /** The winning guess, or null when time ran out. */
   guess?: string | null;
+  /** The word's off-limits words (migration 024); empty in games without them. */
+  forbidden?: string[];
 }
 
 export interface RoomData {
@@ -59,6 +61,8 @@ export interface RoomData {
   /** The game's turn and round clocks, set when it starts (migration 022); see roomClocks(). */
   turnMs?: number;
   roundMs?: number;
+  /** The game has off-limits words (migration 024): Knowers see them and can't use them. */
+  offLimits?: boolean;
   createdAt: number;
 }
 

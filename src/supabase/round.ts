@@ -5,16 +5,19 @@ import { supabase } from './client';
 
 /**
  * Host call, once, when leaving the lobby: the server shuffles play order, draws a word per
- * round and sets the clocks for the player count (p_timed; older apps leave it out and get
+ * round and sets the clocks for the player count (p_new_rules; older apps leave it out and get
  * the old 10 and 60 seconds, see migration 022).
  */
 export async function startGame(code: string): Promise<void> {
-  const { error } = await supabase.rpc('start_game', { p_code: code, p_timed: true });
+  const { error } = await supabase.rpc('start_game', { p_code: code, p_new_rules: true });
   if (error) throw error;
 }
 
-/** The round's secret word and what it means (migration 016); the meaning may be empty. */
-export type SecretWord = { word: string; meaning: string };
+/**
+ * The round's secret word, what it means (migration 016; may be empty) and the words the
+ * Knowers can't use (migration 024; empty in games without them).
+ */
+export type SecretWord = { word: string; meaning: string; forbidden: string[] };
 
 /**
  * The current round's target word, or null if the caller is this round's Guesser (RLS
@@ -23,17 +26,30 @@ export type SecretWord = { word: string; meaning: string };
 export async function fetchTargetWord(code: string, round: number): Promise<SecretWord | null> {
   const { data, error } = await supabase
     .from('round_secrets')
-    .select('target_word, meaning')
+    .select('target_word, meaning, forbidden')
     .eq('code', code)
     .eq('round', round)
     .maybeSingle();
   if (error) throw error;
   if (!data?.target_word) return null;
-  return { word: data.target_word as string, meaning: (data.meaning as string | null) ?? '' };
+  return {
+    word: data.target_word as string,
+    meaning: (data.meaning as string | null) ?? '',
+    forbidden: (data.forbidden as string[] | null) ?? [],
+  };
 }
 
 /** Why the server turned a word down, in words a player can act on. */
-export type WordRejection = 'not-your-turn' | 'turn-over' | 'paused' | 'target' | 'repeat' | 'shape' | 'blocked' | 'out-of-clues';
+export type WordRejection =
+  | 'not-your-turn'
+  | 'turn-over'
+  | 'paused'
+  | 'target'
+  | 'off-limits'
+  | 'repeat'
+  | 'shape'
+  | 'blocked'
+  | 'out-of-clues';
 
 /** Maps submit_word()'s error to a WordRejection, or null if it wasn't a rule (a network error). */
 export function wordRejection(error: unknown): WordRejection | null {
@@ -44,6 +60,7 @@ export function wordRejection(error: unknown): WordRejection | null {
   if (message.includes('that is the target word')) return 'target';
   if (message.includes('same as the last word')) return 'repeat';
   if (message.includes('one word')) return 'shape';
+  if (message.includes('off limits')) return 'off-limits';
   if (message.includes('word not allowed')) return 'blocked';
   if (message.includes('out of clues')) return 'out-of-clues';
   return null;

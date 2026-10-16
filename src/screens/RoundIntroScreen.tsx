@@ -3,6 +3,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { categoryLabel } from '../game/categories';
 import { ROUND_SECONDS } from '../game/config';
 import { listNames } from '../game/players';
+import { OffLimits } from '../components/game';
 import { Pressable } from '../components/Pressable';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from '../components/ui';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
@@ -20,6 +21,8 @@ interface RoundIntroScreenProps {
   clueBudget?: number;
   /** How long the round lasts, from the room. */
   roundLength?: number;
+  /** Words the Knowers can't use (a Knower's card only; empty in games without them). */
+  offLimits?: string[];
   /** The secret word, for a Knower; null while it loads (and always for the Guesser). */
   targetWord: string | null;
   /** Tapping the card puts it away early. */
@@ -34,6 +37,7 @@ export function RoundIntroScreen({
   knowerNames,
   clueBudget,
   roundLength = ROUND_SECONDS,
+  offLimits = [],
   targetWord,
   onDismiss,
 }: RoundIntroScreenProps) {
@@ -93,6 +97,7 @@ export function RoundIntroScreen({
                 <Text style={styles.category} adjustsFontSizeToFit numberOfLines={1}>
                   {targetWord ?? '…'}
                 </Text>
+                {offLimits.length > 0 && <OffLimits words={offLimits} onHero />}
                 <Text style={styles.blurb}>
                   {clueBudget
                     ? `Give one-word clues. You get ${clueBudget}, so make them count.`

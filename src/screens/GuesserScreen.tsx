@@ -137,7 +137,12 @@ export function GuesserScreen({
           <View style={styles.categoryBlock}>
             {!short && <Eyebrow>The category is</Eyebrow>}
             <Text
-              style={[styles.category, short && styles.categoryCompact, label.length > 12 && (short ? styles.categoryLongCompact : styles.categoryLong)]}
+              style={[
+                styles.category,
+                short && styles.categoryCompact,
+                label.length > 12 && (short ? styles.categoryLongCompact : styles.categoryLong),
+                label.length > 16 && (short ? styles.categoryLongerCompact : styles.categoryLonger),
+              ]}
               adjustsFontSizeToFit
               numberOfLines={1}
             >
@@ -224,6 +229,9 @@ const makeStyles = (p: Palette) =>
     // "🍲 Food & Drink": the web can't shrink text to fit, so size long labels down.
     categoryLong: { fontSize: 38, lineHeight: 44 },
     categoryLongCompact: { fontSize: 28, lineHeight: 34 },
+    // "🏠 Around the House", "🔧 Tools & Gadgets".
+    categoryLonger: { fontSize: 30, lineHeight: 36, letterSpacing: -1 },
+    categoryLongerCompact: { fontSize: 24, lineHeight: 30, letterSpacing: -0.5 },
     // Room for a few lines of description and the typing line.
     feedWrap: { flex: 1, minHeight: 190 },
     // Short screens: a fixed height, so the feed scrolls itself to the newest words.

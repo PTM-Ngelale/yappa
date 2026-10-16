@@ -10,7 +10,9 @@
 -- Older apps count 10 and 60 seconds on the device and only ask the server to end a turn
 -- or round for a few seconds after that, so a game they host must keep those clocks or it
 -- would never move on. They call start_game(code), which still starts a game without
--- recorded clocks (the old 10 and 60 seconds). Newer apps call start_game(code, true).
+-- recorded clocks (the old 10 and 60 seconds). Newer apps call start_game(code, true): the
+-- newer rules, which are these clocks and (migration 024) off-limits words, recorded as
+-- data.offLimits.
 
 -- ---------------------------------------------------------------------------
 -- Settings
@@ -87,9 +89,10 @@ $$;
 -- Starting a game
 -- ---------------------------------------------------------------------------
 
--- Migration 021's start_game, plus the clocks: recorded when p_timed, cleared otherwise
+-- Migration 021's start_game, plus the newer rules (the clocks and data.offLimits): recorded
+-- when p_new_rules, cleared otherwise
 -- (Play Again in a room whose last game recorded them, started from an older app).
-create or replace function _start_game(p_code text, p_timed boolean)
+create or replace function _start_game(p_code text, p_new_rules boolean)
 returns void
 language plpgsql
 security definer
@@ -137,13 +140,16 @@ begin
   delete from round_secrets where code = p_code;
 
   update rooms
-  set data = (room_data - 'turnMs' - 'roundMs') || jsonb_build_object(
+  set data = (room_data - 'turnMs' - 'roundMs' - 'offLimits') || jsonb_build_object(
     'playerOrder', play_order,
     'maxRounds', rounds,
     'mode', case when duo then 'duo' else 'team' end,
     'clueBudget', case when duo then (_game_config() -> 'duoClues') else 'null'::jsonb end,
     'history', '{}'::jsonb
-  ) || case when p_timed then _clocks_for(player_count) else '{}'::jsonb end
+  ) || case
+    when p_new_rules then _clocks_for(player_count) || jsonb_build_object('offLimits', true)
+    else '{}'::jsonb
+  end
   where code = p_code;
 
   perform _setup_round(p_code, 1);
@@ -166,14 +172,14 @@ revoke all on function start_game(text) from public, anon;
 grant execute on function start_game(text) to authenticated;
 
 -- Newer apps: clocks that fit the player count.
-create or replace function start_game(p_code text, p_timed boolean)
+create or replace function start_game(p_code text, p_new_rules boolean)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
 begin
-  perform _start_game(p_code, p_timed);
+  perform _start_game(p_code, p_new_rules);
 end;
 $$;
 revoke all on function start_game(text, boolean) from public, anon;

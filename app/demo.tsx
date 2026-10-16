@@ -7,14 +7,14 @@ import { Prompt, SecretWordCard } from '../src/components/game';
 import { Pressable } from '../src/components/Pressable';
 import { Avatar, Eyebrow, Screen, ScreenBody, Sticker, StickerButton } from '../src/components/ui';
 import { ROUND_SECONDS, TURN_SECONDS } from '../src/game/config';
-import { EXAMPLE_CATEGORY, EXAMPLE_FEED, EXAMPLE_PLAYERS, EXAMPLE_WORD } from '../src/game/demo';
+import { EXAMPLE_CATEGORY, EXAMPLE_FEED, EXAMPLE_OFF_LIMITS, EXAMPLE_PLAYERS, EXAMPLE_WORD } from '../src/game/demo';
 import { useSettingsStore } from '../src/store/settingsStore';
 import { fonts, spacing, useStyles, useTheme, type Palette } from '../src/theme';
 
 // The demo (GAMEPLAY_REDESIGN.md, section 8): the lighthouse example played out, about 22
 // seconds, one rule per caption. `shown` is how many feed entries are on screen from then on.
 const STEPS: Array<{ at: number; shown: number; caption: string }> = [
-  { at: 0, shown: 0, caption: 'Tomi and Ade see the secret word. Kemi, the Guesser, doesn’t.' },
+  { at: 0, shown: 0, caption: 'Tomi and Ade see the secret word and the words they can’t say. Kemi, the Guesser, doesn’t.' },
   { at: 2600, shown: 1, caption: 'Tomi and Ade take turns adding one word each.' },
   { at: 5000, shown: 2, caption: `Each turn lasts ${TURN_SECONDS} seconds. Too slow and the turn passes.` },
   { at: 7400, shown: 3, caption: 'No sentences needed. Any word that helps Kemi counts.' },
@@ -22,7 +22,7 @@ const STEPS: Array<{ at: number; shown: number; caption: string }> = [
   { at: 12200, shown: 5, caption: 'Not cliff! Wrong guesses are marked for everyone.' },
   { at: 14600, shown: 6, caption: 'No need to say “no”. Tomi just adds another clue.' },
   { at: 17000, shown: 7, caption: 'Ade adds another.' },
-  { at: 19400, shown: 8, caption: 'A light that warns ships… Kemi is getting close.' },
+  { at: 19400, shown: 8, caption: 'A beam that warns boats… Kemi is getting close.' },
   { at: 21800, shown: 9, caption: `Lighthouse! Guessed inside ${ROUND_SECONDS} seconds. Round won.` },
 ];
 const DONE_AT = 21800;
@@ -80,7 +80,7 @@ export default function DemoScreen() {
           ))}
         </View>
 
-        <SecretWordCard word={EXAMPLE_WORD} category={EXAMPLE_CATEGORY} hint="Only Tomi and Ade see this." />
+        <SecretWordCard word={EXAMPLE_WORD} category={EXAMPLE_CATEGORY} offLimits={EXAMPLE_OFF_LIMITS} hint="Only Tomi and Ade see this." />
 
         <Sticker radius={22} offset={5} style={styles.feedWrap} contentStyle={styles.feedCard}>
           <Eyebrow>The clues</Eyebrow>
