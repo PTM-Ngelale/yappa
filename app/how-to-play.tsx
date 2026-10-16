@@ -8,6 +8,7 @@ import { Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } fr
 import { categoryLabel } from '../src/game/categories';
 import { ROUND_SECONDS, TURN_SECONDS } from '../src/game/config';
 import { EXAMPLE_FEED, EXAMPLE_PLAYERS } from '../src/game/demo';
+import { roundsFor } from '../src/game/players';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
@@ -29,11 +30,11 @@ export default function HowToPlayScreen() {
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <Text style={styles.tagline}>
-          Two of you describe a secret word, one word at a time. The third guesses it before time runs out.
+          For 3 to 5 players. The Knowers describe a secret word, one word at a time. The Guesser guesses it before time runs out.
         </Text>
 
         <Section title="How it works">
-          <Step number={1} label="Each round:" text="one Guesser, two Knowers. Everyone takes turns." />
+          <Step number={1} label="Each round:" text="one Guesser, everyone else is a Knower. Everyone takes a turn guessing." />
           <Step number={2} label="Knowers:" text={`take turns adding one word each, any word that helps. No need for sentences. You get ${TURN_SECONDS} seconds per word.`} />
           <Step number={3} label="Stuck?" text="Tap the secret word to see what it means." />
           <Step number={4} label="Guessers:" text={`guess as often as you like. Get it within ${ROUND_SECONDS} seconds to win the round.`} />
@@ -45,7 +46,10 @@ export default function HowToPlayScreen() {
             fontSize={18}
             onPress={() => router.push({ pathname: '/demo', params: { from: 'how-to-play' } })}
           />
-          <Text style={styles.bodyText}>9 rounds. Everyone guesses 3 times. How many can you win?</Text>
+          <Text style={styles.bodyText}>
+            Everyone guesses the same number of times: {roundsFor(3)} rounds with 3 players, {roundsFor(4)} with 4,{' '}
+            {roundsFor(5)} with 5. How many can you win?
+          </Text>
         </Section>
 
         <Section title="See it in action">
@@ -63,7 +67,7 @@ export default function HowToPlayScreen() {
           <RoleRow
             icon="eye"
             colour={p.blue}
-            title="Knowers (2 players)"
+            title="Knowers (everyone else)"
             body="See the secret word. Take turns adding one-word clues. They don’t have to make a sentence. You can’t say the word itself."
           />
           <RoleRow

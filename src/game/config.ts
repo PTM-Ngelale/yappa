@@ -4,7 +4,7 @@
 // Tuning after playtests: shorten ROUND_SECONDS (e.g. 45) if rounds feel too forgiving;
 // lengthen TURN_SECONDS (12 to 15) if they feel too frantic.
 
-/** Each Knower turn. When it runs out the turn passes to the other Knower. */
+/** Each Knower turn. When it runs out the turn passes to the next Knower. */
 export const TURN_SECONDS = 10;
 /** The whole round. When it runs out the round is lost. */
 export const ROUND_SECONDS = 60;

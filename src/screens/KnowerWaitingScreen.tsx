@@ -28,6 +28,8 @@ interface KnowerWaitingScreenProps {
   partnerColor?: string;
   /** True while partner is actively typing (after their turn starts) */
   partnerIsTyping: boolean;
+  /** Who goes after the partner, when it isn't you (4 or 5 players). */
+  upNextName?: string;
   /** The partner's turn clock. */
   turnSeconds: number;
   /** The round's clock. */
@@ -49,6 +51,7 @@ export function KnowerWaitingScreen({
   partnerName,
   partnerColor,
   partnerIsTyping,
+  upNextName,
   turnSeconds,
   roundSeconds,
   showTimer = true,
@@ -89,7 +92,7 @@ export function KnowerWaitingScreen({
             <Avatar name={partnerName} color={partnerColor ?? p.coral} />
             <View style={styles.flex}>
               <Text style={styles.partnerTitle}>{partnerName} is adding a word...</Text>
-              <Text style={styles.partnerSub}>You’re up next</Text>
+              <Text style={styles.partnerSub}>{upNextName ? `${upNextName} is up next` : 'You’re up next'}</Text>
             </View>
             <TypingIndicator active={partnerIsTyping} />
           </Sticker>

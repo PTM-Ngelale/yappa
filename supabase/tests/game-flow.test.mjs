@@ -93,7 +93,6 @@ d = await room();
 check(d.players[P2].name === 'Sam' && d.players[P2].avatarColor === '#9E9E9E', 'join_room trims the name and rejects a bad colour');
 check(await fails(P3, `select start_game('ABCD')`), 'non-member cannot start');
 await as(P3, `select join_room('ABCD', $1)`, [player(P3)]);
-check((await as(OUTSIDER, `select join_room('ABCD', $1) r`, [player(OUTSIDER)])).rows[0].r === 'full' && !(OUTSIDER in (await room()).players), 'a fourth player is rejected');
 
 // --- Direct writes are closed --------------------------------------------------------
 check(await fails(HOST, `select patch_room('ABCD', '[]'::jsonb)`), 'patch_room no longer exists');
@@ -339,7 +338,7 @@ check((await room('INVS')).feed[0].text === 'sunshine', 'invisible characters ar
 for (const u of [HOST, P2, P3]) await as(u, `select leave_room('INVS', $1)`, [u]);
 
 // --- Online play (migration 009) ------------------------------------------------------
-const FIFTH = '55555555-5555-5555-5555-555555555555';
+const [FIFTH, SIXTH, SEVENTH] = ['5', '6', '7'].map((d) => `${d.repeat(8)}-${d.repeat(4)}-${d.repeat(4)}-${d.repeat(4)}-${d.repeat(12)}`);
 const quickMatch = async (uid, extra) => (await as(uid, `select quick_match($1) code`, [player(uid, extra)])).rows[0].code;
 const pub1 = await quickMatch(HOST);
 d = await room(pub1);
@@ -405,7 +404,8 @@ await as(P2, `select create_room('STA1', $1)`, [player(P2)]);
 await as(P3, `select join_room('STA1', $1, 'link')`, [player(P3)]);
 await as(OUTSIDER, `select join_room('STA1', $1, 'code')`, [player(OUTSIDER)]);
 check(await stat('games_created_private') === 1 && await stat('joins_link') === 1 && await stat('joins_code') === 1, 'stats: joins count by link or typed code');
-check((await as(FIFTH, `select join_room('STA1', $1, 'link') r`, [player(FIFTH)])).rows[0].r === 'full' && await stat('joins_link') === 1, 'stats: a rejected join (room full) is not counted');
+for (const u of [FIFTH, SIXTH]) await as(u, `select join_room('STA1', $1)`, [player(u)]);
+check((await as(SEVENTH, `select join_room('STA1', $1, 'link') r`, [player(SEVENTH)])).rows[0].r === 'full' && await stat('joins_link') === 1, 'stats: a rejected join (room full) is not counted');
 check(await fails(P2, `select create_share_card('STA1')`), 'a game that is not over cannot be shared');
 await as(P2, `select start_game('STA1')`);
 await as(P3, `select end_game('STA1')`);
@@ -461,6 +461,88 @@ check(!(await canJoin(P2, 'presence:room:chan')) && !(await canJoin(P2, 'somethi
 await as(P2, `select leave_room('CHAN', $1)`, [P2]);
 check(!(await canJoin(P2, 'presence:room:CHAN')), 'a player who left can no longer join');
 await as(HOST, `select leave_room('CHAN', $1)`, [HOST]);
+
+// --- 3 to 5 players (migration 020) ------------------------------------------------------
+
+await as(HOST, `select create_room('FIVE', $1)`, [player(HOST)]);
+for (const u of [P2, P3, OUTSIDER]) await as(u, `select join_room('FIVE', $1)`, [player(u)]);
+check(await fails(HOST, `select set_room_public('FIVE', true)`), 'a lobby with 3 or more players cannot go public');
+check((await as(FIFTH, `select join_room('FIVE', $1) r`, [player(FIFTH)])).rows[0].r === 'ok', 'a fifth player can join a private room');
+check((await as(SIXTH, `select join_room('FIVE', $1) r`, [player(SIXTH)])).rows[0].r === 'full' && !(SIXTH in (await room('FIVE')).players), 'a sixth player is rejected');
+d = await room('FIVE');
+check(new Set(Object.values(d.players).map((pl) => pl.avatarColor)).size === 5, 'players who picked the same colour get different ones');
+await as(HOST, `select create_room('PAIR', $1)`, [player(HOST)]);
+await as(P2, `select join_room('PAIR', $1)`, [player(P2)]);
+check(await fails(HOST, `select start_game('PAIR')`), 'two players cannot start a game yet');
+await as(P2, `select leave_room('PAIR', $1)`, [P2]);
+await as(HOST, `select leave_room('PAIR', $1)`, [HOST]);
+
+const tiers = (words) => words.map((w) => w.difficulty[0]).join('');
+check(tiers((await db.query(`select _draw_deck(null, 8) d`)).rows[0].d) === 'eeemmmhh', 'an 8-round deck is 3 Easy, 3 Medium, 2 Hard');
+check(tiers((await db.query(`select _draw_deck(null, 10) d`)).rows[0].d) === 'eeeemmmhhh', 'a 10-round deck is 4 Easy, 3 Medium, 3 Hard');
+
+await as(HOST, `select start_game('FIVE')`);
+d = await room('FIVE');
+check(d.status === 'playing' && d.maxRounds === 10 && d.playerOrder.length === 5, 'five players play 10 rounds');
+check(tiers((await db.query(`select words from game_decks where code = 'FIVE'`)).rows[0].words) === 'eeeemmmhhh', 'the five-player deck has 10 words, easiest first');
+const knowersOf = (r) => r.playerOrder.filter((u) => u !== r.guesserUid);
+let fiveWins = 0;
+for (let round = 1; round <= 10; round++) {
+  d = await room('FIVE');
+  const ks = knowersOf(d);
+  check(d.round === round && ks.length === 4 && d.activeKnowerUid === ks[(round - 1) % 4], `five players, round ${round}: four Knowers, the first one moves on each round`);
+  check(Object.values(d.players).filter((pl) => pl.role === 'knower').length === 4, `five players, round ${round}: everyone but the Guesser is a Knower`);
+  if (round === 1) {
+    const seen = [d.activeKnowerUid];
+    for (const [i, w] of ['tall', 'bright', 'coast', 'ships', 'beam'].entries()) {
+      await as((await room('FIVE')).activeKnowerUid, `select submit_word('FIVE', 1, $1, $2)`, [i, w]);
+      seen.push((await room('FIVE')).activeKnowerUid);
+    }
+    check(seen.join() === [0, 1, 2, 3, 0, 1].map((i) => ks[i]).join(), 'turns go round all four Knowers in play order');
+    for (const k of ks) await as(k, `select set_typing('FIVE', true)`);
+    check(Object.keys((await room('FIVE')).typing).join() === ks[1], 'with four Knowers, only the active one can set typing');
+    check(await fails(ks[3], `select submit_word('FIVE', 1, 5, 'rocks')`), 'a Knower whose turn it is not cannot submit');
+    await db.query(`update turn_clocks set started_at = started_at - interval '13 seconds' where code = 'FIVE'`);
+    check((await as(ks[0], `select skip_turn('FIVE', 1, 5) ok`)).rows[0].ok === true, 'a turn that runs out is skipped');
+    d = await room('FIVE');
+    check(d.activeKnowerUid === ks[2] && d.feed.at(-1).kind === 'skip' && d.feed.at(-1).by === ks[1], '…and passes to the next Knower');
+  }
+  const right = round % 4 !== 0;
+  if (right) {
+    check((await as(null, `select begin_guess('FIVE', $1, $2) r`, [round, d.guesserUid])).rows[0].r === 'ok', `five players, round ${round}: the Guesser guesses`);
+    const target = (await db.query(`select target_word from round_secrets where code = 'FIVE' and round = $1`, [round])).rows[0].target_word;
+    await as(null, `select record_guess('FIVE', $1, $2, true)`, [round, target]);
+    fiveWins++;
+  } else {
+    await db.query(`update turn_clocks set started_at = started_at - interval '70 seconds', round_started_at = round_started_at - interval '70 seconds' where code = 'FIVE'`);
+    await as(ks[0], `select expire_round('FIVE', $1)`, [round]);
+  }
+  check((await room('FIVE')).status === 'resolution', `five players, round ${round}: the round ends`);
+  await as(HOST, `select advance_round('FIVE', $1)`, [round]);
+}
+d = await room('FIVE');
+check(d.status === 'gameover' && Object.keys(d.history).length === 10, 'the five-player game ends after 10 rounds');
+check(Object.values(d.history).filter((h) => h.outcome === 'won').length === fiveWins, `five players: score adds up (${fiveWins})`);
+const fiveGuesses = Object.values(d.history).reduce((m, h) => ((m[h.guesserUid] = (m[h.guesserUid] ?? 0) + 1), m), {});
+check(Object.keys(fiveGuesses).length === 5 && Object.values(fiveGuesses).every((n) => n === 2), 'five players: everyone guesses twice');
+
+// Play Again with four: 8 rounds
+await as(FIFTH, `select leave_room('FIVE', $1)`, [FIFTH]);
+await as(P2, `select reset_room_to_lobby('FIVE')`);
+await as(HOST, `select start_game('FIVE')`);
+d = await room('FIVE');
+check(d.maxRounds === 8 && d.playerOrder.length === 4 && tiers((await db.query(`select words from game_decks where code = 'FIVE'`)).rows[0].words) === 'eeemmmhh', 'four players play 8 rounds (3 Easy, 3 Medium, 2 Hard)');
+check(knowersOf(d).length === 3 && d.activeKnowerUid === knowersOf(d)[0], 'four players: three Knowers, the first in play order starts');
+await as(HOST, `select end_game('FIVE')`);
+for (const u of [HOST, P2, P3, OUTSIDER]) await as(u, `select leave_room('FIVE', $1)`, [u]);
+
+// Public rooms still seat 3
+await as(SIXTH, `select create_room('PUB3', $1)`, [player(SIXTH)]);
+await as(SIXTH, `select set_room_public('PUB3', true)`);
+await as(P2, `select join_room('PUB3', $1)`, [player(P2)]);
+await as(P3, `select join_room('PUB3', $1)`, [player(P3)]);
+check((await as(OUTSIDER, `select join_room('PUB3', $1) r`, [player(OUTSIDER)])).rows[0].r === 'full', 'a public room is full at 3');
+for (const u of [P2, P3, SIXTH]) await as(u, `select leave_room('PUB3', $1)`, [u]);
 
 // --- Data retention (migration 008) -------------------------------------------------------
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');

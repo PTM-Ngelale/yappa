@@ -28,6 +28,7 @@ import { LeaveGameContext, LeaveGameDialog } from '../../src/components/LeaveGam
 import { shareCard } from '../../src/lib/shareCard';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
 import { TURN_SECONDS } from '../../src/game/config';
+import { knowerOrder, nextKnower } from '../../src/game/players';
 import { useRoundClocks } from '../../src/hooks/useRoundClocks';
 import { ReportSheet } from '../../src/components/ReportSheet';
 import { SyncErrorBanner } from '../../src/components/SyncErrorBanner';
@@ -84,7 +85,7 @@ export default function RoundScreen() {
     });
   };
 
-  // Leaving mid-game ends it for everyone (it needs all three), then takes this player Home
+  // Leaving mid-game ends it for everyone (it needs everyone who started), then takes this player Home
   // straight away; the server calls finish in the background.
   const [leaveOpen, setLeaveOpen] = useState(false);
   const inGame = roomData?.status === 'playing' || roomData?.status === 'resolution';
@@ -478,13 +479,13 @@ export default function RoundScreen() {
   // Role reveal at the start of each round (also covers the Knowers' secret-word fetch).
   if (introRound === roomData.round) {
     const isGuesser = roomData.guesserUid === uid;
-    const knowers = Object.values(roomData.players).filter((pl) => pl.uid !== roomData.guesserUid);
+    const knowers = knowerOrder(roomData).filter((k) => k !== uid);
     return renderWithDisconnectOverlay(
       <RoundIntroScreen
         round={roomData.round}
         isGuesser={isGuesser}
         category={roomData.category}
-        knowerNames={(isGuesser ? knowers : knowers.filter((k) => k.uid !== uid)).map((k) => k.name)}
+        knowerNames={knowers.map((k) => roomData.players[k]?.name ?? 'Knower')}
         targetWord={target?.round === roomData.round ? target.word : null}
         onDismiss={() => setIntroRound(null)}
       />
@@ -581,12 +582,11 @@ export default function RoundScreen() {
     );
   }
 
-  // Waiting Knower: partner is active (or about to be, while my sent word is in flight)
+  // Waiting Knower: another Knower is active (or about to be, while my sent word is in flight)
   if (myPlayer.role === 'knower') {
-    const partnerUid = pending
-      ? Object.keys(roomData.players).find((u) => u !== uid && u !== roomData.guesserUid) ?? ''
-      : roomData.activeKnowerUid;
+    const partnerUid = pending ? nextKnower(roomData, uid) : roomData.activeKnowerUid;
     const partner = roomData.players[partnerUid];
+    const upNextUid = nextKnower(roomData, partnerUid);
     return renderWithDisconnectOverlay(
       <KnowerWaitingScreen
         round={roomData.round}
@@ -601,6 +601,7 @@ export default function RoundScreen() {
         partnerName={partner?.name ?? 'Partner'}
         partnerColor={partner?.avatarColor}
         partnerIsTyping={!!typing[partnerUid]}
+        upNextName={upNextUid === uid ? undefined : roomData.players[upNextUid]?.name}
         // The partner's turn starts fresh; the clock is still on mine until my word lands.
         turnSeconds={pending ? TURN_SECONDS : turnSeconds}
         roundSeconds={roundSeconds}

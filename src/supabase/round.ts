@@ -3,7 +3,7 @@ import { supabase } from './client';
 // Every move goes through a server function that checks the caller and the move
 // (migrations 005 and 013), so clients can't race or cheat each other.
 
-/** Host call, once, when leaving the lobby: the server shuffles play order and draws the 9 words. */
+/** Host call, once, when leaving the lobby: the server shuffles play order and draws a word per round. */
 export async function startGame(code: string): Promise<void> {
   const { error } = await supabase.rpc('start_game', { p_code: code });
   if (error) throw error;
@@ -61,7 +61,7 @@ export async function submitWord(code: string, round: number, turnIndex: number,
 }
 
 /**
- * The turn clock ran out: pass the turn to the other Knower. Any device may call it; the
+ * The turn clock ran out: pass the turn to the next Knower. Any device may call it; the
  * server only acts once its own clock agrees, and only once per turn. Resolves to whether
  * this call did the skip.
  */

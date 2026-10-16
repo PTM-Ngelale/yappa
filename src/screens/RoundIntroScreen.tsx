@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { categoryLabel } from '../game/categories';
 import { ROUND_SECONDS } from '../game/config';
+import { listNames } from '../game/players';
 import { Pressable } from '../components/Pressable';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from '../components/ui';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
@@ -13,7 +14,7 @@ interface RoundIntroScreenProps {
   round: number;
   isGuesser: boolean;
   category: string;
-  /** The two Knowers' names (shown to the Guesser), or [partner] (shown to a Knower). */
+  /** The Knowers' names (shown to the Guesser), or the other Knowers' (shown to a Knower), in turn order. */
   knowerNames: string[];
   /** The secret word, for a Knower; null while it loads (and always for the Guesser). */
   targetWord: string | null;
@@ -66,7 +67,7 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targ
             {isGuesser ? (
               <>
                 <Text style={styles.blurb}>
-                  {knowerNames.join(' and ')} are giving clues to a secret word, one word at a time.
+                  {listNames(knowerNames)} are giving clues to a secret word, one word at a time.
                 </Text>
                 <Eyebrow style={{ color: p.heroAccent }}>Category</Eyebrow>
                 <Text style={styles.category}>{categoryLabel(category)}</Text>
@@ -79,7 +80,7 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targ
                   {targetWord ?? '…'}
                 </Text>
                 <Text style={styles.blurb}>
-                  Take turns with {knowerNames[0] ?? 'your partner'} adding one-word clues. No sentences needed.
+                  Take turns with {knowerNames.length ? listNames(knowerNames) : 'your partner'} adding one-word clues. No sentences needed.
                 </Text>
                 <Text style={styles.blurbSmall}>Stuck? Tap the word to see what it means.</Text>
               </>

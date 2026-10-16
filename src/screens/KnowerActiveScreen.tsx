@@ -33,7 +33,7 @@ interface KnowerActiveScreenProps {
   category: string;
   feed: FeedEntry[];
   players: Record<string, RoomPlayer>;
-  /** This turn's clock: when it runs out the turn passes to the other Knower. */
+  /** This turn's clock: when it runs out the turn passes to the next Knower. */
   turnSeconds: number;
   /** The round's clock: when it runs out the round is lost. */
   roundSeconds: number;
