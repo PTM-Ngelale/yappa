@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   advanceRound,
   expireRound,
@@ -105,7 +105,7 @@ export default function RoundScreen() {
   };
   // Android back asks first instead of dropping out of the game.
   useEffect(() => {
-    if (!inGame) return;
+    if (!inGame || Platform.OS === 'web') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       setLeaveOpen(true);
       return true;

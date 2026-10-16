@@ -68,7 +68,7 @@ export default function HomeScreen() {
 
   // Android back steps out of Play with friends before leaving Home.
   useEffect(() => {
-    if (!localPlay) return;
+    if (!localPlay || Platform.OS === "web") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       closeLocalPlay();
       return true;
