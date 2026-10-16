@@ -16,6 +16,8 @@ interface RoundIntroScreenProps {
   category: string;
   /** The Knowers' names (shown to the Guesser), or the other Knowers' (shown to a Knower), in turn order. */
   knowerNames: string[];
+  /** Duo: the Knower's clues per round (there are no other Knowers to take turns with). */
+  clueBudget?: number;
   /** The secret word, for a Knower; null while it loads (and always for the Guesser). */
   targetWord: string | null;
   /** Tapping the card puts it away early. */
@@ -23,7 +25,7 @@ interface RoundIntroScreenProps {
 }
 
 /** The role card at the start of each round: your role and what to do (GAMEPLAY_REDESIGN.md, section 8). */
-export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targetWord, onDismiss }: RoundIntroScreenProps) {
+export function RoundIntroScreen({ round, isGuesser, category, knowerNames, clueBudget, targetWord, onDismiss }: RoundIntroScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
   const short = useShortScreen();
@@ -67,7 +69,8 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targ
             {isGuesser ? (
               <>
                 <Text style={styles.blurb}>
-                  {listNames(knowerNames)} are giving clues to a secret word, one word at a time.
+                  {listNames(knowerNames)} {knowerNames.length === 1 ? 'is' : 'are'} giving clues to a secret word, one
+                  word at a time{clueBudget ? `, ${clueBudget} at most` : ''}.
                 </Text>
                 <Eyebrow style={{ color: p.heroAccent }}>Category</Eyebrow>
                 <Text style={styles.category}>{categoryLabel(category)}</Text>
@@ -80,7 +83,9 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targ
                   {targetWord ?? '…'}
                 </Text>
                 <Text style={styles.blurb}>
-                  Take turns with {knowerNames.length ? listNames(knowerNames) : 'your partner'} adding one-word clues. No sentences needed.
+                  {clueBudget
+                    ? `Give one-word clues. You get ${clueBudget}, so make them count.`
+                    : `Take turns with ${knowerNames.length ? listNames(knowerNames) : 'your partner'} adding one-word clues. No sentences needed.`}
                 </Text>
                 <Text style={styles.blurbSmall}>Stuck? Tap the word to see what it means.</Text>
               </>

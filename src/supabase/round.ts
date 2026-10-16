@@ -29,7 +29,7 @@ export async function fetchTargetWord(code: string, round: number): Promise<Secr
 }
 
 /** Why the server turned a word down, in words a player can act on. */
-export type WordRejection = 'not-your-turn' | 'turn-over' | 'paused' | 'target' | 'repeat' | 'shape' | 'blocked';
+export type WordRejection = 'not-your-turn' | 'turn-over' | 'paused' | 'target' | 'repeat' | 'shape' | 'blocked' | 'out-of-clues';
 
 /** Maps submit_word()'s error to a WordRejection, or null if it wasn't a rule (a network error). */
 export function wordRejection(error: unknown): WordRejection | null {
@@ -41,6 +41,7 @@ export function wordRejection(error: unknown): WordRejection | null {
   if (message.includes('same as the last word')) return 'repeat';
   if (message.includes('one word')) return 'shape';
   if (message.includes('word not allowed')) return 'blocked';
+  if (message.includes('out of clues')) return 'out-of-clues';
   return null;
 }
 

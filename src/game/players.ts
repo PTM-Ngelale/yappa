@@ -1,8 +1,10 @@
-// Player counts and turn order. The server decides both (migration 020: _player_limits(),
-// _rounds_for(), _next_knower()); these mirror it for the screens.
+// Player counts and turn order. The server decides both (migrations 020 and 021:
+// _player_limits(), _rounds_for(), _next_knower()); these mirror it for the screens.
 
-/** Fewest players a game can start with. */
-export const MIN_PLAYERS = 3;
+/** Fewest players a game can start with: 2 play duo (one Knower, a clue budget). */
+export const MIN_PLAYERS = 2;
+/** Fewest players for a team game, where the Knowers take turns. */
+export const TEAM_PLAYERS = 3;
 /** Most players a private room seats. */
 export const MAX_PLAYERS = 5;
 /** Play online matches this many strangers, then starts. */

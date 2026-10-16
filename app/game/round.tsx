@@ -27,7 +27,7 @@ import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
 import { LeaveGameContext, LeaveGameDialog } from '../../src/components/LeaveGame';
 import { shareCard } from '../../src/lib/shareCard';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
-import { TURN_SECONDS } from '../../src/game/config';
+import { DUO_CLUES, TURN_SECONDS } from '../../src/game/config';
 import { knowerOrder, nextKnower } from '../../src/game/players';
 import { useRoundClocks } from '../../src/hooks/useRoundClocks';
 import { ReportSheet } from '../../src/components/ReportSheet';
@@ -59,6 +59,7 @@ const WORD_REJECTED: Record<WordRejection, string> = {
   repeat: 'That was the last word. Try another one.',
   shape: 'One word only, please. Try another.',
   blocked: 'That word isn’t allowed. Try another one.',
+  'out-of-clues': 'That’s all your clues for this round.',
 };
 
 export default function RoundScreen() {
@@ -261,8 +262,10 @@ export default function RoundScreen() {
   // When the turn clock runs out, pass the turn on; when the round clock runs out, end the
   // round. Every device asks: the server acts once, and only when its own clock agrees, so a
   // device that asks a moment early (or while a guess is still being judged) asks again.
+  // Duo has no turn clock: its one Knower keeps the turn all round.
   const playing = roomData?.status === 'playing' && !confirmedDisconnected;
-  const turnOver = playing && turnSeconds === 0 ? `${roomData!.round}:${roomData!.turnIndex ?? 0}` : null;
+  const turnOver =
+    playing && roomData!.mode !== 'duo' && turnSeconds === 0 ? `${roomData!.round}:${roomData!.turnIndex ?? 0}` : null;
   useEffect(() => {
     if (!turnOver || !roomCode) return;
     const [round, turn] = turnOver.split(':').map(Number);
@@ -435,6 +438,7 @@ export default function RoundScreen() {
           history={history}
           players={roomData.players}
           maxRounds={roomData.maxRounds}
+          duo={roomData.mode === 'duo'}
           onReport={onReport}
           onShare={async () => {
             try {
@@ -486,6 +490,7 @@ export default function RoundScreen() {
         isGuesser={isGuesser}
         category={roomData.category}
         knowerNames={knowers.map((k) => roomData.players[k]?.name ?? 'Knower')}
+        clueBudget={roomData.mode === 'duo' ? roomData.clueBudget ?? DUO_CLUES : undefined}
         targetWord={target?.round === roomData.round ? target.word : null}
         onDismiss={() => setIntroRound(null)}
       />
@@ -498,6 +503,11 @@ export default function RoundScreen() {
     sentWord && sentWord.round === roomData.round && sentWord.turnIndex === turnIndex ? sentWord : null;
   const feed: FeedEntry[] = pending ? [...serverFeed, { kind: 'word', text: pending.word, by: uid }] : serverFeed;
   const typing = roomData.typing ?? {};
+  // Duo: the Knower's clue budget, counting a word still on its way.
+  const duo = roomData.mode === 'duo';
+  const clues = duo
+    ? { used: feed.filter((e) => e.kind === 'word').length, budget: roomData.clueBudget ?? DUO_CLUES }
+    : undefined;
 
   // Knower, word not fetched yet for this round
   if (myPlayer.role === 'knower' && target?.round !== roomData.round) {
@@ -529,11 +539,12 @@ export default function RoundScreen() {
         ? { text: `${nameOf(latestEntry.by)} was too slow. Your turn!`, tone: 'alert' }
         : { text: `Too slow! ${nameOf(roomData.activeKnowerUid)}’s turn`, tone: 'alert' };
     }
-    return meActive ? { text: 'Your turn! Add a word that helps', tone: 'calm' } : undefined;
+    if (!meActive) return undefined;
+    return { text: duo ? 'Make every clue count' : 'Your turn! Add a word that helps', tone: 'calm' };
   };
 
-  // Active Knower: it's my turn to add a word
-  if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && !pending) {
+  // Active Knower: it's my turn to add a word (in duo it always is, even while a word is on its way)
+  if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && (!pending || duo)) {
     return renderWithDisconnectOverlay(
       <KnowerActiveScreen
         round={roomData.round}
@@ -548,6 +559,8 @@ export default function RoundScreen() {
         turnSeconds={turnSeconds}
         roundSeconds={roundSeconds}
         notice={wordNotice}
+        clues={clues}
+        sending={!!pending}
         onSubmitWord={(word) => {
           const round = roomData.round;
           const turn = turnIndex;
@@ -622,6 +635,7 @@ export default function RoundScreen() {
       knowerIsTyping={!!typing[roomData.activeKnowerUid]}
       roundSeconds={roundSeconds}
       tip={roundTip}
+      clues={clues}
       // Throws if the guess couldn't be sent: GuesserScreen lets them retry.
       onGuess={(guess) => submitGuess(roomCode!, roomData.round, guess)}
     />

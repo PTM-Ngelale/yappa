@@ -471,11 +471,9 @@ check((await as(FIFTH, `select join_room('FIVE', $1) r`, [player(FIFTH)])).rows[
 check((await as(SIXTH, `select join_room('FIVE', $1) r`, [player(SIXTH)])).rows[0].r === 'full' && !(SIXTH in (await room('FIVE')).players), 'a sixth player is rejected');
 d = await room('FIVE');
 check(new Set(Object.values(d.players).map((pl) => pl.avatarColor)).size === 5, 'players who picked the same colour get different ones');
-await as(HOST, `select create_room('PAIR', $1)`, [player(HOST)]);
-await as(P2, `select join_room('PAIR', $1)`, [player(P2)]);
-check(await fails(HOST, `select start_game('PAIR')`), 'two players cannot start a game yet');
-await as(P2, `select leave_room('PAIR', $1)`, [P2]);
-await as(HOST, `select leave_room('PAIR', $1)`, [HOST]);
+await as(HOST, `select create_room('SOLO', $1)`, [player(HOST)]);
+check(await fails(HOST, `select start_game('SOLO')`), 'one player cannot start a game');
+await as(HOST, `select leave_room('SOLO', $1)`, [HOST]);
 
 const tiers = (words) => words.map((w) => w.difficulty[0]).join('');
 check(tiers((await db.query(`select _draw_deck(null, 8) d`)).rows[0].d) === 'eeemmmhh', 'an 8-round deck is 3 Easy, 3 Medium, 2 Hard');
@@ -533,8 +531,51 @@ await as(HOST, `select start_game('FIVE')`);
 d = await room('FIVE');
 check(d.maxRounds === 8 && d.playerOrder.length === 4 && tiers((await db.query(`select words from game_decks where code = 'FIVE'`)).rows[0].words) === 'eeemmmhh', 'four players play 8 rounds (3 Easy, 3 Medium, 2 Hard)');
 check(knowersOf(d).length === 3 && d.activeKnowerUid === knowersOf(d)[0], 'four players: three Knowers, the first in play order starts');
+check(d.mode === 'team' && d.clueBudget === null, 'a game of 3 or more is a team game with no clue budget');
 await as(HOST, `select end_game('FIVE')`);
 for (const u of [HOST, P2, P3, OUTSIDER]) await as(u, `select leave_room('FIVE', $1)`, [u]);
+
+// --- Duo mode (migration 021) ----------------------------------------------------------
+await as(HOST, `select create_room('PAIR', $1)`, [player(HOST)]);
+await as(P2, `select join_room('PAIR', $1)`, [player(P2)]);
+await as(HOST, `select start_game('PAIR')`);
+d = await room('PAIR');
+check(d.status === 'playing' && d.mode === 'duo' && d.clueBudget === 8 && d.maxRounds === 6, 'two players play duo: 6 rounds, 8 clues a round');
+check(tiers((await db.query(`select words from game_decks where code = 'PAIR'`)).rows[0].words) === 'eemmhh', 'the duo deck is 2 Easy, 2 Medium, 2 Hard');
+const ageDuo = (secs) => db.query(`update turn_clocks set started_at = started_at - make_interval(secs => $1), round_started_at = round_started_at - make_interval(secs => $1) where code = 'PAIR'`, [secs]);
+const duoClues = ['tall', 'white', 'tower', 'coast', 'light', 'beam', 'ships', 'rocks'];
+const duoGuessers = {};
+for (let round = 1; round <= 6; round++) {
+  d = await room('PAIR');
+  const knower = d.playerOrder.find((u) => u !== d.guesserUid);
+  duoGuessers[d.guesserUid] = (duoGuessers[d.guesserUid] ?? 0) + 1;
+  check(d.round === round && d.activeKnowerUid === knower, `duo, round ${round}: the other player describes`);
+  if (round === 1) {
+    for (const [i, w] of duoClues.entries()) {
+      await as(knower, `select submit_word('PAIR', 1, $1, $2)`, [i, w]);
+      if (i === 0) check((await room('PAIR')).activeKnowerUid === knower, 'in duo the Knower keeps the turn');
+      if (i === 2) {
+        await ageDuo(15);
+        check((await as(d.guesserUid, `select skip_turn('PAIR', 1, 3) ok`)).rows[0].ok === false, 'in duo a slow clue is never skipped');
+      }
+    }
+    check((await room('PAIR')).feed.length === 8, 'in duo the Knower can give 8 clues');
+    check(await fails(knower, `select submit_word('PAIR', 1, 8, 'sea')`), 'a ninth clue is refused');
+    check((await room('PAIR')).status === 'playing', 'out of clues, the round goes on for the Guesser');
+  } else {
+    await as(knower, `select submit_word('PAIR', $1, 0, 'clue')`, [round]);
+  }
+  const target = (await db.query(`select target_word from round_secrets where code = 'PAIR' and round = $1`, [round])).rows[0].target_word;
+  check((await as(null, `select begin_guess('PAIR', $1, $2) r`, [round, d.guesserUid])).rows[0].r === 'ok', `duo, round ${round}: the Guesser guesses`);
+  await as(null, `select record_guess('PAIR', $1, $2, true)`, [round, target]);
+  await as(HOST, `select advance_round('PAIR', $1)`, [round]);
+}
+d = await room('PAIR');
+check(d.status === 'gameover' && Object.values(d.history).every((h) => h.outcome === 'won'), 'the duo game ends after 6 rounds');
+check(d.history['1'].wordCount === 8 && d.history['2'].wordCount === 1, 'duo history counts the clues each round used');
+check(Object.keys(duoGuessers).length === 2 && Object.values(duoGuessers).every((n) => n === 3), 'in duo each player guesses 3 times');
+await as(HOST, `select leave_room('PAIR', $1)`, [HOST]);
+await as(P2, `select leave_room('PAIR', $1)`, [P2]);
 
 // Public rooms still seat 3
 await as(SIXTH, `select create_room('PUB3', $1)`, [player(SIXTH)]);

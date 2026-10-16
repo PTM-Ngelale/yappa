@@ -12,6 +12,7 @@ import {
 import { DescriptionFeed } from '../components/DescriptionFeed';
 import { GameHeader, Prompt, SecretWordCard, TipCard, type WordMeaning } from '../components/game';
 import { Pressable } from '../components/Pressable';
+import { ClueBudget } from '../components/ClueBudget';
 import { TurnClock } from '../components/TurnClock';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, useShortScreen } from '../components/ui';
 import { MAX_WORD_LENGTH, ONE_WORD, ROUND_SECONDS } from '../game/config';
@@ -41,6 +42,10 @@ interface KnowerActiveScreenProps {
   showTimer?: boolean;
   /** Why the server turned the last word down, if it did (a new object each time). */
   notice?: { message: string } | null;
+  /** Duo: the round's clue budget, shown instead of the turn clock. */
+  clues?: { used: number; budget: number };
+  /** Duo: the last word is still on its way; the next one waits for it. */
+  sending?: boolean;
   onSubmitWord: (word: string) => void;
   onTypingChange?: (isTyping: boolean) => void;
 }
@@ -80,6 +85,8 @@ export function KnowerActiveScreen({
   roundSeconds,
   showTimer = true,
   notice,
+  clues,
+  sending = false,
   onSubmitWord,
   onTypingChange,
 }: KnowerActiveScreenProps) {
@@ -104,9 +111,11 @@ export function KnowerActiveScreen({
 
   const lastWord = [...feed].reverse().find((e) => e.kind === 'word') as { text: string } | undefined;
 
+  const outOfClues = !!clues && clues.used >= clues.budget;
+
   const handleSend = () => {
     const trimmed = word.trim();
-    if (trimmed.length === 0) return;
+    if (trimmed.length === 0 || sending || outOfClues) return;
     // Problems the player can fix keep their turn: say what's wrong, don't send.
     if (trimmed.length > MAX_WORD_LENGTH || !ONE_WORD.test(trimmed)) {
       refuse(`One word only: letters, with ' or - inside. Up to ${MAX_WORD_LENGTH} letters.`);
@@ -142,7 +151,7 @@ export function KnowerActiveScreen({
   const handleSendRef = useRef(handleSend);
   handleSendRef.current = handleSend;
 
-  const canSend = word.trim().length > 0;
+  const canSend = word.trim().length > 0 && !sending && !outOfClues;
 
   return (
     <Screen>
@@ -151,7 +160,7 @@ export function KnowerActiveScreen({
           <GameHeader
             round={round}
             maxRounds={maxRounds}
-            role="Your turn"
+            role={clues ? 'Your clues' : 'Your turn'}
             roleBg={p.blue}
             roleFg={p.onBlue}
             durationSeconds={ROUND_SECONDS}
@@ -186,10 +195,12 @@ export function KnowerActiveScreen({
             <Text style={styles.validationMsg} accessibilityLiveRegion="assertive">
               {validationMsg}
             </Text>
+          ) : outOfClues ? (
+            <Prompt text="That’s all your clues. Fingers crossed!" />
           ) : (
             prompt && <Prompt text={prompt.text} tone={prompt.tone} />
           )}
-          <TurnClock label="Your word" seconds={turnSeconds} />
+          {clues ? <ClueBudget used={clues.used} budget={clues.budget} /> : <TurnClock label="Your word" seconds={turnSeconds} />}
           <Animated.View style={[styles.inputRow, { transform: [{ translateX: shakeAnim }] }]}>
             <View style={styles.inputWrap}>
               <View style={styles.inputShadow} />
@@ -198,8 +209,9 @@ export function KnowerActiveScreen({
                 style={styles.input}
                 value={word}
                 onChangeText={handleChangeText}
-                placeholder="Add one word…"
+                placeholder={outOfClues ? 'No clues left' : 'Add one word…'}
                 placeholderTextColor={p.muted}
+                editable={!outOfClues}
                 autoFocus
                 autoCapitalize="none"
                 autoCorrect={false}

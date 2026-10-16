@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { categoryLabel } from "../game/categories";
+import { ClueBudget } from "../components/ClueBudget";
 import { DescriptionFeed } from "../components/DescriptionFeed";
 import { GameHeader, TipCard } from "../components/game";
 import { Pressable } from "../components/Pressable";
@@ -38,6 +39,8 @@ interface GuesserScreenProps {
   showTimer?: boolean;
   /** This round's first-game tip, if any. */
   tip?: { text: string; onDismiss: () => void };
+  /** Duo: how many of the Knower's clues are spent. */
+  clues?: { used: number; budget: number };
   /** Judged server-side (may involve an AI check); rejects if it couldn't be sent, so they can retry. */
   onGuess: (guess: string) => Promise<GuessResult>;
 }
@@ -53,6 +56,7 @@ export function GuesserScreen({
   roundSeconds,
   showTimer = true,
   tip,
+  clues,
   onGuess,
 }: GuesserScreenProps) {
   const styles = useStyles(makeStyles);
@@ -144,17 +148,20 @@ export function GuesserScreen({
               <DescriptionFeed entries={feed} players={players} large style={styles.flex} />
             ) : (
               <View style={styles.preWord}>
-                <Text style={styles.preWordTitle}>Your friends are thinking…</Text>
-                <Text style={styles.preWordSub}>{activeKnowerName} is up first</Text>
+                <Text style={styles.preWordTitle}>{clues ? `${activeKnowerName} is thinking…` : 'Your friends are thinking…'}</Text>
+                <Text style={styles.preWordSub}>{clues ? `${clues.budget} clues to get you there` : `${activeKnowerName} is up first`}</Text>
               </View>
             )}
             <View style={styles.typingRow} accessibilityLiveRegion="polite">
               <TypingIndicator active={knowerIsTyping} />
               <Text style={styles.typingText}>
-                {knowerIsTyping ? `${activeKnowerName} is typing` : `${activeKnowerName} is thinking`}
+                {clues && clues.used >= clues.budget
+                  ? `${activeKnowerName} is out of clues`
+                  : knowerIsTyping ? `${activeKnowerName} is typing` : `${activeKnowerName} is thinking`}
               </Text>
             </View>
           </Sticker>
+          {clues && <ClueBudget used={clues.used} budget={clues.budget} />}
         </ScreenBody>
 
         <View style={styles.footer}>

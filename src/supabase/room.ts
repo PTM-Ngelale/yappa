@@ -52,6 +52,10 @@ export interface RoomData {
   history?: Record<string, RoundHistoryEntry> | null;
   /** Open to Play online: strangers can be matched in, and it starts itself when full. */
   isPublic?: boolean;
+  /** Set when a game starts: 'duo' for 2 players (migration 021), 'team' for 3 to 5. */
+  mode?: 'duo' | 'team';
+  /** Duo only: clues the Knower may give each round. */
+  clueBudget?: number | null;
   createdAt: number;
 }
 

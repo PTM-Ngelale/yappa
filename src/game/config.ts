@@ -10,6 +10,8 @@ export const TURN_SECONDS = 10;
 export const ROUND_SECONDS = 60;
 /** The Guesser's wait between guesses. */
 export const GUESS_COOLDOWN_SECONDS = 3;
+/** Duo: clues the Knower gets each round (no turn clock). Mirrors duoClues in migration 021. */
+export const DUO_CLUES = 8;
 /** Longest word a Knower can add. */
 export const MAX_WORD_LENGTH = 24;
 

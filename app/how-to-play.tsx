@@ -6,7 +6,7 @@ import { DescriptionFeed } from '../src/components/DescriptionFeed';
 import { PoweredBy } from '../src/components/PoweredBy';
 import { Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
 import { categoryLabel } from '../src/game/categories';
-import { ROUND_SECONDS, TURN_SECONDS } from '../src/game/config';
+import { DUO_CLUES, ROUND_SECONDS, TURN_SECONDS } from '../src/game/config';
 import { EXAMPLE_FEED, EXAMPLE_PLAYERS } from '../src/game/demo';
 import { roundsFor } from '../src/game/players';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
@@ -30,7 +30,7 @@ export default function HowToPlayScreen() {
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <Text style={styles.tagline}>
-          For 3 to 5 players. The Knowers describe a secret word, one word at a time. The Guesser guesses it before time runs out.
+          For 2 to 5 players. The Knowers describe a secret word, one word at a time. The Guesser guesses it before time runs out.
         </Text>
 
         <Section title="How it works">
@@ -49,6 +49,10 @@ export default function HowToPlayScreen() {
           <Text style={styles.bodyText}>
             Everyone guesses the same number of times: {roundsFor(3)} rounds with 3 players, {roundsFor(4)} with 4,{' '}
             {roundsFor(5)} with 5. How many can you win?
+          </Text>
+          <Text style={styles.bodyText}>
+            <Text style={styles.strong}>Just two of you?</Text> Play duo: you swap roles every round, for{' '}
+            {roundsFor(2)} rounds. No turn clock, but only {DUO_CLUES} clues a round, so make every word count.
           </Text>
         </Section>
 

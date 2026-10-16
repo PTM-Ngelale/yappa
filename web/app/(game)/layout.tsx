@@ -5,7 +5,7 @@ import './globals.css';
 
 const TITLE = 'Yappa: Word Chain Party Game';
 const DESCRIPTION =
-  'A fast, loud word-chain party game for 3 to 5 friends. Chain words, lead the guesser to the secret word, beat the clock.';
+  'A fast, loud word-chain party game for 2 to 5 friends. Chain words, lead the guesser to the secret word, beat the clock.';
 
 // Link previews (WhatsApp, X, iMessage) need an absolute image URL. Vercel sets the
 // production domain at build time, and switches it if a custom domain is added later.

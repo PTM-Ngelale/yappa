@@ -8,7 +8,8 @@ import { ReportSheet } from '../src/components/ReportSheet';
 import { SoundToggles } from '../src/components/SoundToggles';
 import { shareRoom } from '../src/lib/shareRoom';
 import { Avatar, Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
-import { MAX_PLAYERS, MIN_PLAYERS, PUBLIC_PLAYERS, roundsFor } from '../src/game/players';
+import { DUO_CLUES } from '../src/game/config';
+import { MAX_PLAYERS, MIN_PLAYERS, PUBLIC_PLAYERS, roundsFor, TEAM_PLAYERS } from '../src/game/players';
 import { SUPABASE_CONFIGURED } from '../src/supabase/config';
 import type { RoomData } from '../src/supabase/room';
 import { useGameStore, type RoomPlayer } from '../src/store/gameStore';
@@ -90,7 +91,7 @@ export default function LobbyScreen() {
   // A full public lobby starts by itself: nobody waits on a stranger to tap Start.
   // Everyone sees the countdown; the host's app does the starting.
   const isPublic = !!roomData?.isPublic;
-  // Play online seats 3; a private room seats up to 5 and can start from 3.
+  // Play online seats 3; a private room seats up to 5 and can start from 2 (duo).
   const seats = isPublic ? PUBLIC_PLAYERS : MAX_PLAYERS;
   const isFull = players.length >= seats;
   useEffect(() => {
@@ -305,7 +306,9 @@ export default function LobbyScreen() {
           />
           <Text style={styles.note}>
             {canStart
-              ? `${players.length} players, ${roundsFor(players.length)} rounds. Let’s go!`
+              ? players.length < TEAM_PLAYERS
+                ? `Duo: ${roundsFor(players.length)} rounds, ${DUO_CLUES} clues a round. Let’s go!`
+                : `${players.length} players, ${roundsFor(players.length)} rounds. Let’s go!`
               : `Needs at least ${MIN_PLAYERS} players, ${emptySlots} more to go`}
           </Text>
         </View>
