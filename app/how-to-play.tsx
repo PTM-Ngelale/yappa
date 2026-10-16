@@ -6,7 +6,7 @@ import { DescriptionFeed } from '../src/components/DescriptionFeed';
 import { PoweredBy } from '../src/components/PoweredBy';
 import { Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
 import { categoryLabel } from '../src/game/categories';
-import { DUO_CLUES, ROUND_SECONDS, TURN_SECONDS } from '../src/game/config';
+import { DUO_CLUES, roundSecondsFor, TURN_SECONDS } from '../src/game/config';
 import { EXAMPLE_FEED, EXAMPLE_PLAYERS } from '../src/game/demo';
 import { roundsFor } from '../src/game/players';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
@@ -37,7 +37,7 @@ export default function HowToPlayScreen() {
           <Step number={1} label="Each round:" text="one Guesser, everyone else is a Knower. Everyone takes a turn guessing." />
           <Step number={2} label="Knowers:" text={`take turns adding one word each, any word that helps. No need for sentences. You get ${TURN_SECONDS} seconds per word.`} />
           <Step number={3} label="Stuck?" text="Tap the secret word to see what it means." />
-          <Step number={4} label="Guessers:" text={`guess as often as you like. Get it within ${ROUND_SECONDS} seconds to win the round.`} />
+          <Step number={4} label="Guessers:" text={`guess as often as you like. Get it before the round clock runs out: ${roundSecondsFor(3)} seconds with 3 players, ${roundSecondsFor(4)} with 4, ${roundSecondsFor(5)} with 5.`} />
           <StickerButton
             label="Watch the demo"
             icon="play"

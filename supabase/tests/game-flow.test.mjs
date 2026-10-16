@@ -585,6 +585,47 @@ await as(P3, `select join_room('PUB3', $1)`, [player(P3)]);
 check((await as(OUTSIDER, `select join_room('PUB3', $1) r`, [player(OUTSIDER)])).rows[0].r === 'full', 'a public room is full at 3');
 for (const u of [P2, P3, SIXTH]) await as(u, `select leave_room('PUB3', $1)`, [u]);
 
+// --- Clocks by player count (migration 022) ----------------------------------------------
+await as(HOST, `select create_room('CLOK', $1)`, [player(HOST)]);
+for (const u of [P2, P3, OUTSIDER, FIFTH]) await as(u, `select join_room('CLOK', $1)`, [player(u)]);
+const clocks = async () => ((r) => `${r.turnMs}/${r.roundMs}`)(await room('CLOK'));
+const replay = async () => {
+  await as(HOST, `select end_game('CLOK')`);
+  await as(HOST, `select reset_room_to_lobby('CLOK')`);
+};
+const ageClock = (cols, secs) =>
+  db.query(`update turn_clocks set ${cols.map((c) => `${c} = ${c} - make_interval(secs => $1)`).join(', ')} where code = 'CLOK'`, [secs]);
+
+await as(HOST, `select start_game('CLOK', true)`);
+check((await clocks()) === '15000/90000', 'five players: 15 second turns, a 90 second round');
+await replay();
+await as(FIFTH, `select leave_room('CLOK', $1)`, [FIFTH]);
+await as(HOST, `select start_game('CLOK', true)`);
+d = await room('CLOK');
+check((await clocks()) === '15000/75000', 'four players: 15 second turns, a 75 second round');
+await as(d.activeKnowerUid, `select submit_word('CLOK', 1, 0, 'tall')`);
+await ageClock(['started_at', 'round_started_at'], 12);
+check((await as(d.guesserUid, `select skip_turn('CLOK', 1, 1) ok`)).rows[0].ok === false, 'a turn is not over at 12 seconds');
+await ageClock(['started_at', 'round_started_at'], 3.5);
+check((await as(d.guesserUid, `select skip_turn('CLOK', 1, 1) ok`)).rows[0].ok === true, '…but is at 15');
+await ageClock(['round_started_at'], 50);
+check((await as(d.guesserUid, `select expire_round('CLOK', 1) ok`)).rows[0].ok === false, 'a four-player round is not over at 65 seconds');
+await ageClock(['round_started_at'], 13);
+check((await as(d.guesserUid, `select expire_round('CLOK', 1) ok`)).rows[0].ok === true, '…but is at 78 (75 plus the role card)');
+await replay();
+await as(HOST, `select start_game('CLOK')`);
+check((await clocks()) === 'undefined/undefined', 'a game started by an older app records no clocks (the old 10 and 60 seconds)');
+await replay();
+await as(OUTSIDER, `select leave_room('CLOK', $1)`, [OUTSIDER]);
+await as(HOST, `select start_game('CLOK', true)`);
+check((await clocks()) === '15000/60000', 'three players: 15 second turns, a 60 second round');
+await replay();
+await as(P3, `select leave_room('CLOK', $1)`, [P3]);
+await as(HOST, `select start_game('CLOK', true)`);
+check((await room('CLOK')).mode === 'duo' && (await clocks()) === '15000/60000', 'duo keeps its 60 second round');
+await as(HOST, `select end_game('CLOK')`);
+for (const u of [P2, HOST]) await as(u, `select leave_room('CLOK', $1)`, [u]);
+
 // --- Data retention (migration 008) -------------------------------------------------------
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');
 await as(HOST, `select create_room('NEW1', $1)`, [player(HOST)]);

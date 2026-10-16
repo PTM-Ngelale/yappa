@@ -27,7 +27,7 @@ import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
 import { LeaveGameContext, LeaveGameDialog } from '../../src/components/LeaveGame';
 import { shareCard } from '../../src/lib/shareCard';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
-import { DUO_CLUES, TURN_SECONDS } from '../../src/game/config';
+import { DUO_CLUES, roomClocks } from '../../src/game/config';
 import { knowerOrder, nextKnower } from '../../src/game/players';
 import { useRoundClocks } from '../../src/hooks/useRoundClocks';
 import { ReportSheet } from '../../src/components/ReportSheet';
@@ -213,6 +213,7 @@ export default function RoundScreen() {
 
   // This device's turn and round clocks; both stand still while someone's dropped.
   const { turnSeconds, roundSeconds } = useRoundClocks(roomCode, roomData, !!confirmedDisconnected);
+  const clocks = roomClocks(roomData);
   useGameSounds(roomData, uid, roundSeconds);
 
   // Public games: report a player from Round Result or Game End.
@@ -490,6 +491,7 @@ export default function RoundScreen() {
         isGuesser={isGuesser}
         category={roomData.category}
         knowerNames={knowers.map((k) => roomData.players[k]?.name ?? 'Knower')}
+        roundLength={clocks.roundSeconds}
         clueBudget={roomData.mode === 'duo' ? roomData.clueBudget ?? DUO_CLUES : undefined}
         targetWord={target?.round === roomData.round ? target.word : null}
         onDismiss={() => setIntroRound(null)}
@@ -558,6 +560,7 @@ export default function RoundScreen() {
         players={roomData.players}
         turnSeconds={turnSeconds}
         roundSeconds={roundSeconds}
+        roundLength={clocks.roundSeconds}
         notice={wordNotice}
         clues={clues}
         sending={!!pending}
@@ -616,8 +619,9 @@ export default function RoundScreen() {
         partnerIsTyping={!!typing[partnerUid]}
         upNextName={upNextUid === uid ? undefined : roomData.players[upNextUid]?.name}
         // The partner's turn starts fresh; the clock is still on mine until my word lands.
-        turnSeconds={pending ? TURN_SECONDS : turnSeconds}
+        turnSeconds={pending ? clocks.turnSeconds : turnSeconds}
         roundSeconds={roundSeconds}
+        roundLength={clocks.roundSeconds}
       />
     );
   }
@@ -634,6 +638,7 @@ export default function RoundScreen() {
       activeKnowerName={activeKnower?.name ?? 'Knower'}
       knowerIsTyping={!!typing[roomData.activeKnowerUid]}
       roundSeconds={roundSeconds}
+      roundLength={clocks.roundSeconds}
       tip={roundTip}
       clues={clues}
       // Throws if the guess couldn't be sent: GuesserScreen lets them retry.

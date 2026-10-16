@@ -18,6 +18,8 @@ interface RoundIntroScreenProps {
   knowerNames: string[];
   /** Duo: the Knower's clues per round (there are no other Knowers to take turns with). */
   clueBudget?: number;
+  /** How long the round lasts, from the room. */
+  roundLength?: number;
   /** The secret word, for a Knower; null while it loads (and always for the Guesser). */
   targetWord: string | null;
   /** Tapping the card puts it away early. */
@@ -25,7 +27,16 @@ interface RoundIntroScreenProps {
 }
 
 /** The role card at the start of each round: your role and what to do (GAMEPLAY_REDESIGN.md, section 8). */
-export function RoundIntroScreen({ round, isGuesser, category, knowerNames, clueBudget, targetWord, onDismiss }: RoundIntroScreenProps) {
+export function RoundIntroScreen({
+  round,
+  isGuesser,
+  category,
+  knowerNames,
+  clueBudget,
+  roundLength = ROUND_SECONDS,
+  targetWord,
+  onDismiss,
+}: RoundIntroScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
   const short = useShortScreen();
@@ -74,7 +85,7 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, clue
                 </Text>
                 <Eyebrow style={{ color: p.heroAccent }}>Category</Eyebrow>
                 <Text style={styles.category}>{categoryLabel(category)}</Text>
-                <Text style={styles.blurb}>Shout out guesses anytime. Get it in {ROUND_SECONDS} seconds!</Text>
+                <Text style={styles.blurb}>Shout out guesses anytime. Get it in {roundLength} seconds!</Text>
               </>
             ) : (
               <>

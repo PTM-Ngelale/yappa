@@ -3,9 +3,13 @@ import { supabase } from './client';
 // Every move goes through a server function that checks the caller and the move
 // (migrations 005 and 013), so clients can't race or cheat each other.
 
-/** Host call, once, when leaving the lobby: the server shuffles play order and draws a word per round. */
+/**
+ * Host call, once, when leaving the lobby: the server shuffles play order, draws a word per
+ * round and sets the clocks for the player count (p_timed; older apps leave it out and get
+ * the old 10 and 60 seconds, see migration 022).
+ */
 export async function startGame(code: string): Promise<void> {
-  const { error } = await supabase.rpc('start_game', { p_code: code });
+  const { error } = await supabase.rpc('start_game', { p_code: code, p_timed: true });
   if (error) throw error;
 }
 

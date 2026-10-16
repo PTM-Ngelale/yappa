@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { ROUND_SECONDS, TURN_SECONDS } from '../game/config';
+import { roomClocks } from '../game/config';
 import type { RoomData } from '../supabase/room';
 import { clockState, pauseTurnClock, resumeTurnClock } from '../supabase/round';
 import { ROUND_INTRO_MS } from '../screens/RoundIntroScreen';
@@ -8,8 +8,9 @@ import { ROUND_INTRO_MS } from '../screens/RoundIntroScreen';
 type Deadline = { key: string; ms: number; at: number };
 
 /**
- * The round's two clocks, counted on this device: the turn clock (10s per Knower turn; when
- * it runs out the turn passes) and the round clock (60s; when it runs out the round is lost).
+ * The round's two clocks, counted on this device: the turn clock (each Knower turn; when
+ * it runs out the turn passes) and the round clock (when it runs out the round is lost). Their
+ * lengths come from the room (roomClocks).
  *
  * Every device sees the same room updates, so they count down together; the server decides
  * when time is really up (skip_turn, expire_round). A device that loads mid-round, comes back
@@ -28,8 +29,9 @@ export function useRoundClocks(
   const roundKey = playing ? `${round}` : null;
   const turnKey = playing ? `${round}:${turnIndex}` : null;
   // The first turn and the round also cover the role reveal every device shows first.
-  const turnMs = TURN_SECONDS * 1000 + (turnIndex === 0 ? ROUND_INTRO_MS : 0);
-  const roundMs = ROUND_SECONDS * 1000 + ROUND_INTRO_MS;
+  const clocks = roomClocks(roomData);
+  const turnMs = clocks.turnSeconds * 1000 + (turnIndex === 0 ? ROUND_INTRO_MS : 0);
+  const roundMs = clocks.roundSeconds * 1000 + ROUND_INTRO_MS;
 
   const [turnClock, setTurnClock] = useState<Deadline | null>(null);
   const [roundClock, setRoundClock] = useState<Deadline | null>(null);
@@ -120,7 +122,7 @@ export function useRoundClocks(
     // Until a new turn or round catches up, show its full time, not the old one's last second.
     !d || d.key !== key ? max : Math.min(max, Math.max(0, Math.ceil((d.at - at) / 1000)));
   return {
-    turnSeconds: left(turnClock, turnKey, TURN_SECONDS),
-    roundSeconds: left(roundClock, roundKey, ROUND_SECONDS),
+    turnSeconds: left(turnClock, turnKey, clocks.turnSeconds),
+    roundSeconds: left(roundClock, roundKey, clocks.roundSeconds),
   };
 }

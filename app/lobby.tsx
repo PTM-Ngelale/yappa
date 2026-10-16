@@ -8,7 +8,7 @@ import { ReportSheet } from '../src/components/ReportSheet';
 import { SoundToggles } from '../src/components/SoundToggles';
 import { shareRoom } from '../src/lib/shareRoom';
 import { Avatar, Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
-import { DUO_CLUES } from '../src/game/config';
+import { DUO_CLUES, roundSecondsFor } from '../src/game/config';
 import { MAX_PLAYERS, MIN_PLAYERS, PUBLIC_PLAYERS, roundsFor, TEAM_PLAYERS } from '../src/game/players';
 import { SUPABASE_CONFIGURED } from '../src/supabase/config';
 import type { RoomData } from '../src/supabase/room';
@@ -308,7 +308,7 @@ export default function LobbyScreen() {
             {canStart
               ? players.length < TEAM_PLAYERS
                 ? `Duo: ${roundsFor(players.length)} rounds, ${DUO_CLUES} clues a round. Let’s go!`
-                : `${players.length} players, ${roundsFor(players.length)} rounds. Let’s go!`
+                : `${players.length} players, ${roundsFor(players.length)} rounds of ${roundSecondsFor(players.length)}s. Let’s go!`
               : `Needs at least ${MIN_PLAYERS} players, ${emptySlots} more to go`}
           </Text>
         </View>

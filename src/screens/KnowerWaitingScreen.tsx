@@ -34,6 +34,8 @@ interface KnowerWaitingScreenProps {
   turnSeconds: number;
   /** The round's clock. */
   roundSeconds: number;
+  /** How long the round lasts (the full timer bar), from the room. */
+  roundLength?: number;
   /** Hide the round timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
 }
@@ -54,6 +56,7 @@ export function KnowerWaitingScreen({
   upNextName,
   turnSeconds,
   roundSeconds,
+  roundLength = ROUND_SECONDS,
   showTimer = true,
 }: KnowerWaitingScreenProps) {
   const styles = useStyles(makeStyles);
@@ -67,7 +70,7 @@ export function KnowerWaitingScreen({
           round={round}
           maxRounds={maxRounds}
           role={`${partnerName}’s turn`}
-          durationSeconds={ROUND_SECONDS}
+          durationSeconds={roundLength}
           secondsRemaining={roundSeconds}
           showTimer={showTimer}
           compact={short}

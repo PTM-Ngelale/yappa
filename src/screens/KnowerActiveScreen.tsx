@@ -38,6 +38,8 @@ interface KnowerActiveScreenProps {
   turnSeconds: number;
   /** The round's clock: when it runs out the round is lost. */
   roundSeconds: number;
+  /** How long the round lasts (the full timer bar), from the room. */
+  roundLength?: number;
   /** Hide the round timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
   /** Why the server turned the last word down, if it did (a new object each time). */
@@ -83,6 +85,7 @@ export function KnowerActiveScreen({
   players,
   turnSeconds,
   roundSeconds,
+  roundLength = ROUND_SECONDS,
   showTimer = true,
   notice,
   clues,
@@ -163,7 +166,7 @@ export function KnowerActiveScreen({
             role={clues ? 'Your clues' : 'Your turn'}
             roleBg={p.blue}
             roleFg={p.onBlue}
-            durationSeconds={ROUND_SECONDS}
+            durationSeconds={roundLength}
             secondsRemaining={roundSeconds}
             showTimer={showTimer}
             compact={short}

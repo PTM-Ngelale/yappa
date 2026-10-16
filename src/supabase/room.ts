@@ -56,6 +56,9 @@ export interface RoomData {
   mode?: 'duo' | 'team';
   /** Duo only: clues the Knower may give each round. */
   clueBudget?: number | null;
+  /** The game's turn and round clocks, set when it starts (migration 022); see roomClocks(). */
+  turnMs?: number;
+  roundMs?: number;
   createdAt: number;
 }
 

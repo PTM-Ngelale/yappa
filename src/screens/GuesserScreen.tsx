@@ -35,6 +35,8 @@ interface GuesserScreenProps {
   knowerIsTyping: boolean;
   /** The round's clock: get it before it runs out. */
   roundSeconds: number;
+  /** How long the round lasts (the full timer bar), from the room. */
+  roundLength?: number;
   /** Hide the round timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
   /** This round's first-game tip, if any. */
@@ -54,6 +56,7 @@ export function GuesserScreen({
   activeKnowerName,
   knowerIsTyping,
   roundSeconds,
+  roundLength = ROUND_SECONDS,
   showTimer = true,
   tip,
   clues,
@@ -124,7 +127,7 @@ export function GuesserScreen({
             role="You’re guessing"
             roleBg={p.coral}
             roleFg={p.onCoral}
-            durationSeconds={ROUND_SECONDS}
+            durationSeconds={roundLength}
             secondsRemaining={roundSeconds}
             showTimer={showTimer}
             compact={short}
