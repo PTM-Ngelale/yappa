@@ -13,10 +13,10 @@ export function joinLink(roomCode: string): string {
  */
 export async function shareRoom(roomCode: string): Promise<ShareResult> {
   const url = joinLink(roomCode);
-  const text = `Join my Yappa game! Room code: ${roomCode}`;
+  const text = `Join my Clue Line game! Room code: ${roomCode}`;
   if (typeof navigator.share === 'function') {
     try {
-      await navigator.share({ title: 'Yappa', text, url });
+      await navigator.share({ title: 'Clue Line', text, url });
       return 'shared';
     } catch (e) {
       // Closing the share sheet isn't an error worth reporting.
