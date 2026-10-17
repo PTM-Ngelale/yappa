@@ -31,6 +31,7 @@ import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
 import { DUO_CLUES, roomClocks } from '../../src/game/config';
 import { knowerOrder, nextKnower } from '../../src/game/players';
 import { useRoundClocks } from '../../src/hooks/useRoundClocks';
+import { errorText } from '../../src/lib/errorText';
 import { ReportSheet } from '../../src/components/ReportSheet';
 import { SyncErrorBanner } from '../../src/components/SyncErrorBanner';
 import { Screen } from '../../src/components/ui';
@@ -576,7 +577,7 @@ export default function RoundScreen() {
           const attemptSubmit = () => {
             setSentWord({ round, turnIndex: turn, word });
             submitWord(roomCode!, round, turn, word).catch((e) => {
-              console.error(e);
+              console.error(`Word not sent: ${errorText(e)}`, e);
               setSentWord(null); // hand the turn back on screen
               const rejection = wordRejection(e);
               if (rejection) {
