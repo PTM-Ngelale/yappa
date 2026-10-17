@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { verdict } from '../lib/gameSummary';
 import type { ShareResult } from '../lib/shareRoom';
-import type { RoundHistoryEntry } from '../supabase/room';
+import { teamColors, teamName } from '../game/versus';
+import type { RoundHistoryEntry, Team } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
 import { Pressable } from '../components/Pressable';
 import { Eyebrow, Screen, ScreenBody, Sticker, StickerButton, useShortScreen } from '../components/ui';
@@ -15,6 +16,8 @@ interface GameEndScreenProps {
   maxRounds: number;
   /** Duo: also shows the clues used across the game (fewer is better). */
   duo?: boolean;
+  /** Versus: this player's team and the final score. `history` is then both teams' rounds. */
+  versus?: { team: Team; scores: Record<Team, number> };
   onPlayAgain: () => void;
   onBackToHome: () => void;
   /** Public games only: opens the report sheet. */
@@ -28,6 +31,7 @@ export function GameEndScreen({
   players,
   maxRounds,
   duo = false,
+  versus,
   onPlayAgain,
   onBackToHome,
   onReport,
@@ -51,27 +55,61 @@ export function GameEndScreen({
   const sorted = [...history].sort((a, b) => a.round - b.round);
   const wonCount = sorted.filter((h) => h.outcome === 'won').length;
   const cluesUsed = sorted.reduce((n, h) => n + (h.wordCount ?? h.chain.length), 0);
+  const leader: Team | null = versus
+    ? versus.scores.red === versus.scores.blue ? null : versus.scores.red > versus.scores.blue ? 'red' : 'blue'
+    : null;
 
   return (
     <Screen>
       <ScreenBody>
         <View style={styles.hero}>
           <Eyebrow>Game over</Eyebrow>
-          <Sticker radius={28} offset={6} style={styles.scoreWrap} contentStyle={styles.score}>
-            <Text style={[styles.scoreBig, short && styles.scoreBigCompact]} accessibilityLabel={`${wonCount} of ${maxRounds} rounds won`}>
-              {wonCount}
-            </Text>
-            <Text style={styles.scoreOf} accessibilityElementsHidden importantForAccessibility="no">
-              / {maxRounds}
-            </Text>
-          </Sticker>
-          <Text style={styles.verdict} accessibilityRole="header">
-            {verdict(wonCount, maxRounds)}
-          </Text>
-          {duo && (
-            <Text style={styles.clues}>
-              {cluesUsed} {cluesUsed === 1 ? 'clue' : 'clues'} used. Fewer next time?
-            </Text>
+          {versus ? (
+            <>
+              <Sticker
+                bg={leader ? teamColors(p, leader).bg : undefined}
+                radius={28}
+                offset={6}
+                style={styles.scoreWrap}
+                contentStyle={styles.score}
+              >
+                <Text
+                  style={[styles.scoreBig, short && styles.scoreBigCompact, leader && { color: teamColors(p, leader).fg }]}
+                  accessibilityLabel={`Red ${versus.scores.red}, Blue ${versus.scores.blue}`}
+                >
+                  {versus.scores.red}–{versus.scores.blue}
+                </Text>
+              </Sticker>
+              <Text style={styles.verdict} accessibilityRole="header">
+                {leader ? `${teamName(leader)} wins!` : 'It’s a draw!'}
+              </Text>
+              <Text style={styles.clues}>
+                {leader === versus.team
+                  ? 'Your team got there first. Nice!'
+                  : leader
+                    ? `You were on ${teamName(versus.team)}. Rematch?`
+                    : 'Too close to call. Rematch?'}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Sticker radius={28} offset={6} style={styles.scoreWrap} contentStyle={styles.score}>
+                <Text style={[styles.scoreBig, short && styles.scoreBigCompact]} accessibilityLabel={`${wonCount} of ${maxRounds} rounds won`}>
+                  {wonCount}
+                </Text>
+                <Text style={styles.scoreOf} accessibilityElementsHidden importantForAccessibility="no">
+                  / {maxRounds}
+                </Text>
+              </Sticker>
+              <Text style={styles.verdict} accessibilityRole="header">
+                {verdict(wonCount, maxRounds)}
+              </Text>
+              {duo && (
+                <Text style={styles.clues}>
+                  {cluesUsed} {cluesUsed === 1 ? 'clue' : 'clues'} used. Fewer next time?
+                </Text>
+              )}
+            </>
           )}
           {onShare && (
             <>
@@ -102,6 +140,7 @@ export function GameEndScreen({
                 key={entry.round}
                 entry={entry}
                 guesser={players[entry.guesserUid]}
+                versus={!!versus}
                 last={i === sorted.length - 1}
               />
             ))}
@@ -126,10 +165,13 @@ export function GameEndScreen({
 function RoundRow({
   entry,
   guesser,
+  versus,
   last,
 }: {
   entry: RoundHistoryEntry;
   guesser?: RoomPlayer;
+  /** Versus: the round went to `entry.winner`, or to nobody. */
+  versus: boolean;
   last: boolean;
 }) {
   const styles = useStyles(makeStyles);
@@ -137,13 +179,17 @@ function RoundRow({
   const won = entry.outcome === 'won';
   const words = entry.wordCount ?? entry.chain?.length ?? 0;
   const name = guesser?.name ?? 'Someone';
-  const detail = won
-    ? `${name} guessed`
-    : entry.outcome === 'lost-timeout'
-      ? 'Time ran out'
-      : entry.guess
-        ? `Guessed “${entry.guess}”`
-        : 'Wrong guess';
+  const winner = versus && entry.winner ? entry.winner : null;
+  const detail = winner
+    ? `${teamName(winner)}: ${name} guessed`
+    : won
+      ? `${name} guessed`
+      : entry.outcome === 'lost-timeout'
+        ? versus ? 'Nobody got it' : 'Time ran out'
+        : entry.guess
+          ? `Guessed “${entry.guess}”`
+          : 'Wrong guess';
+  const badge = winner ? teamColors(p, winner) : won ? { bg: p.blue, fg: p.onBlue } : { bg: p.card, fg: p.danger };
 
   return (
     <View
@@ -151,8 +197,8 @@ function RoundRow({
       accessible
       accessibilityLabel={`Round ${entry.round}, ${entry.targetWord}, ${won ? 'won' : 'lost'}. ${detail}. ${words} words.`}
     >
-      <View style={[styles.badge, { backgroundColor: won ? p.blue : p.card }]}>
-        <Feather name={won ? 'check' : 'x'} size={16} color={won ? p.onBlue : p.danger} />
+      <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+        <Feather name={won ? 'check' : 'x'} size={16} color={badge.fg} />
       </View>
       <View style={styles.rowText}>
         <Text style={styles.rowWord}>{entry.targetWord}</Text>

@@ -15,6 +15,17 @@ const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
 const OG_IMAGE = `${SITE_URL}/og.png`;
 const OG_IMAGE_ALT = 'Clue Line: describe it together, guess the secret, beat the clock.';
 
+const INSTALL_SCRIPT = `
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault();
+  window.__installPrompt = e;
+  window.dispatchEvent(new Event('clueline:installable'));
+});
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
+}
+`;
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -58,6 +69,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-title" content="Clue Line" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        {/* Android browsers fire their install offer once, often before the game has loaded:
+            keep it for the install prompt (components/InstallPrompt.tsx) to show later. */}
+        <script dangerouslySetInnerHTML={{ __html: INSTALL_SCRIPT }} />
       </head>
       <body>
         <noscript>You need to enable JavaScript to play Clue Line.</noscript>

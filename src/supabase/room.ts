@@ -1,8 +1,24 @@
 import { supabase } from './client';
 import type { RoomPlayer } from '../store/gameStore';
 
-/** 'lost-guess' only appears in games played under the old chain rules. */
-export type RoundOutcome = 'won' | 'lost-timeout' | 'lost-guess';
+/**
+ * 'lost-guess' only appears in games played under the old chain rules. 'lost-beaten' is never
+ * stored: it's how a versus round the other team won reads for the losing team (viewFor()).
+ */
+export type RoundOutcome = 'won' | 'lost-timeout' | 'lost-guess' | 'lost-beaten';
+
+/** The two versus teams (migration 025). */
+export type Team = 'red' | 'blue';
+
+/** One team's own round in a versus game: the fields other games keep at the top level. */
+export interface VersusSide {
+  /** The team's play order, shuffled once at game start; drives its roles every round. */
+  order: string[];
+  guesserUid: string;
+  activeKnowerUid: string;
+  feed: FeedEntry[];
+  turnIndex: number;
+}
 
 /**
  * One item in a round's description feed (migration 013): a Knower's word, one of the
@@ -31,6 +47,10 @@ export interface RoundHistoryEntry {
   guess?: string | null;
   /** The word's off-limits words (migration 024); empty in games without them. */
   forbidden?: string[];
+  /** Versus: the team that got it first, or null when time ran out. */
+  winner?: Team | null;
+  /** Versus: each team's Guesser and clues this round. The entry's own feed is the winner's. */
+  sides?: Partial<Record<Team, { guesserUid: string; feed: FeedEntry[]; wordCount: number }>>;
 }
 
 export interface RoomData {
@@ -54,8 +74,12 @@ export interface RoomData {
   history?: Record<string, RoundHistoryEntry> | null;
   /** Open to Play online: strangers can be matched in, and it starts itself when full. */
   isPublic?: boolean;
-  /** Set when a game starts: 'duo' for 2 players (migration 021), 'team' for 3 to 5. */
-  mode?: 'duo' | 'team';
+  /** Set when a game starts: 'duo' for 2 players (migration 021), 'team' for 3 to 5, 'versus' (migration 025). */
+  mode?: 'duo' | 'team' | 'versus';
+  /** The lobby's versus switch (host only). Players pick teams while it's on. */
+  versus?: boolean;
+  /** A versus game's two teams, each with its own Guesser, feed and turn. */
+  sides?: Partial<Record<Team, VersusSide>> | null;
   /** Duo only: clues the Knower may give each round. */
   clueBudget?: number | null;
   /** The game's turn and round clocks, set when it starts (migration 022); see roomClocks(). */
@@ -91,7 +115,13 @@ const JOIN_REFUSED: Record<string, string> = {
  * (migration 011).
  */
 export async function joinRoom(code: string, player: RoomPlayer, source: 'link' | 'code'): Promise<void> {
-  const { data, error } = await supabase.rpc('join_room', { p_code: code, p_player: player, p_source: source });
+  // p_versus: this app can play versus, so it may join a versus lobby (migration 025).
+  const { data, error } = await supabase.rpc('join_room', {
+    p_code: code,
+    p_player: player,
+    p_source: source,
+    p_versus: true,
+  });
   if (error) throw error;
   if (typeof data === 'string' && data in JOIN_REFUSED) throw new Error(JOIN_REFUSED[data]);
 }
@@ -178,6 +208,24 @@ export async function quickMatch(player: RoomPlayer): Promise<string> {
 /** Host only, in the lobby: let Play online fill the empty seats (or stop it). */
 export async function setRoomPublic(code: string, isPublic: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_room_public', { p_code: code, p_public: isPublic });
+  if (error) throw error;
+}
+
+/** Host only, in the lobby: switch versus on (players split into two teams) or off. */
+export async function setVersus(code: string, on: boolean): Promise<void> {
+  const { error } = await supabase.rpc('set_versus', { p_code: code, p_on: on });
+  if (error) throw error;
+}
+
+/** In a versus lobby: put a player on a team (yourself, or anyone if you're the host). */
+export async function setTeam(code: string, uid: string, team: Team): Promise<void> {
+  const { error } = await supabase.rpc('set_team', { p_code: code, p_uid: uid, p_team: team });
+  if (error) throw error;
+}
+
+/** Host only, in a versus lobby: deal everyone into two teams at random. */
+export async function shuffleTeams(code: string): Promise<void> {
+  const { error } = await supabase.rpc('shuffle_teams', { p_code: code });
   if (error) throw error;
 }
 

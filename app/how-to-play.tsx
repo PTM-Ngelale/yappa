@@ -10,6 +10,7 @@ import { CATEGORIES, categoryLabel } from '../src/game/categories';
 import { DUO_CLUES, roundSecondsFor, TURN_SECONDS } from '../src/game/config';
 import { EXAMPLE_FEED, EXAMPLE_OFF_LIMITS, EXAMPLE_PLAYERS } from '../src/game/demo';
 import { roundsFor } from '../src/game/players';
+import { MAX_TEAM, MIN_TEAM, VERSUS_ROUND_SECONDS, VERSUS_ROUNDS } from '../src/game/versus';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
@@ -31,7 +32,7 @@ export default function HowToPlayScreen() {
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <Text style={styles.tagline}>
-          For 2 to 5 players. The Knowers describe a secret word, one word at a time. The Guesser guesses it before time runs out.
+          For 2 to 6 players. The Knowers describe a secret word, one word at a time. The Guesser guesses it before time runs out.
         </Text>
 
         <Section title="How it works">
@@ -55,6 +56,20 @@ export default function HowToPlayScreen() {
           <Text style={styles.bodyText}>
             <Text style={styles.strong}>Just two of you?</Text> Play duo: you swap roles every round, for{' '}
             {roundsFor(2)} rounds. No turn clock, but only {DUO_CLUES} clues a round, so make every word count.
+          </Text>
+        </Section>
+
+        <Section title="Versus">
+          <Text style={styles.bodyText}>
+            4 to 6 players? Switch the lobby to <Text style={styles.strong}>Versus</Text> and split into Red and Blue,
+            {' '}{MIN_TEAM} or {MAX_TEAM} a side.
+          </Text>
+          <Text style={styles.bodyText}>
+            Both teams get the same secret word at once, each with its own Guesser. The first Guesser to get it wins the
+            round for their team. You only see your own team’s clues, plus how many the others have given.
+          </Text>
+          <Text style={styles.bodyText}>
+            {VERSUS_ROUNDS} rounds of {VERSUS_ROUND_SECONDS} seconds. Most rounds won takes the game!
           </Text>
         </Section>
 

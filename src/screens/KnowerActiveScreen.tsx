@@ -49,7 +49,9 @@ interface KnowerActiveScreenProps {
   notice?: { message: string } | null;
   /** Duo: the round's clue budget, shown instead of the turn clock. */
   clues?: { used: number; budget: number };
-  /** Duo: the last word is still on its way; the next one waits for it. */
+  /** Versus, a team of 2: the one Knower keeps the turn all round, so there's no turn clock. */
+  soloTurn?: boolean;
+  /** Duo and solo turns: the last word is still on its way; the next one waits for it. */
   sending?: boolean;
   onSubmitWord: (word: string) => void;
   onTypingChange?: (isTyping: boolean) => void;
@@ -72,6 +74,7 @@ export function KnowerActiveScreen({
   showTimer = true,
   notice,
   clues,
+  soloTurn = false,
   sending = false,
   onSubmitWord,
   onTypingChange,
@@ -151,7 +154,7 @@ export function KnowerActiveScreen({
           <GameHeader
             round={round}
             maxRounds={maxRounds}
-            role={clues ? 'Your clues' : 'Your turn'}
+            role={clues || soloTurn ? 'Your clues' : 'Your turn'}
             roleBg={p.blue}
             roleFg={p.onBlue}
             durationSeconds={roundLength}
@@ -192,7 +195,11 @@ export function KnowerActiveScreen({
           ) : (
             prompt && <Prompt text={prompt.text} tone={prompt.tone} />
           )}
-          {clues ? <ClueBudget used={clues.used} budget={clues.budget} /> : <TurnClock label="Your word" seconds={turnSeconds} />}
+          {clues ? (
+            <ClueBudget used={clues.used} budget={clues.budget} />
+          ) : (
+            !soloTurn && <TurnClock label="Your word" seconds={turnSeconds} />
+          )}
           <Animated.View style={[styles.inputRow, { transform: [{ translateX: shakeAnim }] }]}>
             <View style={styles.inputWrap}>
               <View style={styles.inputShadow} />
