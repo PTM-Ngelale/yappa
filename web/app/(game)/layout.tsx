@@ -3,7 +3,7 @@ import React from 'react';
 import { ClientShell } from '../../components/ClientShell';
 import './globals.css';
 
-const TITLE = 'Yappa: Word Chain Party Game';
+const TITLE = 'Clue Line: Word Chain Party Game';
 const DESCRIPTION =
   'A fast, loud word-chain party game for 2 to 5 friends. Chain words, lead the guesser to the secret word, beat the clock.';
 
@@ -13,7 +13,7 @@ const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   : 'https://yappa-three.vercel.app';
 const OG_IMAGE = `${SITE_URL}/og.png`;
-const OG_IMAGE_ALT = 'Yappa: chain words, guess the secret, beat the clock.';
+const OG_IMAGE_ALT = 'Clue Line: chain words, guess the secret, beat the clock.';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -36,11 +36,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <title>{TITLE}</title>
         <meta name="description" content={DESCRIPTION} />
-        <meta name="application-name" content="Yappa" />
+        <meta name="application-name" content="Clue Line" />
         <meta property="og:title" content={TITLE} />
         <meta property="og:description" content={DESCRIPTION} />
         <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="Yappa" />
+        <meta property="og:site_name" content="Clue Line" />
         <meta property="og:url" content={SITE_URL} />
         <meta property="og:image" content={OG_IMAGE} />
         <meta property="og:image:type" content="image/png" />
@@ -52,15 +52,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="twitter:description" content={DESCRIPTION} />
         <meta name="twitter:image" content={OG_IMAGE} />
         <meta name="twitter:image:alt" content={OG_IMAGE_ALT} />
-        {/* Installable: "Add to Home Screen" opens it full screen with the Yappa icon. */}
+        {/* Installable: "Add to Home Screen" opens it full screen with the Clue Line icon. */}
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="Yappa" />
+        <meta name="apple-mobile-web-app-title" content="Clue Line" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body>
-        <noscript>You need to enable JavaScript to play Yappa.</noscript>
+        <noscript>You need to enable JavaScript to play Clue Line.</noscript>
         <div id="root">
           <ClientShell>{children}</ClientShell>
         </div>

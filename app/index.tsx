@@ -294,8 +294,9 @@ export default function HomeScreen() {
                 accessibilityRole="header"
                 maxFontSizeMultiplier={1.2}
                 numberOfLines={1}
+                adjustsFontSizeToFit
               >
-                Yappa
+                Clue Line
               </Text>
             </Sticker>
             <Text style={styles.tagline} maxFontSizeMultiplier={1.3}>Describe it together. Guess the secret. Beat the clock.</Text>
@@ -521,7 +522,7 @@ const makeStyles = (p: Palette) =>
     hero: { alignItems: "flex-start", gap: 14, marginTop: 20, marginBottom: 20 },
     wordmarkWrap: { transform: [{ rotate: "-4deg" }] },
     wordmark: { paddingHorizontal: 24, paddingBottom: 8, paddingTop: 2 },
-    wordmarkText: { fontFamily: fonts.black, fontSize: 84, lineHeight: 96, letterSpacing: -3 },
+    wordmarkText: { fontFamily: fonts.black, fontSize: 60, lineHeight: 70, letterSpacing: -2 },
     tagline: { fontFamily: fonts.bold, fontSize: 19, lineHeight: 24, color: p.ink, maxWidth: 270, marginLeft: 6 },
     nameCard: { flexDirection: "row", alignItems: "center", gap: 14, paddingHorizontal: 16, paddingVertical: 12 },
     nameLabel: { color: p.muted },

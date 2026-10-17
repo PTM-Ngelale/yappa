@@ -70,7 +70,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         {/* Left: wordmark, score, verdict. */}
         <div style={{ display: 'flex', flexDirection: 'column', width: 420, gap: 26 }}>
           <div style={{ ...sticker(WHITE, 8), alignSelf: 'flex-start', padding: '0 26px 6px', transform: 'rotate(-4deg)', fontSize: 64, fontWeight: 800, letterSpacing: -2 }}>
-            Yappa
+            Clue Line
           </div>
           <div style={{ ...sticker(WHITE), flexDirection: 'column', alignItems: 'center', padding: '18px 24px 22px', marginTop: 10 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>

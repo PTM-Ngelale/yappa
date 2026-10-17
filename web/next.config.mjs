@@ -1,4 +1,4 @@
-// Next.js web version of Yappa. It renders the same screens as the Android app (app/, src/)
+// Next.js web version of Clue Line. It renders the same screens as the Android app (app/, src/)
 // through react-native-web, so gameplay code lives in one place. Expo-only pieces are
 // swapped out here: `react-native` -> react-native-web, `expo-router` -> lib/expo-router.tsx
 // (backed by Next's router), and `.web.tsx` files win over their native versions.

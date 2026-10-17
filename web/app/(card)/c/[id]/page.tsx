@@ -10,15 +10,15 @@ type Props = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const card = await getCard(id);
-  if (!card) return { title: 'Yappa' };
+  if (!card) return { title: 'Clue Line' };
   const { won, outOf, verdict } = summarise(card);
-  const title = `We scored ${won}/${outOf} on Yappa: ${verdict}`;
+  const title = `We scored ${won}/${outOf} on Clue Line: ${verdict}`;
   const description = 'A word-chain party game for 2 to 5 friends. Chain words, lead the guesser to the secret word, beat the clock.';
-  const image = { url: `${SITE_URL}/c/${id}/image.png`, width: 1200, height: 630, alt: `Yappa: ${won} of ${outOf} rounds won` };
+  const image = { url: `${SITE_URL}/c/${id}/image.png`, width: 1200, height: 630, alt: `Clue Line: ${won} of ${outOf} rounds won` };
   return {
     title,
     description,
-    openGraph: { title, description, url: `${SITE_URL}/c/${id}`, siteName: 'Yappa', type: 'website', images: [image] },
+    openGraph: { title, description, url: `${SITE_URL}/c/${id}`, siteName: 'Clue Line', type: 'website', images: [image] },
     twitter: { card: 'summary_large_image', title, description, images: [image] },
   };
 }
@@ -43,7 +43,7 @@ export default async function CardPage({ params }: Props) {
         src={`/c/${id}/image.png`}
         width={1200}
         height={630}
-        alt={`Yappa: ${won} of ${outOf} rounds won. ${verdict}.`}
+        alt={`Clue Line: ${won} of ${outOf} rounds won. ${verdict}.`}
         style={{ width: '100%', height: 'auto', ...sticker, borderRadius: 16 }}
       />
 
@@ -60,7 +60,7 @@ export default async function CardPage({ params }: Props) {
           padding: '16px 20px',
         }}
       >
-        Play Yappa free
+        Play Clue Line free
       </a>
 
       <section style={{ ...sticker, padding: '8px 20px 12px' }}>
@@ -82,7 +82,7 @@ export default async function CardPage({ params }: Props) {
       </section>
 
       <p style={{ textAlign: 'center', fontSize: 15, margin: 0 }}>
-        Yappa is a word-chain party game for 2 to 5 friends, each on their own phone.
+        Clue Line is a word-chain party game for 2 to 5 friends, each on their own phone.
       </p>
     </main>
   );
