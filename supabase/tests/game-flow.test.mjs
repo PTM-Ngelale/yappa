@@ -680,6 +680,170 @@ check((await fails2(d.activeKnowerUid, `select submit_word('OFFL', 1, 0, $1)`, [
 await as(HOST, `select end_game('OFFL')`);
 for (const u of [P2, P3, HOST]) await as(u, `select leave_room('OFFL', $1)`, [u]);
 
+// --- Versus mode (migration 025) ------------------------------------------------------------
+const vJoin = async (uid, versus = true) =>
+  (await as(uid, `select join_room('VERS', $1, 'code', $2) r`, [player(uid), versus])).rows[0].r;
+const oldJoin = async (uid) => (await as(uid, `select join_room('VERS', $1, 'code') r`, [player(uid)])).rows[0].r;
+const teamsOf = (r) => Object.values(r.players).reduce((m, pl) => ((m[pl.team] = [...(m[pl.team] ?? []), pl.uid]), m), {});
+await as(HOST, `select create_room('VERS', $1)`, [player(HOST)]);
+await vJoin(P2);
+await oldJoin(P3);
+check((await fails2(HOST, `select set_versus('VERS', true)`)).includes('update the app'), 'versus cannot be switched on while someone has an older app');
+await as(P3, `select leave_room('VERS', $1)`, [P3]);
+check(await fails(P2, `select set_versus('VERS', true)`), 'only the host can switch versus on');
+await as(HOST, `select set_versus('VERS', true)`);
+d = await room('VERS');
+check(d.versus === true && d.players[HOST].team && d.players[P2].team && d.players[HOST].team !== d.players[P2].team, 'switching versus on deals the players into two teams');
+check((await oldJoin(P3)) === 'full' && !(P3 in (await room('VERS')).players), 'an older app cannot join a versus lobby');
+for (const u of [P3, OUTSIDER, FIFTH, SIXTH]) check((await vJoin(u)) === 'ok', 'a newer app joins the versus lobby');
+d = await room('VERS');
+check(Object.keys(d.players).length === 6 && teamsOf(d).red.length === 3 && teamsOf(d).blue.length === 3, 'a versus room seats 6, newcomers joining the smaller team');
+check((await vJoin(SEVENTH)) === 'full', 'a seventh player is turned away');
+check(await fails(HOST, `select set_versus('VERS', false)`), 'versus cannot be switched off with 6 players');
+check(await fails(HOST, `select set_room_public('VERS', true)`), 'a versus lobby cannot go public');
+check((await fails2(P2, `select set_team('VERS', $1, $2)`, [P2, d.players[P2].team === 'red' ? 'blue' : 'red'])).includes('team is full'), 'a full team takes nobody else');
+const p2Team = d.players[P2].team;
+await vJoin(P2); // joining again (a reconnect) keeps the team
+check((await room('VERS')).players[P2].team === p2Team, 'a player joining again keeps their team');
+await as(SIXTH, `select leave_room('VERS', $1)`, [SIXTH]);
+d = await room('VERS');
+let [bigTeam, smallTeam] = teamsOf(d).red.length === 3 ? ['red', 'blue'] : ['blue', 'red'];
+const mover = teamsOf(d)[bigTeam].find((u) => u !== HOST);
+const bystander = teamsOf(d)[smallTeam].find((u) => u !== HOST);
+check(await fails(bystander, `select set_team('VERS', $1, $2)`, [mover, smallTeam]), 'a player cannot move someone else');
+await as(mover, `select set_team('VERS', $1, $2)`, [mover, smallTeam]);
+check((await room('VERS')).players[mover].team === smallTeam, 'a player can switch to a team with room');
+await as(HOST, `select set_team('VERS', $1, $2)`, [mover, bigTeam]);
+check((await room('VERS')).players[mover].team === bigTeam, 'the host can move anyone');
+await as(HOST, `select shuffle_teams('VERS')`);
+d = await room('VERS');
+check([2, 3].includes(teamsOf(d).red?.length) && teamsOf(d).red.length + teamsOf(d).blue.length === 5, 'shuffling deals 5 players into teams of 2 and 3');
+check((await fails2(HOST, `select start_game('VERS')`)).includes('update the app'), 'an older app cannot start a versus game');
+const vAge = (sql, secs) => db.query(sql.replace('$c', `'VERS'`), [secs]);
+const ageVRound = (secs) => vAge(`update turn_clocks set round_started_at = round_started_at - make_interval(secs => $1) where code = $c`, secs);
+const ageVTurn = (team, secs) => db.query(`update side_clocks set started_at = started_at - make_interval(secs => $1) where code = 'VERS' and side = $2`, [secs, team]);
+const vSecret = async (r) => (await db.query(`select target_word from round_secrets where code = 'VERS' and round = $1`, [r])).rows[0].target_word;
+const vGuess = async (r, uid) => (await as(null, `select begin_guess('VERS', $1, $2) r`, [r, uid])).rows[0].r;
+const vRecord = async (r, text, correct, uid) => (await as(null, `select record_guess('VERS', $1, $2, $3, $4) ok`, [r, text, correct, uid])).rows[0].ok;
+
+await as(HOST, `select start_game('VERS', true)`);
+d = await room('VERS');
+[bigTeam, smallTeam] = d.sides.red.order.length === 3 ? ['red', 'blue'] : ['blue', 'red'];
+check(d.status === 'playing' && d.mode === 'versus' && d.maxRounds === 6 && d.roundMs === 75000 && d.turnMs === 15000 && d.offLimits === true, 'a versus game: 6 rounds, 15 second turns, a 75 second round, off-limits words');
+check(tiers((await db.query(`select words from game_decks where code = 'VERS'`)).rows[0].words) === 'eemmhh', 'the versus deck is 2 Easy, 2 Medium, 2 Hard');
+check(d.sides[bigTeam].order.length === 3 && d.sides[smallTeam].order.length === 2 && d.guesserUid === '' && d.activeKnowerUid === '', 'each team has its own order; the shared round fields stay empty');
+const vGuessed = {};
+let vWins = { red: 0, blue: 0 };
+for (let round = 1; round <= 6; round++) {
+  d = await room('VERS');
+  const big = d.sides[bigTeam];
+  const small = d.sides[smallTeam];
+  vGuessed[big.guesserUid] = (vGuessed[big.guesserUid] ?? 0) + 1;
+  vGuessed[small.guesserUid] = (vGuessed[small.guesserUid] ?? 0) + 1;
+  const target = await vSecret(round);
+  check(d.round === round && d.players[big.guesserUid].role === 'guesser' && d.players[small.guesserUid].role === 'guesser', `versus, round ${round}: one Guesser on each team`);
+  check(!JSON.stringify(d).includes(`"${target}"`), `versus, round ${round}: the word is not in room data`);
+  let readable = true;
+  for (const u of [...big.order, ...small.order]) {
+    const rows = (await as(u, `select target_word from round_secrets where code = 'VERS' and round = $1`, [round])).rows;
+    const isGuesser = u === big.guesserUid || u === small.guesserUid;
+    if (isGuesser ? rows.length !== 0 : rows[0]?.target_word !== target) readable = false;
+  }
+  check(readable, `versus, round ${round}: both teams' Knowers can read the word, neither Guesser can`);
+
+  if (round === 1) {
+    const bigKnowers = big.order.filter((u) => u !== big.guesserUid);
+    const smallKnower = small.order.find((u) => u !== small.guesserUid);
+    check(big.activeKnowerUid === bigKnowers[0] && small.activeKnowerUid === smallKnower, 'each team starts with its first Knower');
+    await ageVTurn(smallTeam, 5);
+    const smallClock = (await db.query(`select started_at from side_clocks where code = 'VERS' and side = $1`, [smallTeam])).rows[0].started_at;
+    check((await as(bigKnowers[0], `select submit_word('VERS', 1, 0, 'tall') i`)).rows[0].i === 1, 'a Knower adds a word to their team');
+    d = await room('VERS');
+    check(d.sides[bigTeam].feed.length === 1 && d.sides[smallTeam].feed.length === 0 && d.feed.length === 0, "…into their own team's feed only");
+    check(d.sides[bigTeam].activeKnowerUid === bigKnowers[1] && d.sides[bigTeam].turnIndex === 1, '…and the turn passes to their teammate');
+    check((await db.query(`select started_at from side_clocks where code = 'VERS' and side = $1`, [smallTeam])).rows[0].started_at.getTime() === smallClock.getTime(), "the other team's turn clock carries on");
+    check(await fails(bigKnowers[0], `select submit_word('VERS', 1, 1, 'white')`), 'a Knower cannot go twice in a row on a team of 3');
+    check(await fails(small.guesserUid, `select submit_word('VERS', 1, 0, 'white')`), 'a Guesser cannot add a word');
+    for (const [i, w] of ['water', 'tower', 'shore'].entries()) await as(smallKnower, `select submit_word('VERS', 1, $1, $2)`, [i, w]);
+    d = await room('VERS');
+    check(d.sides[smallTeam].feed.length === 3 && d.sides[smallTeam].activeKnowerUid === smallKnower, 'on a team of 2 the Knower keeps the turn');
+    await as(bigKnowers[1], `select set_typing('VERS', true)`);
+    await as(bigKnowers[0], `select set_typing('VERS', true)`);
+    await as(smallKnower, `select set_typing('VERS', true)`);
+    check(Object.keys((await room('VERS')).typing).sort().join() === [bigKnowers[1], smallKnower].sort().join(), "each team's active Knower can show they're typing");
+    const state = (await as(smallKnower, `select clock_state('VERS') s`)).rows[0].s;
+    check(state.turnIndex === 3 && (await as(bigKnowers[0], `select clock_state('VERS') s`)).rows[0].s.turnIndex === 1, "clock_state gives each player their own team's turn");
+    await ageVTurn(bigTeam, 16);
+    await ageVTurn(smallTeam, 30);
+    check((await as(smallKnower, `select skip_turn('VERS', 1, 3) ok`)).rows[0].ok === false, 'a lone Knower is never skipped');
+    check((await as(big.guesserUid, `select skip_turn('VERS', 1, 1) ok`)).rows[0].ok === true, "a slow Knower's turn is skipped");
+    d = await room('VERS');
+    check(d.sides[bigTeam].activeKnowerUid === bigKnowers[0] && d.sides[bigTeam].feed.at(-1).kind === 'skip' && d.sides[smallTeam].turnIndex === 3, "…on their own team only");
+
+    // Pausing holds both teams' turn clocks.
+    const before = (await db.query(`select started_at from side_clocks where code = 'VERS' and side = $1`, [bigTeam])).rows[0].started_at.getTime();
+    await as(HOST, `select pause_turn_clock('VERS')`);
+    await vAge(`update turn_clocks set hold_started_at = hold_started_at - make_interval(secs => $1) where code = $c`, 5);
+    await as(HOST, `select resume_turn_clock('VERS')`);
+    const after = (await db.query(`select started_at from side_clocks where code = 'VERS' and side = $1`, [bigTeam])).rows[0].started_at.getTime();
+    check(Math.abs(after - before - 5000) < 1000, "a pause moves each team's turn clock on");
+
+    check((await vGuess(1, small.guesserUid)) === 'ok', 'the first Guesser guesses');
+    check((await vRecord(1, 'Cliff', false, small.guesserUid)) === true, '…wrong');
+    d = await room('VERS');
+    check(d.status === 'playing' && d.sides[smallTeam].feed.at(-1).kind === 'guess' && d.sides[smallTeam].feed.at(-1).by === small.guesserUid && d.sides[bigTeam].feed.every((e) => e.kind !== 'guess'), "a wrong guess goes into the guessing team's feed");
+    check((await vGuess(1, small.guesserUid)) === 'cooldown', 'a Guesser waits 3 seconds between guesses');
+    check((await vGuess(1, big.guesserUid)) === 'ok', "…but the other team's Guesser has their own wait");
+    check((await vGuess(1, HOST === big.guesserUid || HOST === small.guesserUid ? bigKnowers[0] : HOST)) === 'not-the-guesser', 'a Knower cannot guess');
+    check((await as(null, `select record_guess('VERS', 1, 'x', true) ok`)).rows[0].ok === false && (await room('VERS')).status === 'playing', "a guess that doesn't say whose it is counts for nobody");
+    check((await vRecord(1, target, true, big.guesserUid)) === true, 'the other Guesser gets it');
+    d = await room('VERS');
+    const h = d.history['1'];
+    check(d.status === 'resolution' && h.outcome === 'won' && h.winner === bigTeam && h.guesserUid === big.guesserUid && h.guess === target, 'the first team to get it wins the round');
+    check(h.sides[smallTeam].feed.length === 4 && h.sides[bigTeam].wordCount === 1 && h.wordCount === 1 && h.chain.join() === 'tall', "the round's history keeps both teams' clues");
+    check((await vRecord(1, target, true, small.guesserUid)) === false && (await room('VERS')).history['1'].winner === bigTeam, 'a correct guess that comes too late changes nothing');
+    vWins[bigTeam]++;
+  } else if (round === 2) {
+    await ageVRound(70);
+    check((await as(big.guesserUid, `select expire_round('VERS', 2) ok`)).rows[0].ok === false, 'a versus round is not over at 70 seconds');
+    await vGuess(2, small.guesserUid);
+    await ageVRound(10);
+    check((await as(big.guesserUid, `select expire_round('VERS', 2) ok`)).rows[0].ok === false, "…and waits for a guess that's still being judged");
+    await db.query(`update side_clocks set guess_pending_at = null where code = 'VERS'`);
+    check((await as(big.guesserUid, `select expire_round('VERS', 2) ok`)).rows[0].ok === true, '…then ends at 75 seconds');
+    d = await room('VERS');
+    check(d.history['2'].outcome === 'lost-timeout' && d.history['2'].winner === null && d.history['2'].guesserUid === '', 'a round that runs out goes to nobody');
+  } else {
+    const winner = round % 2 ? smallTeam : bigTeam;
+    await vGuess(round, d.sides[winner].guesserUid);
+    await vRecord(round, target, true, d.sides[winner].guesserUid);
+    vWins[winner]++;
+  }
+  check((await room('VERS')).status === 'resolution', `versus, round ${round}: the round ends`);
+  await as(HOST, `select advance_round('VERS', $1)`, [round]);
+}
+d = await room('VERS');
+const tally = Object.values(d.history).reduce((m, h) => (h.winner ? ((m[h.winner] = (m[h.winner] ?? 0) + 1), m) : m), {});
+check(d.status === 'gameover' && Object.keys(d.history).length === 6, 'the versus game ends after 6 rounds');
+check(tally.red === (vWins.red || undefined) && tally.blue === (vWins.blue || undefined), `versus: the history adds up (${vWins.red} to ${vWins.blue})`);
+check(
+  Object.entries(vGuessed).every(([u, n]) => n === (d.sides[bigTeam].order.includes(u) ? 2 : 3)) && Object.keys(vGuessed).length === 5,
+  'versus: on a team of 3 everyone guesses twice, on a team of 2 three times',
+);
+
+await as(P2, `select reset_room_to_lobby('VERS')`);
+d = await room('VERS');
+check(d.status === 'lobby' && d.versus === true && !('sides' in d) && Object.values(d.players).every((pl) => pl.team), 'Play Again keeps versus and the teams');
+await as(HOST, `select set_versus('VERS', false)`);
+await as(HOST, `select start_game('VERS', true)`);
+d = await room('VERS');
+check(d.mode === 'team' && d.maxRounds === 10 && !d.sides, 'with versus off the room plays a normal game');
+const knower = d.activeKnowerUid;
+check((await as(knower, `select target_word from round_secrets where code = 'VERS' and round = 1`)).rows.length === 1, '…whose Knowers can read the word');
+check((await as(knower, `select submit_word('VERS', 1, 0, 'zorp') i`)).rows[0].i === 1, '…and add words as usual');
+await as(HOST, `select end_game('VERS')`);
+for (const u of Object.keys(d.players)) await as(u, `select leave_room('VERS', $1)`, [u]);
+
 // --- Data retention (migration 008) -------------------------------------------------------
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');
 await as(HOST, `select create_room('NEW1', $1)`, [player(HOST)]);

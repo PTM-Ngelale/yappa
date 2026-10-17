@@ -7,7 +7,8 @@ import { DescriptionFeed } from '../components/DescriptionFeed';
 import { OffLimits } from '../components/game';
 import { LeaveGameButton } from '../components/LeaveGame';
 import { Pressable } from '../components/Pressable';
-import type { FeedEntry, RoundOutcome } from '../supabase/room';
+import { otherTeam, TEAMS, teamColors, teamName } from '../game/versus';
+import type { FeedEntry, RoundOutcome, Team } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
 
@@ -35,6 +36,15 @@ interface RoundResolutionScreenProps {
   /** Outcome of every round played so far, in order, including this one. */
   results: Array<'won' | 'lost'>;
   isHost: boolean;
+  /** Versus: this player's team, the score so far, and the other team's round. */
+  versus?: {
+    team: Team;
+    scores: Record<Team, number>;
+    /** Who got it first: null when time ran out. */
+    winner: Team | null;
+    /** The other team's clues and guesses. */
+    rivalFeed: FeedEntry[];
+  };
   /** Public games only: opens the report sheet. */
   onReport?: () => void;
   onNextRound: () => void;
@@ -55,6 +65,7 @@ export function RoundResolutionScreen({
   wordCount,
   results,
   isHost,
+  versus,
   onReport,
   onNextRound,
 }: RoundResolutionScreenProps) {
@@ -96,13 +107,21 @@ export function RoundResolutionScreen({
 
   const ground = won ? p.blue : p.coral;
   const onGround = won ? p.onBlue : p.onCoral;
-  const headline = won ? 'Got it!' : outcome === 'lost-timeout' ? 'Time’s up' : 'Not quite';
+  const headline = won
+    ? 'Got it!'
+    : outcome === 'lost-beaten' ? 'Too slow!' : outcome === 'lost-timeout' ? 'Time’s up' : 'Not quite';
   const who = isMyGuess ? 'You' : guesserName;
+  const rival = versus ? teamName(otherTeam(versus.team)) : '';
   const sub = won
-    ? `${who} guessed “${guess ?? targetWord}”`
-    : guess
-      ? `${who} guessed “${guess}”. It was ${targetWord}`
-      : `The word was ${targetWord}`;
+    ? `${who} guessed “${guess ?? targetWord}”${versus ? ` before ${rival}` : ''}`
+    : outcome === 'lost-beaten'
+      ? `${rival} got there first: ${guesserName} guessed “${guess ?? targetWord}”`
+      : guess
+        ? `${who} guessed “${guess}”. It was ${targetWord}`
+        : versus
+          ? `Nobody got it. The word was ${targetWord}`
+          : `The word was ${targetWord}`;
+  const rivalWords = (versus?.rivalFeed ?? []).flatMap((e) => (e.kind === 'word' ? [e.text] : []));
   const seconds = durationMs !== undefined ? Math.round(durationMs / 1000) : null;
   const facts = [
     won && wordCount !== undefined ? `Got it in ${wordCount} word${wordCount === 1 ? '' : 's'}` : null,
@@ -142,38 +161,71 @@ export function RoundResolutionScreen({
           </View>
           {offLimits.length > 0 && <OffLimits words={offLimits} />}
           {facts !== '' && <Text style={styles.facts}>{facts}</Text>}
+          {versus && (
+            <Text style={styles.facts}>
+              {rival}’s clues: {rivalWords.length ? rivalWords.join(', ') : 'none'}
+            </Text>
+          )}
         </Sticker>
 
-        <View style={styles.score}>
-          <View style={styles.scoreTop}>
-            <Eyebrow style={{ color: onGround }}>Team score</Eyebrow>
-            <Text style={[styles.scoreText, { color: onGround }]}>
-              {wins} of {results.length} won
-            </Text>
-          </View>
-          <View
-            style={styles.blocks}
-            accessible
-            accessibilityLabel={`${wins} won, ${results.length - wins} lost, ${maxRounds - results.length} to play`}
-          >
-            {Array.from({ length: maxRounds }).map((_, i) => {
-              const r = results[i];
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.block,
-                    r === 'won' && { backgroundColor: p.yellow },
-                    r === 'lost' && { backgroundColor: p.card },
-                    !r && { backgroundColor: 'rgba(255,255,255,0.28)' },
-                  ]}
+        {versus ? (
+          <View style={styles.score}>
+            <Eyebrow style={{ color: onGround }}>Score</Eyebrow>
+            <View
+              style={styles.teams}
+              accessible
+              accessibilityLabel={TEAMS.map((t) => `${teamName(t)} ${versus.scores[t]}`).join(', ')}
+            >
+              {TEAMS.map((t) => (
+                <Sticker
+                  key={t}
+                  bg={teamColors(p, t).bg}
+                  radius={16}
+                  offset={4}
+                  style={styles.flex}
+                  contentStyle={styles.teamScore}
                 >
-                  {r === 'lost' && <Feather name="x" size={14} color={p.ink} />}
-                </View>
-              );
-            })}
+                  <Text style={[styles.teamLabel, { color: teamColors(p, t).fg }]}>
+                    {teamName(t)}
+                    {t === versus.team ? ' (you)' : ''}
+                  </Text>
+                  <Text style={[styles.teamNumber, { color: teamColors(p, t).fg }]}>{versus.scores[t]}</Text>
+                </Sticker>
+              ))}
+            </View>
           </View>
-        </View>
+        ) : (
+          <View style={styles.score}>
+            <View style={styles.scoreTop}>
+              <Eyebrow style={{ color: onGround }}>Team score</Eyebrow>
+              <Text style={[styles.scoreText, { color: onGround }]}>
+                {wins} of {results.length} won
+              </Text>
+            </View>
+            <View
+              style={styles.blocks}
+              accessible
+              accessibilityLabel={`${wins} won, ${results.length - wins} lost, ${maxRounds - results.length} to play`}
+            >
+              {Array.from({ length: maxRounds }).map((_, i) => {
+                const r = results[i];
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.block,
+                      r === 'won' && { backgroundColor: p.yellow },
+                      r === 'lost' && { backgroundColor: p.card },
+                      !r && { backgroundColor: 'rgba(255,255,255,0.28)' },
+                    ]}
+                  >
+                    {r === 'lost' && <Feather name="x" size={14} color={p.ink} />}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </ScreenBody>
 
       <View style={styles.footer}>
@@ -236,6 +288,11 @@ const makeStyles = (p: Palette) =>
     scoreTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
     scoreText: { fontFamily: fonts.black, fontSize: 20 },
     blocks: { flexDirection: 'row', gap: 6 },
+    flex: { flex: 1 },
+    teams: { flexDirection: 'row', gap: 12 },
+    teamScore: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 6 },
+    teamLabel: { fontFamily: fonts.black, fontSize: 18 },
+    teamNumber: { fontFamily: fonts.black, fontSize: 30 },
     block: {
       flex: 1,
       height: 26,

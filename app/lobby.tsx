@@ -6,12 +6,25 @@ import { playSound } from '../src/audio/sounds';
 import { Pressable } from '../src/components/Pressable';
 import { ReportSheet } from '../src/components/ReportSheet';
 import { SoundToggles } from '../src/components/SoundToggles';
+import { errorText } from '../src/lib/errorText';
 import { shareRoom } from '../src/lib/shareRoom';
 import { Avatar, Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
 import { DUO_CLUES, roundSecondsFor } from '../src/game/config';
 import { MAX_PLAYERS, MIN_PLAYERS, PUBLIC_PLAYERS, roundsFor, TEAM_PLAYERS } from '../src/game/players';
+import {
+  MAX_TEAM,
+  MIN_TEAM,
+  otherTeam,
+  TEAMS,
+  teamColors,
+  teamName,
+  teamsOf,
+  VERSUS_ROUND_SECONDS,
+  VERSUS_ROUNDS,
+  versusProblem,
+} from '../src/game/versus';
 import { SUPABASE_CONFIGURED } from '../src/supabase/config';
-import type { RoomData } from '../src/supabase/room';
+import type { RoomData, Team } from '../src/supabase/room';
 import { useGameStore, type RoomPlayer } from '../src/store/gameStore';
 import { usePlayerStore } from '../src/store/playerStore';
 import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
@@ -29,6 +42,8 @@ export default function LobbyScreen() {
   const [togglingPublic, setTogglingPublic] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [versusBusy, setVersusBusy] = useState(false);
+  const [teamError, setTeamError] = useState('');
 
   // Build local player list for display when Supabase isn't configured
   const localPlayer: RoomPlayer = {
@@ -91,8 +106,9 @@ export default function LobbyScreen() {
   // A full public lobby starts by itself: nobody waits on a stranger to tap Start.
   // Everyone sees the countdown; the host's app does the starting.
   const isPublic = !!roomData?.isPublic;
-  // Play online seats 3; a private room seats up to 5 and can start from 2 (duo).
-  const seats = isPublic ? PUBLIC_PLAYERS : MAX_PLAYERS;
+  const versus = !!roomData?.versus;
+  // Play online seats 3; a private room seats up to 5 and can start from 2 (duo); versus seats two teams of 3.
+  const seats = isPublic ? PUBLIC_PLAYERS : versus ? MAX_TEAM * 2 : MAX_PLAYERS;
   const isFull = players.length >= seats;
   useEffect(() => {
     if (!isPublic || !isFull || roomData?.status !== 'lobby') {
@@ -153,6 +169,54 @@ export default function LobbyScreen() {
     }
   }
 
+  // Versus: the host switches it on or off; the server says if someone's app is too old.
+  async function handleSetVersus(on: boolean) {
+    if (!roomCode || on === versus) return;
+    setVersusBusy(true);
+    setTeamError('');
+    try {
+      const { setVersus } = await import('../src/supabase/room');
+      await setVersus(roomCode, on);
+    } catch (e) {
+      console.error(e);
+      const message = errorText(e);
+      setTeamError(
+        message.includes('update the app')
+          ? 'Someone needs to update Clue Line to play versus.'
+          : message.includes('too many players')
+            ? `A normal game seats ${MAX_PLAYERS}. Someone needs to leave first.`
+            : 'Couldn’t switch. Check your connection.',
+      );
+    } finally {
+      setVersusBusy(false);
+    }
+  }
+
+  // Join a team yourself, or (host) move someone else.
+  async function handleSetTeam(playerUid: string, team: Team) {
+    if (!roomCode) return;
+    setTeamError('');
+    try {
+      const { setTeam } = await import('../src/supabase/room');
+      await setTeam(roomCode, playerUid, team);
+    } catch (e) {
+      console.error(e);
+      setTeamError(errorText(e).includes('full') ? `${teamName(team)} is full.` : 'Couldn’t change teams. Check your connection.');
+    }
+  }
+
+  async function handleShuffle() {
+    if (!roomCode) return;
+    setTeamError('');
+    try {
+      const { shuffleTeams } = await import('../src/supabase/room');
+      await shuffleTeams(roomCode);
+    } catch (e) {
+      console.error(e);
+      setTeamError('Couldn’t shuffle. Check your connection.');
+    }
+  }
+
   // Native always opens the share sheet; on web, browsers without one copy a link instead.
   function handleShare() {
     if (!roomCode) return;
@@ -163,8 +227,11 @@ export default function LobbyScreen() {
     });
   }
 
+  const teams = teamsOf(players);
+  const myTeam = players.find((pl) => pl.uid === uid)?.team;
+  const notReady = versus ? versusProblem(players) : null;
   const enough = players.length >= MIN_PLAYERS;
-  const canStart = isHost && enough && players.length <= MAX_PLAYERS;
+  const canStart = isHost && enough && (versus ? notReady === null : players.length <= MAX_PLAYERS);
   // Seats the game still needs; a private room with enough players shows the rest as optional.
   const emptySlots = Math.max(0, (isPublic ? PUBLIC_PLAYERS : MIN_PLAYERS) - players.length);
   const spareSeats = !isPublic && enough ? MAX_PLAYERS - players.length : 0;
@@ -218,7 +285,92 @@ export default function LobbyScreen() {
               {players.length} / {seats}
             </Text>
           </View>
-          {players.map((player) => (
+          {!isPublic && (isHost || versus) && (
+            <View style={styles.modes} accessibilityRole="radiogroup">
+              {([false, true] as const).map((on) => {
+                const selected = versus === on;
+                return (
+                  <Pressable
+                    key={String(on)}
+                    onPress={() => handleSetVersus(on)}
+                    disabled={!isHost || versusBusy}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected, disabled: !isHost }}
+                    accessibilityLabel={on ? 'Versus: two teams race on the same word' : 'Together: everyone on one team'}
+                    style={[styles.mode, selected && styles.modeSelected]}
+                  >
+                    <Text style={[styles.modeText, selected && styles.modeTextSelected]}>{on ? 'Versus' : 'Together'}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+          {versus &&
+            TEAMS.map((team) => {
+              const colors = teamColors(p, team);
+              const members = teams[team];
+              const canJoin = !!uid && myTeam !== team && members.length < MAX_TEAM;
+              return (
+                <View key={team} style={styles.team}>
+                  <View style={styles.sectionTop}>
+                    <Pill label={teamName(team)} bg={colors.bg} fg={colors.fg} />
+                    <Text style={styles.count}>
+                      {members.length} / {MAX_TEAM}
+                    </Text>
+                  </View>
+                  {members.map((player) => (
+                    <Sticker key={player.uid} radius={20} contentStyle={styles.playerRow}>
+                      <Avatar name={player.name} color={player.avatarColor} />
+                      <Text style={styles.playerName} numberOfLines={1}>
+                        {player.name}
+                        {player.uid === uid && <Text style={styles.you}> (you)</Text>}
+                      </Text>
+                      {roomData?.hostUid === player.uid && (
+                        <Pill label="Host" bg={p.yellow} fg={p.onYellow} size={13} style={styles.hostPill} />
+                      )}
+                      {isHost && player.uid !== uid && (
+                        <IconButton
+                          icon="repeat"
+                          onPress={() => handleSetTeam(player.uid, otherTeam(team))}
+                          accessibilityLabel={`Move ${player.name} to ${teamName(otherTeam(team))}`}
+                        />
+                      )}
+                    </Sticker>
+                  ))}
+                  {canJoin ? (
+                    <Pressable
+                      onPress={() => handleSetTeam(uid!, team)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Join ${teamName(team)}`}
+                      style={styles.emptySlot}
+                    >
+                      <View style={[styles.emptyAvatar, { backgroundColor: colors.bg }]}>
+                        <Feather name="plus" size={18} color={colors.fg} />
+                      </View>
+                      <Text style={styles.emptyText}>Join {teamName(team)}</Text>
+                    </Pressable>
+                  ) : (
+                    members.length < MIN_TEAM && (
+                      <View style={styles.emptySlot}>
+                        <View style={styles.emptyAvatar}>
+                          <Feather name="plus" size={18} color={p.ink} />
+                        </View>
+                        <Text style={styles.emptyText}>Waiting for a friend…</Text>
+                      </View>
+                    )
+                  )}
+                </View>
+              );
+            })}
+          {versus && isHost && players.length > 1 && (
+            <StickerButton label="Shuffle teams" icon="shuffle" variant="card" height={46} fontSize={16} onPress={handleShuffle} />
+          )}
+          {teamError !== '' && (
+            <Text style={styles.teamError} accessibilityLiveRegion="assertive">
+              {teamError}
+            </Text>
+          )}
+          {!versus && players.map((player) => (
             <Sticker key={player.uid} radius={20} contentStyle={styles.playerRow}>
               <Avatar name={player.name} color={player.avatarColor} />
               <Text style={styles.playerName} numberOfLines={1}>
@@ -241,7 +393,7 @@ export default function LobbyScreen() {
               )}
             </Sticker>
           ))}
-          {Array.from({ length: emptySlots }).map((_, i) => (
+          {!versus && Array.from({ length: emptySlots }).map((_, i) => (
             <View key={`empty-${i}`} style={styles.emptySlot}>
               <View style={styles.emptyAvatar}>
                 <Feather name="plus" size={18} color={p.ink} />
@@ -251,7 +403,7 @@ export default function LobbyScreen() {
               </Text>
             </View>
           ))}
-          {spareSeats > 0 && (
+          {!versus && spareSeats > 0 && (
             <View style={[styles.emptySlot, styles.spareSlot]}>
               <View style={styles.emptyAvatar}>
                 <Feather name="plus" size={18} color={p.ink} />
@@ -262,7 +414,7 @@ export default function LobbyScreen() {
         </View>
 
         {/* Play online fills a room to 3, so it's offered only while there's a seat to fill */}
-        {isHost && roomData?.status === 'lobby' && (isPublic || players.length < PUBLIC_PLAYERS) && (
+        {isHost && roomData?.status === 'lobby' && !versus && (isPublic || players.length < PUBLIC_PLAYERS) && (
           <StickerButton
             label={isPublic ? 'Stop finding players' : 'Find players online'}
             icon={isPublic ? 'x' : 'globe'}
@@ -305,11 +457,13 @@ export default function LobbyScreen() {
             sound="roundStart"
           />
           <Text style={styles.note}>
-            {canStart
-              ? players.length < TEAM_PLAYERS
-                ? `Duo: ${roundsFor(players.length)} rounds, ${DUO_CLUES} clues a round. Let’s go!`
-                : `${players.length} players, ${roundsFor(players.length)} rounds of ${roundSecondsFor(players.length)}s. Let’s go!`
-              : `Needs at least ${MIN_PLAYERS} players, ${emptySlots} more to go`}
+            {versus
+              ? notReady ?? `Red vs Blue: ${VERSUS_ROUNDS} rounds of ${VERSUS_ROUND_SECONDS}s. First to guess wins the round!`
+              : canStart
+                ? players.length < TEAM_PLAYERS
+                  ? `Duo: ${roundsFor(players.length)} rounds, ${DUO_CLUES} clues a round. Let’s go!`
+                  : `${players.length} players, ${roundsFor(players.length)} rounds of ${roundSecondsFor(players.length)}s. Let’s go!`
+                : `Needs at least ${MIN_PLAYERS} players, ${emptySlots} more to go`}
           </Text>
         </View>
       )}
@@ -385,6 +539,21 @@ const makeStyles = (p: Palette) =>
     },
     emptyText: { fontFamily: fonts.bold, fontSize: 18, color: p.ink },
     spareSlot: { opacity: 0.6 },
+    modes: {
+      flexDirection: 'row',
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      borderRadius: radius.full,
+      backgroundColor: p.card,
+      padding: 4,
+      gap: 4,
+    },
+    mode: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: radius.full },
+    modeSelected: { backgroundColor: p.ink },
+    modeText: { fontFamily: fonts.black, fontSize: 17, color: p.ink },
+    modeTextSelected: { color: p.card },
+    team: { gap: 10 },
+    teamError: { ...type.bodyBold, color: p.danger, textAlign: 'center' },
     note: { ...type.body, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
     copied: { ...type.small, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
     configNotice: { ...type.small, fontSize: 12, color: p.muted, textAlign: 'center' },

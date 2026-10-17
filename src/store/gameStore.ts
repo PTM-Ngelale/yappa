@@ -8,6 +8,8 @@ export interface RoomPlayer {
   avatarColor: string;
   role: Role;
   lastSeenAt: number;
+  /** Versus (migration 025): the team they're on. */
+  team?: 'red' | 'blue';
 }
 
 interface GameState {

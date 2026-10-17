@@ -6,6 +6,7 @@ import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
 import { LeaveGameButton } from './LeaveGame';
 import { Pressable } from './Pressable';
 import { TimerBar } from './TimerBar';
+import { VersusBar } from './VersusBar';
 import { Eyebrow, Pill, Sticker } from './ui';
 
 /** Round pill, role pill and (optionally) the turn timer — the top of every gameplay screen. */
@@ -34,14 +35,17 @@ export function GameHeader({
   const styles = useStyles(makeStyles);
   if (compact) {
     return (
-      <View style={styles.compact}>
-        <Pill label={`${round} / ${maxRounds}`} />
-        {showTimer && (
-          <View style={styles.flex}>
-            <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
-          </View>
-        )}
-        <LeaveGameButton />
+      <View style={styles.compactWrap}>
+        <View style={styles.compact}>
+          <Pill label={`${round} / ${maxRounds}`} />
+          {showTimer && (
+            <View style={styles.flex}>
+              <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />
+            </View>
+          )}
+          <LeaveGameButton />
+        </View>
+        <VersusBar compact />
       </View>
     );
   }
@@ -54,6 +58,7 @@ export function GameHeader({
           <LeaveGameButton />
         </View>
       </View>
+      <VersusBar />
       {showTimer && <TimerBar durationSeconds={durationSeconds} secondsRemaining={secondsRemaining} />}
     </View>
   );
@@ -212,6 +217,7 @@ const makeStyles = (p: Palette) =>
     tipLabel: { fontFamily: fonts.black },
     header: { gap: 14 },
     compact: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    compactWrap: { gap: 8 },
     flex: { flex: 1 },
     pills: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
     pillsEnd: { flexDirection: 'row', alignItems: 'center', gap: 10, flexShrink: 1 },

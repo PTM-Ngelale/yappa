@@ -6,6 +6,7 @@
 // The Guesser may guess as often as they like, 3 seconds apart (migration 013): begin_guess()
 // enforces that and holds the round clock while the guess is judged. A correct guess wins the
 // round; a wrong one goes into the description feed for everyone to see, and play carries on.
+// In versus (migration 025) both teams' Guessers guess at once, each into their own team's feed.
 //
 // Correct if it matches the target after normalisation (spacing, hyphens, plurals; see
 // _shared/guessMatch.ts) or, failing that, if the AI judges it a close synonym, spelling
@@ -114,6 +115,8 @@ Deno.serve(async (req) => {
     p_round: round,
     p_guess: trimmed,
     p_correct: correct,
+    // Whose guess it is: in versus (migration 025) that says which team guessed.
+    p_uid: user.id,
   });
   if (recordError) {
     console.error(recordError);

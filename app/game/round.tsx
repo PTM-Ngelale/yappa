@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   advanceRound,
@@ -26,10 +26,12 @@ import { onPresenceChange, stopPresence } from '../../src/supabase/presence';
 import { useGameSounds } from '../../src/audio/useGameSounds';
 import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
 import { LeaveGameContext, LeaveGameDialog } from '../../src/components/LeaveGame';
+import { VersusContext, type VersusInfo } from '../../src/components/VersusBar';
 import { shareCard } from '../../src/lib/shareCard';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
 import { DUO_CLUES, roomClocks } from '../../src/game/config';
 import { knowerOrder, nextKnower } from '../../src/game/players';
+import { otherTeam, rivalProgress, sideOf, versusScores, viewFor } from '../../src/game/versus';
 import { useRoundClocks } from '../../src/hooks/useRoundClocks';
 import { errorText } from '../../src/lib/errorText';
 import { ReportSheet } from '../../src/components/ReportSheet';
@@ -68,7 +70,14 @@ const WORD_REJECTED: Record<WordRejection, string> = {
 export default function RoundScreen() {
   const { roomCode, reset: resetGameStore } = useGameStore();
   const { uid } = usePlayerStore();
-  const [roomData, setRoomData] = useState<RoomData | null>(null);
+  const [room, setRoomData] = useState<RoomData | null>(null);
+  // The room as this player plays it: in versus, their own team's round (see viewFor).
+  const roomData = useMemo(() => viewFor(room, uid), [room, uid]);
+  const team = sideOf(room, uid);
+  const versusInfo = useMemo<VersusInfo | null>(
+    () => (room && team ? { team, rival: rivalProgress(room, team) } : null),
+    [room, team],
+  );
   // From the room itself, so a player promoted after the host leaves picks up host duties.
   const isHost = !!roomData && !!uid && roomData.hostUid === uid;
   useLeaveWarning(roomData?.status === 'playing' || roomData?.status === 'resolution');
@@ -234,7 +243,9 @@ export default function RoundScreen() {
   function renderWithDisconnectOverlay(screen: React.ReactNode) {
     return (
       <View style={styles.overlayHost}>
-        <LeaveGameContext.Provider value={inGame ? () => setLeaveOpen(true) : null}>{screen}</LeaveGameContext.Provider>
+        <LeaveGameContext.Provider value={inGame ? () => setLeaveOpen(true) : null}>
+          <VersusContext.Provider value={versusInfo}>{screen}</VersusContext.Provider>
+        </LeaveGameContext.Provider>
         <LeaveGameDialog visible={leaveOpen && inGame} onLeave={leaveGame} onStay={() => setLeaveOpen(false)} />
         {syncError && (
           <SyncErrorBanner
@@ -266,10 +277,11 @@ export default function RoundScreen() {
   // When the turn clock runs out, pass the turn on; when the round clock runs out, end the
   // round. Every device asks: the server acts once, and only when its own clock agrees, so a
   // device that asks a moment early (or while a guess is still being judged) asks again.
-  // Duo has no turn clock: its one Knower keeps the turn all round.
+  // A lone Knower (duo, a versus team of 2) has no turn clock: they keep the turn all round.
   const playing = roomData?.status === 'playing' && !confirmedDisconnected;
+  const loneKnower = roomData?.mode === 'duo' || (roomData?.mode === 'versus' && knowerOrder(roomData).length === 1);
   const turnOver =
-    playing && roomData!.mode !== 'duo' && turnSeconds === 0 ? `${roomData!.round}:${roomData!.turnIndex ?? 0}` : null;
+    playing && !loneKnower && turnSeconds === 0 ? `${roomData!.round}:${roomData!.turnIndex ?? 0}` : null;
   useEffect(() => {
     if (!turnOver || !roomCode) return;
     const [round, turn] = turnOver.split(':').map(Number);
@@ -395,6 +407,8 @@ export default function RoundScreen() {
   // Round Resolution — reveal + score + advance to next round
   if (roomData.status === 'resolution') {
     const lastEntry = history[history.length - 1];
+    // Versus: the round as it happened, for the winning guess and the other team's clues.
+    const asPlayed = room?.history?.[String(lastEntry?.round)];
     if (!lastEntry) {
       return (
         <Screen>
@@ -412,8 +426,12 @@ export default function RoundScreen() {
         outcome={lastEntry.outcome}
         targetWord={lastEntry.targetWord}
         offLimits={lastEntry.forbidden}
-        guess={lastEntry.guess ?? null}
-        guesserName={roomData.players[lastEntry.guesserUid]?.name ?? 'The Guesser'}
+        // Beaten in versus: the other team's winning guess, and who made it.
+        guess={(lastEntry.outcome === 'lost-beaten' ? asPlayed?.guess : lastEntry.guess) ?? null}
+        guesserName={
+          roomData.players[(lastEntry.outcome === 'lost-beaten' ? asPlayed?.guesserUid : lastEntry.guesserUid) ?? '']?.name ??
+          'The Guesser'
+        }
         isMyGuess={lastEntry.guesserUid === uid}
         feed={lastEntry.feed ?? (lastEntry.chain ?? []).map((text): FeedEntry => ({ kind: 'word', text, by: '' }))}
         players={roomData.players}
@@ -421,6 +439,16 @@ export default function RoundScreen() {
         wordCount={lastEntry.wordCount}
         results={history.map((h) => (h.outcome === 'won' ? 'won' : 'lost'))}
         isHost={isHost}
+        versus={
+          team && room
+            ? {
+                team,
+                scores: versusScores(room),
+                winner: asPlayed?.winner ?? null,
+                rivalFeed: asPlayed?.sides?.[otherTeam(team)]?.feed ?? [],
+              }
+            : undefined
+        }
         onReport={onReport}
         onNextRound={() => {
           const attemptAdvance = () => {
@@ -440,12 +468,15 @@ export default function RoundScreen() {
     return (
       <>
         <GameEndScreen
-          history={history}
+          // Versus: both teams' rounds as they happened, not this team's view of them.
+          history={team && room ? Object.values(room.history ?? {}).sort((a, b) => a.round - b.round) : history}
           players={roomData.players}
           maxRounds={roomData.maxRounds}
           duo={roomData.mode === 'duo'}
+          versus={team && room ? { team, scores: versusScores(room) } : undefined}
           onReport={onReport}
-          onShare={async () => {
+          // The share card shows one team's score, so versus games don't offer one.
+          onShare={team ? undefined : async () => {
             try {
               const cardId = await createShareCard(roomCode!);
               const won = history.filter((h) => h.outcome === 'won').length;
@@ -551,8 +582,8 @@ export default function RoundScreen() {
     return { text: duo ? 'Make every clue count' : 'Your turn! Add a word that helps', tone: 'calm' };
   };
 
-  // Active Knower: it's my turn to add a word (in duo it always is, even while a word is on its way)
-  if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && (!pending || duo)) {
+  // Active Knower: it's my turn to add a word (a lone Knower's always is, even while a word is on its way)
+  if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && (!pending || loneKnower)) {
     return renderWithDisconnectOverlay(
       <KnowerActiveScreen
         round={roomData.round}
@@ -570,6 +601,7 @@ export default function RoundScreen() {
         roundLength={clocks.roundSeconds}
         notice={wordNotice}
         clues={clues}
+        soloTurn={loneKnower && !duo}
         sending={!!pending}
         onSubmitWord={(word) => {
           const round = roomData.round;

@@ -4,8 +4,10 @@ import { categoryLabel } from '../game/categories';
 import { ROUND_SECONDS } from '../game/config';
 import { listNames } from '../game/players';
 import { OffLimits } from '../components/game';
+import { useVersus } from '../components/VersusBar';
+import { otherTeam, teamColors, teamName } from '../game/versus';
 import { Pressable } from '../components/Pressable';
-import { Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from '../components/ui';
+import { Eyebrow, OUTLINE, Pill, Screen, ScreenBody, Sticker, useShortScreen } from '../components/ui';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
 
 /** How long the role card stays up before the round starts (the server's clocks allow for it). */
@@ -52,6 +54,8 @@ export function RoundIntroScreen({
   }, [round, progress]);
 
   const role = isGuesser ? 'Guesser 🔍' : 'Knower 🤫';
+  const versus = useVersus();
+  const rival = versus ? teamName(otherTeam(versus.team)) : '';
 
   return (
     <Screen ground={p.coral}>
@@ -70,6 +74,15 @@ export function RoundIntroScreen({
           <Sticker radius={22} offset={6} style={styles.roundWrap} contentStyle={styles.round}>
             <Text style={[styles.roundText, short && styles.roundCompact]}>Round {round}</Text>
           </Sticker>
+          {versus && (
+            <Pill
+              label={`Team ${teamName(versus.team)}`}
+              bg={teamColors(p, versus.team).bg}
+              fg={teamColors(p, versus.team).fg}
+              size={18}
+              style={styles.teamPill}
+            />
+          )}
 
           <View style={styles.roleBlock}>
             <Eyebrow style={{ color: p.onCoral, fontSize: 14 }}>
@@ -89,7 +102,11 @@ export function RoundIntroScreen({
                 </Text>
                 <Eyebrow style={{ color: p.heroAccent }}>Category</Eyebrow>
                 <Text style={styles.category}>{categoryLabel(category)}</Text>
-                <Text style={styles.blurb}>Shout out guesses anytime. Get it in {roundLength} seconds!</Text>
+                <Text style={styles.blurb}>
+                  {versus
+                    ? `${rival} are after the same word. Guess anytime and get it first!`
+                    : `Shout out guesses anytime. Get it in ${roundLength} seconds!`}
+                </Text>
               </>
             ) : (
               <>
@@ -101,8 +118,11 @@ export function RoundIntroScreen({
                 <Text style={styles.blurb}>
                   {clueBudget
                     ? `Give one-word clues. You get ${clueBudget}, so make them count.`
-                    : `Take turns with ${knowerNames.length ? listNames(knowerNames) : 'your partner'} adding one-word clues. No sentences needed.`}
+                    : versus && knowerNames.length === 0
+                      ? 'Give one-word clues, as many as it takes. No sentences needed.'
+                      : `Take turns with ${knowerNames.length ? listNames(knowerNames) : 'your partner'} adding one-word clues. No sentences needed.`}
                 </Text>
+                {versus && <Text style={styles.blurb}>{rival} have the same word. Get your Guesser there first!</Text>}
                 <Text style={styles.blurbSmall}>Stuck? Tap the word to see what it means.</Text>
               </>
             )}
@@ -153,6 +173,7 @@ const makeStyles = (p: Palette) =>
     roundCompact: { fontSize: 38, lineHeight: 46 },
     roleCompact: { fontSize: 46, lineHeight: 52 },
     roundWrap: { transform: [{ rotate: '3deg' }] },
+    teamPill: { alignSelf: 'center', marginTop: -10 },
     round: { paddingHorizontal: 22, paddingVertical: 2 },
     roundText: { fontFamily: fonts.black, fontSize: 52, lineHeight: 62, letterSpacing: -2, color: p.ink },
     roleBlock: { alignItems: 'center', gap: 4 },
