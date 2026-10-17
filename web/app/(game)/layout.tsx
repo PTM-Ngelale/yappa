@@ -13,7 +13,7 @@ const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   : 'https://yappa-three.vercel.app';
 const OG_IMAGE = `${SITE_URL}/og.png`;
-const OG_IMAGE_ALT = 'Clue Line: chain words, guess the secret, beat the clock.';
+const OG_IMAGE_ALT = 'Clue Line: describe it together, guess the secret, beat the clock.';
 
 export const viewport: Viewport = {
   width: 'device-width',
