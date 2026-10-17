@@ -2,6 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { categoryLabel } from '../game/categories';
 import { ROUND_SECONDS } from '../game/config';
+import { listNames } from '../game/players';
+import { OffLimits } from '../components/game';
 import { Pressable } from '../components/Pressable';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, Sticker, useShortScreen } from '../components/ui';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
@@ -13,8 +15,14 @@ interface RoundIntroScreenProps {
   round: number;
   isGuesser: boolean;
   category: string;
-  /** The two Knowers' names (shown to the Guesser), or [partner] (shown to a Knower). */
+  /** The Knowers' names (shown to the Guesser), or the other Knowers' (shown to a Knower), in turn order. */
   knowerNames: string[];
+  /** Duo: the Knower's clues per round (there are no other Knowers to take turns with). */
+  clueBudget?: number;
+  /** How long the round lasts, from the room. */
+  roundLength?: number;
+  /** Words the Knowers can't use (a Knower's card only; empty in games without them). */
+  offLimits?: string[];
   /** The secret word, for a Knower; null while it loads (and always for the Guesser). */
   targetWord: string | null;
   /** Tapping the card puts it away early. */
@@ -22,7 +30,17 @@ interface RoundIntroScreenProps {
 }
 
 /** The role card at the start of each round: your role and what to do (GAMEPLAY_REDESIGN.md, section 8). */
-export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targetWord, onDismiss }: RoundIntroScreenProps) {
+export function RoundIntroScreen({
+  round,
+  isGuesser,
+  category,
+  knowerNames,
+  clueBudget,
+  roundLength = ROUND_SECONDS,
+  offLimits = [],
+  targetWord,
+  onDismiss,
+}: RoundIntroScreenProps) {
   const styles = useStyles(makeStyles);
   const p = useTheme();
   const short = useShortScreen();
@@ -66,11 +84,12 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targ
             {isGuesser ? (
               <>
                 <Text style={styles.blurb}>
-                  {knowerNames.join(' and ')} are giving clues to a secret word, one word at a time.
+                  {listNames(knowerNames)} {knowerNames.length === 1 ? 'is' : 'are'} giving clues to a secret word, one
+                  word at a time{clueBudget ? `, ${clueBudget} at most` : ''}.
                 </Text>
                 <Eyebrow style={{ color: p.heroAccent }}>Category</Eyebrow>
                 <Text style={styles.category}>{categoryLabel(category)}</Text>
-                <Text style={styles.blurb}>Shout out guesses anytime. Get it in {ROUND_SECONDS} seconds!</Text>
+                <Text style={styles.blurb}>Shout out guesses anytime. Get it in {roundLength} seconds!</Text>
               </>
             ) : (
               <>
@@ -78,8 +97,11 @@ export function RoundIntroScreen({ round, isGuesser, category, knowerNames, targ
                 <Text style={styles.category} adjustsFontSizeToFit numberOfLines={1}>
                   {targetWord ?? '…'}
                 </Text>
+                {offLimits.length > 0 && <OffLimits words={offLimits} onHero />}
                 <Text style={styles.blurb}>
-                  Take turns with {knowerNames[0] ?? 'your partner'} adding one-word clues. No sentences needed.
+                  {clueBudget
+                    ? `Give one-word clues. You get ${clueBudget}, so make them count.`
+                    : `Take turns with ${knowerNames.length ? listNames(knowerNames) : 'your partner'} adding one-word clues. No sentences needed.`}
                 </Text>
                 <Text style={styles.blurbSmall}>Stuck? Tap the word to see what it means.</Text>
               </>

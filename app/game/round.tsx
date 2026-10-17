@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Platform, StyleSheet, Text, View } from 'react-native';
 import {
   advanceRound,
   expireRound,
@@ -11,6 +11,7 @@ import {
   submitGuess,
   submitWord,
   wordRejection,
+  type SecretWord,
   type WordRejection,
 } from '../../src/supabase/round';
 import {
@@ -27,8 +28,10 @@ import { DisconnectedOverlay } from '../../src/components/DisconnectedOverlay';
 import { LeaveGameContext, LeaveGameDialog } from '../../src/components/LeaveGame';
 import { shareCard } from '../../src/lib/shareCard';
 import { useLeaveWarning } from '../../src/hooks/useLeaveWarning';
-import { TURN_SECONDS } from '../../src/game/config';
+import { DUO_CLUES, roomClocks } from '../../src/game/config';
+import { knowerOrder, nextKnower } from '../../src/game/players';
 import { useRoundClocks } from '../../src/hooks/useRoundClocks';
+import { errorText } from '../../src/lib/errorText';
 import { ReportSheet } from '../../src/components/ReportSheet';
 import { SyncErrorBanner } from '../../src/components/SyncErrorBanner';
 import { Screen } from '../../src/components/ui';
@@ -54,10 +57,12 @@ const WORD_REJECTED: Record<WordRejection, string> = {
   'not-your-turn': 'Too slow! The turn passed.',
   'turn-over': 'Too slow! The turn passed.',
   paused: 'The game is paused. Hang on.',
-  target: 'That’s the secret word. Try a different one.',
+  target: 'Too close to the secret word. Try another one.',
+  'off-limits': 'That one’s off-limits. Try another word.',
   repeat: 'That was the last word. Try another one.',
   shape: 'One word only, please. Try another.',
   blocked: 'That word isn’t allowed. Try another one.',
+  'out-of-clues': 'That’s all your clues for this round.',
 };
 
 export default function RoundScreen() {
@@ -84,7 +89,7 @@ export default function RoundScreen() {
     });
   };
 
-  // Leaving mid-game ends it for everyone (it needs all three), then takes this player Home
+  // Leaving mid-game ends it for everyone (it needs everyone who started), then takes this player Home
   // straight away; the server calls finish in the background.
   const [leaveOpen, setLeaveOpen] = useState(false);
   const inGame = roomData?.status === 'playing' || roomData?.status === 'resolution';
@@ -103,7 +108,7 @@ export default function RoundScreen() {
   };
   // Android back asks first instead of dropping out of the game.
   useEffect(() => {
-    if (!inGame) return;
+    if (!inGame || Platform.OS === 'web') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       setLeaveOpen(true);
       return true;
@@ -211,6 +216,7 @@ export default function RoundScreen() {
 
   // This device's turn and round clocks; both stand still while someone's dropped.
   const { turnSeconds, roundSeconds } = useRoundClocks(roomCode, roomData, !!confirmedDisconnected);
+  const clocks = roomClocks(roomData);
   useGameSounds(roomData, uid, roundSeconds);
 
   // Public games: report a player from Round Result or Game End.
@@ -260,8 +266,10 @@ export default function RoundScreen() {
   // When the turn clock runs out, pass the turn on; when the round clock runs out, end the
   // round. Every device asks: the server acts once, and only when its own clock agrees, so a
   // device that asks a moment early (or while a guess is still being judged) asks again.
+  // Duo has no turn clock: its one Knower keeps the turn all round.
   const playing = roomData?.status === 'playing' && !confirmedDisconnected;
-  const turnOver = playing && turnSeconds === 0 ? `${roomData!.round}:${roomData!.turnIndex ?? 0}` : null;
+  const turnOver =
+    playing && roomData!.mode !== 'duo' && turnSeconds === 0 ? `${roomData!.round}:${roomData!.turnIndex ?? 0}` : null;
   useEffect(() => {
     if (!turnOver || !roomCode) return;
     const [round, turn] = turnOver.split(':').map(Number);
@@ -304,7 +312,7 @@ export default function RoundScreen() {
 
   // Knowers fetch this round's word from round_secrets. The Guesser never asks — and RLS
   // would return nothing if they did — so the answer never reaches their device.
-  const [target, setTarget] = useState<{ round: number; word: string; meaning: string } | null>(null);
+  const [target, setTarget] = useState<({ round: number } & SecretWord) | null>(null);
   // The round whose meaning this Knower has open: it stays open as the turn passes back and forth.
   const [meaningOpenRound, setMeaningOpenRound] = useState<number | null>(null);
 
@@ -403,6 +411,7 @@ export default function RoundScreen() {
         maxRounds={roomData.maxRounds}
         outcome={lastEntry.outcome}
         targetWord={lastEntry.targetWord}
+        offLimits={lastEntry.forbidden}
         guess={lastEntry.guess ?? null}
         guesserName={roomData.players[lastEntry.guesserUid]?.name ?? 'The Guesser'}
         isMyGuess={lastEntry.guesserUid === uid}
@@ -434,6 +443,7 @@ export default function RoundScreen() {
           history={history}
           players={roomData.players}
           maxRounds={roomData.maxRounds}
+          duo={roomData.mode === 'duo'}
           onReport={onReport}
           onShare={async () => {
             try {
@@ -478,14 +488,17 @@ export default function RoundScreen() {
   // Role reveal at the start of each round (also covers the Knowers' secret-word fetch).
   if (introRound === roomData.round) {
     const isGuesser = roomData.guesserUid === uid;
-    const knowers = Object.values(roomData.players).filter((pl) => pl.uid !== roomData.guesserUid);
+    const knowers = knowerOrder(roomData).filter((k) => k !== uid);
     return renderWithDisconnectOverlay(
       <RoundIntroScreen
         round={roomData.round}
         isGuesser={isGuesser}
         category={roomData.category}
-        knowerNames={(isGuesser ? knowers : knowers.filter((k) => k.uid !== uid)).map((k) => k.name)}
+        knowerNames={knowers.map((k) => roomData.players[k]?.name ?? 'Knower')}
+        roundLength={clocks.roundSeconds}
+        clueBudget={roomData.mode === 'duo' ? roomData.clueBudget ?? DUO_CLUES : undefined}
         targetWord={target?.round === roomData.round ? target.word : null}
+        offLimits={target?.round === roomData.round ? target.forbidden : undefined}
         onDismiss={() => setIntroRound(null)}
       />
     );
@@ -497,6 +510,11 @@ export default function RoundScreen() {
     sentWord && sentWord.round === roomData.round && sentWord.turnIndex === turnIndex ? sentWord : null;
   const feed: FeedEntry[] = pending ? [...serverFeed, { kind: 'word', text: pending.word, by: uid }] : serverFeed;
   const typing = roomData.typing ?? {};
+  // Duo: the Knower's clue budget, counting a word still on its way.
+  const duo = roomData.mode === 'duo';
+  const clues = duo
+    ? { used: feed.filter((e) => e.kind === 'word').length, budget: roomData.clueBudget ?? DUO_CLUES }
+    : undefined;
 
   // Knower, word not fetched yet for this round
   if (myPlayer.role === 'knower' && target?.round !== roomData.round) {
@@ -510,6 +528,7 @@ export default function RoundScreen() {
     );
   }
   const targetWord = target?.word ?? '';
+  const offLimits = target?.forbidden ?? [];
   const meaning = {
     text: target?.meaning ?? '',
     open: meaningOpenRound === roomData.round,
@@ -528,17 +547,19 @@ export default function RoundScreen() {
         ? { text: `${nameOf(latestEntry.by)} was too slow. Your turn!`, tone: 'alert' }
         : { text: `Too slow! ${nameOf(roomData.activeKnowerUid)}’s turn`, tone: 'alert' };
     }
-    return meActive ? { text: 'Your turn! Add a word that helps', tone: 'calm' } : undefined;
+    if (!meActive) return undefined;
+    return { text: duo ? 'Make every clue count' : 'Your turn! Add a word that helps', tone: 'calm' };
   };
 
-  // Active Knower: it's my turn to add a word
-  if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && !pending) {
+  // Active Knower: it's my turn to add a word (in duo it always is, even while a word is on its way)
+  if (myPlayer.role === 'knower' && roomData.activeKnowerUid === uid && (!pending || duo)) {
     return renderWithDisconnectOverlay(
       <KnowerActiveScreen
         round={roomData.round}
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         meaning={meaning}
+        offLimits={offLimits}
         prompt={knowerPrompt(true)}
         tip={roundTip}
         category={roomData.category}
@@ -546,14 +567,17 @@ export default function RoundScreen() {
         players={roomData.players}
         turnSeconds={turnSeconds}
         roundSeconds={roundSeconds}
+        roundLength={clocks.roundSeconds}
         notice={wordNotice}
+        clues={clues}
+        sending={!!pending}
         onSubmitWord={(word) => {
           const round = roomData.round;
           const turn = turnIndex;
           const attemptSubmit = () => {
             setSentWord({ round, turnIndex: turn, word });
             submitWord(roomCode!, round, turn, word).catch((e) => {
-              console.error(e);
+              console.error(`Word not sent: ${errorText(e)}`, e);
               setSentWord(null); // hand the turn back on screen
               const rejection = wordRejection(e);
               if (rejection) {
@@ -581,18 +605,18 @@ export default function RoundScreen() {
     );
   }
 
-  // Waiting Knower: partner is active (or about to be, while my sent word is in flight)
+  // Waiting Knower: another Knower is active (or about to be, while my sent word is in flight)
   if (myPlayer.role === 'knower') {
-    const partnerUid = pending
-      ? Object.keys(roomData.players).find((u) => u !== uid && u !== roomData.guesserUid) ?? ''
-      : roomData.activeKnowerUid;
+    const partnerUid = pending ? nextKnower(roomData, uid) : roomData.activeKnowerUid;
     const partner = roomData.players[partnerUid];
+    const upNextUid = nextKnower(roomData, partnerUid);
     return renderWithDisconnectOverlay(
       <KnowerWaitingScreen
         round={roomData.round}
         maxRounds={roomData.maxRounds}
         targetWord={targetWord}
         meaning={meaning}
+        offLimits={offLimits}
         prompt={pending ? undefined : knowerPrompt(false)}
         tip={roundTip}
         category={roomData.category}
@@ -601,9 +625,11 @@ export default function RoundScreen() {
         partnerName={partner?.name ?? 'Partner'}
         partnerColor={partner?.avatarColor}
         partnerIsTyping={!!typing[partnerUid]}
+        upNextName={upNextUid === uid ? undefined : roomData.players[upNextUid]?.name}
         // The partner's turn starts fresh; the clock is still on mine until my word lands.
-        turnSeconds={pending ? TURN_SECONDS : turnSeconds}
+        turnSeconds={pending ? clocks.turnSeconds : turnSeconds}
         roundSeconds={roundSeconds}
+        roundLength={clocks.roundSeconds}
       />
     );
   }
@@ -620,7 +646,9 @@ export default function RoundScreen() {
       activeKnowerName={activeKnower?.name ?? 'Knower'}
       knowerIsTyping={!!typing[roomData.activeKnowerUid]}
       roundSeconds={roundSeconds}
+      roundLength={clocks.roundSeconds}
       tip={roundTip}
+      clues={clues}
       // Throws if the guess couldn't be sent: GuesserScreen lets them retry.
       onGuess={(guess) => submitGuess(roomCode!, roomData.round, guess)}
     />

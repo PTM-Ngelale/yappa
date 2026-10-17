@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { fonts, useStyles, useTheme, type Palette } from '../theme';
 import { OUTLINE } from './ui';
 
-/** The turn clock: whose turn it is and the seconds left before it passes to the other Knower. */
+/** The turn clock: whose turn it is and the seconds left before it passes to the next Knower. */
 export function TurnClock({ label, seconds, urgent }: { label: string; seconds: number; urgent?: boolean }) {
   const styles = useStyles(makeStyles);
   const p = useTheme();

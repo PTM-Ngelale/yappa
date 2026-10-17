@@ -17,6 +17,8 @@ interface KnowerWaitingScreenProps {
   targetWord: string;
   /** What the secret word means: tapping the card shows it. */
   meaning?: WordMeaning;
+  /** Words the Knowers can't use this round (empty in games without them). */
+  offLimits?: string[];
   /** What's happening right now: your turn, a wrong guess to steer from, a turn that ran out. */
   prompt?: { text: string; tone: 'calm' | 'alert' };
   /** This round's first-game tip, if any. */
@@ -28,10 +30,14 @@ interface KnowerWaitingScreenProps {
   partnerColor?: string;
   /** True while partner is actively typing (after their turn starts) */
   partnerIsTyping: boolean;
+  /** Who goes after the partner, when it isn't you (4 or 5 players). */
+  upNextName?: string;
   /** The partner's turn clock. */
   turnSeconds: number;
   /** The round's clock. */
   roundSeconds: number;
+  /** How long the round lasts (the full timer bar), from the room. */
+  roundLength?: number;
   /** Hide the round timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
 }
@@ -41,6 +47,7 @@ export function KnowerWaitingScreen({
   maxRounds,
   targetWord,
   meaning,
+  offLimits,
   prompt,
   tip,
   category,
@@ -49,8 +56,10 @@ export function KnowerWaitingScreen({
   partnerName,
   partnerColor,
   partnerIsTyping,
+  upNextName,
   turnSeconds,
   roundSeconds,
+  roundLength = ROUND_SECONDS,
   showTimer = true,
 }: KnowerWaitingScreenProps) {
   const styles = useStyles(makeStyles);
@@ -64,13 +73,13 @@ export function KnowerWaitingScreen({
           round={round}
           maxRounds={maxRounds}
           role={`${partnerName}’s turn`}
-          durationSeconds={ROUND_SECONDS}
+          durationSeconds={roundLength}
           secondsRemaining={roundSeconds}
           showTimer={showTimer}
           compact={short}
         />
 
-        <SecretWordCard word={targetWord} category={category} meaning={meaning} compact={short} />
+        <SecretWordCard word={targetWord} category={category} meaning={meaning} offLimits={offLimits} compact={short} />
         {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}
 
         <View style={[styles.feedSection, short && styles.feedSectionShort]}>
@@ -89,7 +98,7 @@ export function KnowerWaitingScreen({
             <Avatar name={partnerName} color={partnerColor ?? p.coral} />
             <View style={styles.flex}>
               <Text style={styles.partnerTitle}>{partnerName} is adding a word...</Text>
-              <Text style={styles.partnerSub}>You’re up next</Text>
+              <Text style={styles.partnerSub}>{upNextName ? `${upNextName} is up next` : 'You’re up next'}</Text>
             </View>
             <TypingIndicator active={partnerIsTyping} />
           </Sticker>

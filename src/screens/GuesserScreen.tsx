@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { categoryLabel } from "../game/categories";
+import { ClueBudget } from "../components/ClueBudget";
 import { DescriptionFeed } from "../components/DescriptionFeed";
 import { GameHeader, TipCard } from "../components/game";
 import { Pressable } from "../components/Pressable";
@@ -34,10 +35,14 @@ interface GuesserScreenProps {
   knowerIsTyping: boolean;
   /** The round's clock: get it before it runs out. */
   roundSeconds: number;
+  /** How long the round lasts (the full timer bar), from the room. */
+  roundLength?: number;
   /** Hide the round timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
   /** This round's first-game tip, if any. */
   tip?: { text: string; onDismiss: () => void };
+  /** Duo: how many of the Knower's clues are spent. */
+  clues?: { used: number; budget: number };
   /** Judged server-side (may involve an AI check); rejects if it couldn't be sent, so they can retry. */
   onGuess: (guess: string) => Promise<GuessResult>;
 }
@@ -51,8 +56,10 @@ export function GuesserScreen({
   activeKnowerName,
   knowerIsTyping,
   roundSeconds,
+  roundLength = ROUND_SECONDS,
   showTimer = true,
   tip,
+  clues,
   onGuess,
 }: GuesserScreenProps) {
   const styles = useStyles(makeStyles);
@@ -120,7 +127,7 @@ export function GuesserScreen({
             role="You’re guessing"
             roleBg={p.coral}
             roleFg={p.onCoral}
-            durationSeconds={ROUND_SECONDS}
+            durationSeconds={roundLength}
             secondsRemaining={roundSeconds}
             showTimer={showTimer}
             compact={short}
@@ -130,7 +137,12 @@ export function GuesserScreen({
           <View style={styles.categoryBlock}>
             {!short && <Eyebrow>The category is</Eyebrow>}
             <Text
-              style={[styles.category, short && styles.categoryCompact, label.length > 12 && (short ? styles.categoryLongCompact : styles.categoryLong)]}
+              style={[
+                styles.category,
+                short && styles.categoryCompact,
+                label.length > 12 && (short ? styles.categoryLongCompact : styles.categoryLong),
+                label.length > 16 && (short ? styles.categoryLongerCompact : styles.categoryLonger),
+              ]}
               adjustsFontSizeToFit
               numberOfLines={1}
             >
@@ -144,17 +156,20 @@ export function GuesserScreen({
               <DescriptionFeed entries={feed} players={players} large style={styles.flex} />
             ) : (
               <View style={styles.preWord}>
-                <Text style={styles.preWordTitle}>Your friends are thinking…</Text>
-                <Text style={styles.preWordSub}>{activeKnowerName} is up first</Text>
+                <Text style={styles.preWordTitle}>{clues ? `${activeKnowerName} is thinking…` : 'Your friends are thinking…'}</Text>
+                <Text style={styles.preWordSub}>{clues ? `${clues.budget} clues to get you there` : `${activeKnowerName} is up first`}</Text>
               </View>
             )}
             <View style={styles.typingRow} accessibilityLiveRegion="polite">
               <TypingIndicator active={knowerIsTyping} />
               <Text style={styles.typingText}>
-                {knowerIsTyping ? `${activeKnowerName} is typing` : `${activeKnowerName} is thinking`}
+                {clues && clues.used >= clues.budget
+                  ? `${activeKnowerName} is out of clues`
+                  : knowerIsTyping ? `${activeKnowerName} is typing` : `${activeKnowerName} is thinking`}
               </Text>
             </View>
           </Sticker>
+          {clues && <ClueBudget used={clues.used} budget={clues.budget} />}
         </ScreenBody>
 
         <View style={styles.footer}>
@@ -214,6 +229,9 @@ const makeStyles = (p: Palette) =>
     // "🍲 Food & Drink": the web can't shrink text to fit, so size long labels down.
     categoryLong: { fontSize: 38, lineHeight: 44 },
     categoryLongCompact: { fontSize: 28, lineHeight: 34 },
+    // "🏠 Around the House", "🔧 Tools & Gadgets".
+    categoryLonger: { fontSize: 30, lineHeight: 36, letterSpacing: -1 },
+    categoryLongerCompact: { fontSize: 24, lineHeight: 30, letterSpacing: -0.5 },
     // Room for a few lines of description and the typing line.
     feedWrap: { flex: 1, minHeight: 190 },
     // Short screens: a fixed height, so the feed scrolls itself to the newest words.

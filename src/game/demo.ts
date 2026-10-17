@@ -4,7 +4,9 @@ import type { FeedEntry } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
 
 export const EXAMPLE_WORD = 'Lighthouse';
-export const EXAMPLE_CATEGORY = 'Places';
+export const EXAMPLE_CATEGORY = 'Buildings';
+/** Lighthouse's off-limits words (migration 023). */
+export const EXAMPLE_OFF_LIMITS = ['beacon', 'coast', 'ships'];
 
 export const EXAMPLE_PLAYERS: Record<string, RoomPlayer> = {
   k: { uid: 'k', name: 'Kemi', avatarColor: '#3B5BFF', role: 'guesser', lastSeenAt: 0 },
@@ -20,6 +22,6 @@ export const EXAMPLE_FEED: FeedEntry[] = [
   { kind: 'guess', text: 'cliff', by: 'k', correct: false },
   { kind: 'word', text: 'beam', by: 't' },
   { kind: 'word', text: 'warns', by: 'a' },
-  { kind: 'word', text: 'ships', by: 't' },
+  { kind: 'word', text: 'boats', by: 't' },
   { kind: 'guess', text: 'lighthouse', by: 'k', correct: true },
 ];

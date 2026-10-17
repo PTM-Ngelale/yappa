@@ -17,6 +17,7 @@ import { PoweredBy } from "../src/components/PoweredBy";
 import { Pressable } from "../src/components/Pressable";
 import { SoundToggles } from "../src/components/SoundToggles";
 import { Avatar, Eyebrow, IconButton, OUTLINE, Screen, Sticker, StickerButton } from "../src/components/ui";
+import { errorText } from "../src/lib/errorText";
 import { loadLatestApp } from "../src/lib/loadLatestApp";
 import { PRIVACY_POLICY_URL } from "../src/lib/links";
 import { SUPABASE_CONFIGURED } from "../src/supabase/config";
@@ -68,7 +69,7 @@ export default function HomeScreen() {
 
   // Android back steps out of Play with friends before leaving Home.
   useEffect(() => {
-    if (!localPlay) return;
+    if (!localPlay || Platform.OS === "web") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       closeLocalPlay();
       return true;
@@ -254,7 +255,7 @@ export default function HomeScreen() {
       } else {
         setError("Failed to join room. Check the code and your connection.");
       }
-      console.error(e);
+      console.error(`Join failed: ${errorText(e)}`, e);
     } finally {
       setLoading(false);
     }

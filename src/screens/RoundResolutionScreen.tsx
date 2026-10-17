@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { Eyebrow, OUTLINE, Pill, Screen, ScreenBody, Sticker, StickerButton, useShortScreen } from '../components/ui';
 import { DescriptionFeed } from '../components/DescriptionFeed';
+import { OffLimits } from '../components/game';
 import { LeaveGameButton } from '../components/LeaveGame';
 import { Pressable } from '../components/Pressable';
 import type { FeedEntry, RoundOutcome } from '../supabase/room';
@@ -17,6 +18,8 @@ interface RoundResolutionScreenProps {
   maxRounds: number;
   outcome: RoundOutcome;
   targetWord: string;
+  /** The word's off-limits words, revealed to everyone now (empty in games without them). */
+  offLimits?: string[];
   /** The winning guess: null when time ran out. Shown so lenient matches are visible. */
   guess: string | null;
   guesserName: string;
@@ -42,6 +45,7 @@ export function RoundResolutionScreen({
   maxRounds,
   outcome,
   targetWord,
+  offLimits = [],
   guess,
   guesserName,
   isMyGuess,
@@ -136,6 +140,7 @@ export function RoundResolutionScreen({
               <Text style={[styles.answerText, { color: p.onYellow }]}>{targetWord}</Text>
             </Sticker>
           </View>
+          {offLimits.length > 0 && <OffLimits words={offLimits} />}
           {facts !== '' && <Text style={styles.facts}>{facts}</Text>}
         </Sticker>
 

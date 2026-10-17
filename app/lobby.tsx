@@ -8,13 +8,14 @@ import { ReportSheet } from '../src/components/ReportSheet';
 import { SoundToggles } from '../src/components/SoundToggles';
 import { shareRoom } from '../src/lib/shareRoom';
 import { Avatar, Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
+import { DUO_CLUES, roundSecondsFor } from '../src/game/config';
+import { MAX_PLAYERS, MIN_PLAYERS, PUBLIC_PLAYERS, roundsFor, TEAM_PLAYERS } from '../src/game/players';
 import { SUPABASE_CONFIGURED } from '../src/supabase/config';
 import type { RoomData } from '../src/supabase/room';
 import { useGameStore, type RoomPlayer } from '../src/store/gameStore';
 import { usePlayerStore } from '../src/store/playerStore';
 import { fonts, radius, spacing, type, useStyles, useTheme, type Palette } from '../src/theme';
 
-const MAX_PLAYERS = 3;
 /** A full public lobby starts itself after this many seconds. */
 const AUTO_START_SECONDS = 5;
 
@@ -90,7 +91,9 @@ export default function LobbyScreen() {
   // A full public lobby starts by itself: nobody waits on a stranger to tap Start.
   // Everyone sees the countdown; the host's app does the starting.
   const isPublic = !!roomData?.isPublic;
-  const isFull = players.length === MAX_PLAYERS;
+  // Play online seats 3; a private room seats up to 5 and can start from 2 (duo).
+  const seats = isPublic ? PUBLIC_PLAYERS : MAX_PLAYERS;
+  const isFull = players.length >= seats;
   useEffect(() => {
     if (!isPublic || !isFull || roomData?.status !== 'lobby') {
       setCountdown(null);
@@ -160,8 +163,11 @@ export default function LobbyScreen() {
     });
   }
 
-  const canStart = isHost && isFull;
-  const emptySlots = MAX_PLAYERS - players.length;
+  const enough = players.length >= MIN_PLAYERS;
+  const canStart = isHost && enough && players.length <= MAX_PLAYERS;
+  // Seats the game still needs; a private room with enough players shows the rest as optional.
+  const emptySlots = Math.max(0, (isPublic ? PUBLIC_PLAYERS : MIN_PLAYERS) - players.length);
+  const spareSeats = !isPublic && enough ? MAX_PLAYERS - players.length : 0;
   const code = (roomCode ?? '----').split('');
 
   return (
@@ -209,7 +215,7 @@ export default function LobbyScreen() {
           <View style={styles.sectionTop}>
             <Eyebrow>Players</Eyebrow>
             <Text style={styles.count}>
-              {players.length} / {MAX_PLAYERS}
+              {players.length} / {seats}
             </Text>
           </View>
           {players.map((player) => (
@@ -245,9 +251,18 @@ export default function LobbyScreen() {
               </Text>
             </View>
           ))}
+          {spareSeats > 0 && (
+            <View style={[styles.emptySlot, styles.spareSlot]}>
+              <View style={styles.emptyAvatar}>
+                <Feather name="plus" size={18} color={p.ink} />
+              </View>
+              <Text style={styles.emptyText}>Room for {spareSeats} more</Text>
+            </View>
+          )}
         </View>
 
-        {isHost && roomData?.status === 'lobby' && (!isFull || isPublic) && (
+        {/* Play online fills a room to 3, so it's offered only while there's a seat to fill */}
+        {isHost && roomData?.status === 'lobby' && (isPublic || players.length < PUBLIC_PLAYERS) && (
           <StickerButton
             label={isPublic ? 'Stop finding players' : 'Find players online'}
             icon={isPublic ? 'x' : 'globe'}
@@ -291,8 +306,10 @@ export default function LobbyScreen() {
           />
           <Text style={styles.note}>
             {canStart
-              ? 'Everyone’s here — let’s go!'
-              : `Needs exactly 3 players, ${emptySlots} more to go`}
+              ? players.length < TEAM_PLAYERS
+                ? `Duo: ${roundsFor(players.length)} rounds, ${DUO_CLUES} clues a round. Let’s go!`
+                : `${players.length} players, ${roundsFor(players.length)} rounds of ${roundSecondsFor(players.length)}s. Let’s go!`
+              : `Needs at least ${MIN_PLAYERS} players, ${emptySlots} more to go`}
           </Text>
         </View>
       )}
@@ -367,6 +384,7 @@ const makeStyles = (p: Palette) =>
       justifyContent: 'center',
     },
     emptyText: { fontFamily: fonts.bold, fontSize: 18, color: p.ink },
+    spareSlot: { opacity: 0.6 },
     note: { ...type.body, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
     copied: { ...type.small, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
     configNotice: { ...type.small, fontSize: 12, color: p.muted, textAlign: 'center' },

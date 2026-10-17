@@ -12,9 +12,11 @@ import {
 import { DescriptionFeed } from '../components/DescriptionFeed';
 import { GameHeader, Prompt, SecretWordCard, TipCard, type WordMeaning } from '../components/game';
 import { Pressable } from '../components/Pressable';
+import { ClueBudget } from '../components/ClueBudget';
 import { TurnClock } from '../components/TurnClock';
 import { Eyebrow, OUTLINE, Screen, ScreenBody, useShortScreen } from '../components/ui';
 import { MAX_WORD_LENGTH, ONE_WORD, ROUND_SECONDS } from '../game/config';
+import { offLimitsMatch, sameWord } from '../game/words';
 import { useShakeAnimation } from '../hooks/useShakeAnimation';
 import type { FeedEntry } from '../supabase/room';
 import type { RoomPlayer } from '../store/gameStore';
@@ -26,6 +28,8 @@ interface KnowerActiveScreenProps {
   targetWord: string;
   /** What the secret word means: tapping the card shows it. */
   meaning?: WordMeaning;
+  /** Words the Knowers can't use this round (empty in games without them). */
+  offLimits?: string[];
   /** What's happening right now: your turn, a wrong guess to steer from, a turn that ran out. */
   prompt?: { text: string; tone: 'calm' | 'alert' };
   /** This round's first-game tip, if any. */
@@ -33,37 +37,22 @@ interface KnowerActiveScreenProps {
   category: string;
   feed: FeedEntry[];
   players: Record<string, RoomPlayer>;
-  /** This turn's clock: when it runs out the turn passes to the other Knower. */
+  /** This turn's clock: when it runs out the turn passes to the next Knower. */
   turnSeconds: number;
   /** The round's clock: when it runs out the round is lost. */
   roundSeconds: number;
+  /** How long the round lasts (the full timer bar), from the room. */
+  roundLength?: number;
   /** Hide the round timer bar entirely rather than show a frozen/misleading one. */
   showTimer?: boolean;
   /** Why the server turned the last word down, if it did (a new object each time). */
   notice?: { message: string } | null;
+  /** Duo: the round's clue budget, shown instead of the turn clock. */
+  clues?: { used: number; budget: number };
+  /** Duo: the last word is still on its way; the next one waits for it. */
+  sending?: boolean;
   onSubmitWord: (word: string) => void;
   onTypingChange?: (isTyping: boolean) => void;
-}
-
-/** True if the candidate is the target or an obvious variant of it. Mirrors _is_target_variant(). */
-function matchesTarget(candidate: string, target: string): boolean {
-  const norm = (s: string) => s.toLowerCase().trim();
-  const c = norm(candidate);
-  const t = norm(target);
-  if (c === t) return true;
-  const variants = [
-    t + 's',
-    t + 'es',
-    t + 'ing',
-    t + 'ed',
-    t + 'er',
-    t + 'ers',
-    t.replace(/e$/, 'ing'), // dance → dancing
-    t.replace(/e$/, 'ed'), // dance → danced
-    t.replace(/y$/, 'ies'), // berry → berries
-    t.replace(/y$/, 'ied'), // carry → carried
-  ];
-  return variants.includes(c);
 }
 
 export function KnowerActiveScreen({
@@ -71,6 +60,7 @@ export function KnowerActiveScreen({
   maxRounds,
   targetWord,
   meaning,
+  offLimits,
   prompt,
   tip,
   category,
@@ -78,8 +68,11 @@ export function KnowerActiveScreen({
   players,
   turnSeconds,
   roundSeconds,
+  roundLength = ROUND_SECONDS,
   showTimer = true,
   notice,
+  clues,
+  sending = false,
   onSubmitWord,
   onTypingChange,
 }: KnowerActiveScreenProps) {
@@ -104,16 +97,23 @@ export function KnowerActiveScreen({
 
   const lastWord = [...feed].reverse().find((e) => e.kind === 'word') as { text: string } | undefined;
 
+  const outOfClues = !!clues && clues.used >= clues.budget;
+
   const handleSend = () => {
     const trimmed = word.trim();
-    if (trimmed.length === 0) return;
+    if (trimmed.length === 0 || sending || outOfClues) return;
     // Problems the player can fix keep their turn: say what's wrong, don't send.
     if (trimmed.length > MAX_WORD_LENGTH || !ONE_WORD.test(trimmed)) {
       refuse(`One word only: letters, with ' or - inside. Up to ${MAX_WORD_LENGTH} letters.`);
       return;
     }
-    if (matchesTarget(trimmed, targetWord)) {
-      refuse('That’s the secret word. Try a different one.');
+    if (sameWord(trimmed, targetWord)) {
+      refuse('Too close to the secret word. Try another one.');
+      return;
+    }
+    const offLimit = offLimitsMatch(trimmed, offLimits ?? []);
+    if (offLimit) {
+      refuse(`“${offLimit}” is off-limits. Try another word.`);
       return;
     }
     if (lastWord && lastWord.text.toLowerCase() === trimmed.toLowerCase()) {
@@ -142,7 +142,7 @@ export function KnowerActiveScreen({
   const handleSendRef = useRef(handleSend);
   handleSendRef.current = handleSend;
 
-  const canSend = word.trim().length > 0;
+  const canSend = word.trim().length > 0 && !sending && !outOfClues;
 
   return (
     <Screen>
@@ -151,10 +151,10 @@ export function KnowerActiveScreen({
           <GameHeader
             round={round}
             maxRounds={maxRounds}
-            role="Your turn"
+            role={clues ? 'Your clues' : 'Your turn'}
             roleBg={p.blue}
             roleFg={p.onBlue}
-            durationSeconds={ROUND_SECONDS}
+            durationSeconds={roundLength}
             secondsRemaining={roundSeconds}
             showTimer={showTimer}
             compact={short}
@@ -166,6 +166,7 @@ export function KnowerActiveScreen({
             hint="Give clues. Don’t say it."
             // Keep the keyboard up: on the web a tap elsewhere takes the focus from the input.
             meaning={meaning && { ...meaning, onToggle: () => { meaning.onToggle(); inputRef.current?.focus(); } }}
+            offLimits={offLimits}
             compact={short}
           />
           {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}
@@ -186,10 +187,12 @@ export function KnowerActiveScreen({
             <Text style={styles.validationMsg} accessibilityLiveRegion="assertive">
               {validationMsg}
             </Text>
+          ) : outOfClues ? (
+            <Prompt text="That’s all your clues. Fingers crossed!" />
           ) : (
             prompt && <Prompt text={prompt.text} tone={prompt.tone} />
           )}
-          <TurnClock label="Your word" seconds={turnSeconds} />
+          {clues ? <ClueBudget used={clues.used} budget={clues.budget} /> : <TurnClock label="Your word" seconds={turnSeconds} />}
           <Animated.View style={[styles.inputRow, { transform: [{ translateX: shakeAnim }] }]}>
             <View style={styles.inputWrap}>
               <View style={styles.inputShadow} />
@@ -198,8 +201,9 @@ export function KnowerActiveScreen({
                 style={styles.input}
                 value={word}
                 onChangeText={handleChangeText}
-                placeholder="Add one word…"
+                placeholder={outOfClues ? 'No clues left' : 'Add one word…'}
                 placeholderTextColor={p.muted}
+                editable={!outOfClues}
                 autoFocus
                 autoCapitalize="none"
                 autoCorrect={false}

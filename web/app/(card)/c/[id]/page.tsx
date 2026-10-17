@@ -13,7 +13,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!card) return { title: 'Yappa' };
   const { won, outOf, verdict } = summarise(card);
   const title = `We scored ${won}/${outOf} on Yappa: ${verdict}`;
-  const description = 'A word-chain party game for three friends. Chain words, lead the guesser to the secret word, beat the clock.';
+  const description = 'A word-chain party game for 2 to 5 friends. Chain words, lead the guesser to the secret word, beat the clock.';
   const image = { url: `${SITE_URL}/c/${id}/image.png`, width: 1200, height: 630, alt: `Yappa: ${won} of ${outOf} rounds won` };
   return {
     title,
@@ -82,7 +82,7 @@ export default async function CardPage({ params }: Props) {
       </section>
 
       <p style={{ textAlign: 'center', fontSize: 15, margin: 0 }}>
-        Yappa is a word-chain party game for three friends, each on their own phone.
+        Yappa is a word-chain party game for 2 to 5 friends, each on their own phone.
       </p>
     </main>
   );

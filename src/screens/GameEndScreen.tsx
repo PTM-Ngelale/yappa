@@ -13,6 +13,8 @@ interface GameEndScreenProps {
   history: RoundHistoryEntry[];
   players: Record<string, RoomPlayer>;
   maxRounds: number;
+  /** Duo: also shows the clues used across the game (fewer is better). */
+  duo?: boolean;
   onPlayAgain: () => void;
   onBackToHome: () => void;
   /** Public games only: opens the report sheet. */
@@ -25,6 +27,7 @@ export function GameEndScreen({
   history,
   players,
   maxRounds,
+  duo = false,
   onPlayAgain,
   onBackToHome,
   onReport,
@@ -47,6 +50,7 @@ export function GameEndScreen({
   };
   const sorted = [...history].sort((a, b) => a.round - b.round);
   const wonCount = sorted.filter((h) => h.outcome === 'won').length;
+  const cluesUsed = sorted.reduce((n, h) => n + (h.wordCount ?? h.chain.length), 0);
 
   return (
     <Screen>
@@ -64,6 +68,11 @@ export function GameEndScreen({
           <Text style={styles.verdict} accessibilityRole="header">
             {verdict(wonCount, maxRounds)}
           </Text>
+          {duo && (
+            <Text style={styles.clues}>
+              {cluesUsed} {cluesUsed === 1 ? 'clue' : 'clues'} used. Fewer next time?
+            </Text>
+          )}
           {onShare && (
             <>
               <StickerButton
@@ -163,6 +172,7 @@ const makeStyles = (p: Palette) =>
     scoreBig: { fontFamily: fonts.black, fontSize: 92, lineHeight: 100, letterSpacing: -4, color: p.ink },
     scoreOf: { fontFamily: fonts.black, fontSize: 34, color: p.ink },
     verdict: { ...type.title, color: p.ink, marginTop: 4 },
+    clues: { ...type.body, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
     share: { alignSelf: 'center', minWidth: 220, marginTop: 6 },
     shareNote: { ...type.small, fontFamily: fonts.bold, color: p.ink, textAlign: 'center' },
     scoreBigCompact: { fontSize: 60, lineHeight: 68 },

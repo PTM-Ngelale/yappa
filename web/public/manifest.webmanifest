@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Yappa: Word Chain Party Game",
   "short_name": "Yappa",
-  "description": "A fast, loud word-chain party game for three friends. Chain words, lead the guesser to the secret word, beat the clock.",
+  "description": "A fast, loud word-chain party game for 2 to 5 friends. Chain words, lead the guesser to the secret word, beat the clock.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

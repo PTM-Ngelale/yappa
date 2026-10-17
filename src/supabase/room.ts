@@ -29,6 +29,8 @@ export interface RoundHistoryEntry {
   outcome: RoundOutcome;
   /** The winning guess, or null when time ran out. */
   guess?: string | null;
+  /** The word's off-limits words (migration 024); empty in games without them. */
+  forbidden?: string[];
 }
 
 export interface RoomData {
@@ -52,6 +54,15 @@ export interface RoomData {
   history?: Record<string, RoundHistoryEntry> | null;
   /** Open to Play online: strangers can be matched in, and it starts itself when full. */
   isPublic?: boolean;
+  /** Set when a game starts: 'duo' for 2 players (migration 021), 'team' for 3 to 5. */
+  mode?: 'duo' | 'team';
+  /** Duo only: clues the Knower may give each round. */
+  clueBudget?: number | null;
+  /** The game's turn and round clocks, set when it starts (migration 022); see roomClocks(). */
+  turnMs?: number;
+  roundMs?: number;
+  /** The game has off-limits words (migration 024): Knowers see them and can't use them. */
+  offLimits?: boolean;
   createdAt: number;
 }
 
