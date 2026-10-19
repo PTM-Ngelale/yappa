@@ -26,6 +26,25 @@ const EMOJI: Record<string, string> = {
   Places: '📍',
 };
 
+/** Categories that must stay on. Mirrors _category_minimum() in migration 027. */
+export const MIN_CATEGORIES = 3;
+
+/** The categories a pick leaves on, in the usual order. No pick means all of them. */
+export function categoriesOn(pick?: readonly string[] | null): string[] {
+  return pick?.length ? CATEGORIES.filter((c) => pick.includes(c)) : [...CATEGORIES];
+}
+
+/**
+ * The pick after tapping `category`: null for "all of them", or unchanged if switching it off
+ * would leave fewer than MIN_CATEGORIES.
+ */
+export function toggleCategory(pick: readonly string[] | null | undefined, category: string): string[] | null {
+  const on = categoriesOn(pick);
+  const next = on.includes(category) ? on.filter((c) => c !== category) : categoriesOn([...on, category]);
+  if (next.length < MIN_CATEGORIES) return pick ? [...pick] : null;
+  return next.length === CATEGORIES.length ? null : next;
+}
+
 /** "🐾 Animals". A category the app doesn't know yet shows without an emoji. */
 export function categoryLabel(category: string): string {
   const emoji = EMOJI[category];

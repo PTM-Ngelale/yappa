@@ -55,23 +55,46 @@ function shuffle<T>(items: readonly T[]): T[] {
   return out;
 }
 
+const LEVEL_RANK = { easy: 0, medium: 1, hard: 2 } as const;
+
+/** Orders by the first entry that differs. */
+function compareKeys(a: number[], b: number[]): number {
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
+  return 0;
+}
+
 /**
- * A new run of `length` words (10: 3 Easy, 4 Medium, 3 Hard; 5: 2, 2, 1), easiest first,
- * never the same category twice in a row, avoiding `recent` words while there are enough
- * others to choose from.
+ * A new run of `length` words (10: 3 Easy, 4 Medium, 3 Hard; 5: 2, 2, 1), easiest first.
+ * Each word is picked, in order of importance: from `categories` (when given), at the
+ * round's difficulty or else the nearest one, a different category from the word before,
+ * not one of the `recent` words, then at random. As the server's _draw_deck() does
+ * (migration 027): falling back a difficulty, or outside the categories, beats a short run.
  */
-export function drawSoloRun(length: SoloRunLength, recent: readonly string[] = []): SoloLadder[] {
+export function drawSoloRun(
+  length: SoloRunLength,
+  recent: readonly string[] = [],
+  categories?: readonly string[] | null,
+): SoloLadder[] {
   const mix = SOLO_RUN_MIX[length];
   const avoid = new Set(recent);
   const run: SoloLadder[] = [];
+  const used = new Set<string>();
   for (const level of ['easy', 'medium', 'hard'] as const) {
-    const all = SOLO_LADDERS.filter((l) => l.difficulty === level);
-    const fresh = all.filter((l) => !avoid.has(l.id));
-    const pool = shuffle(fresh.length >= mix[level] * 2 ? fresh : all);
     for (let n = 0; n < mix[level]; n++) {
       const last = run[run.length - 1]?.category;
-      const i = Math.max(0, pool.findIndex((l) => l.category !== last));
-      run.push(pool.splice(i, 1)[0]);
+      const key = (l: SoloLadder) => [
+        categories?.length && !categories.includes(l.category) ? 1 : 0,
+        Math.abs(LEVEL_RANK[l.difficulty] - LEVEL_RANK[level]),
+        l.category === last ? 1 : 0,
+        avoid.has(l.id) ? 1 : 0,
+      ];
+      // Shuffled first, and the sort is stable, so ties fall at random.
+      const [pick] = shuffle(SOLO_LADDERS.filter((l) => !used.has(l.id)))
+        .map((l) => ({ l, k: key(l) }))
+        .sort((a, b) => compareKeys(a.k, b.k))
+        .map(({ l }) => l);
+      run.push(pick);
+      used.add(pick.id);
     }
   }
   return run;

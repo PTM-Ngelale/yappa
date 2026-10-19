@@ -78,6 +78,8 @@ export interface RoomData {
   mode?: 'duo' | 'team' | 'versus';
   /** The lobby's versus switch (host only). Players pick teams while it's on. */
   versus?: boolean;
+  /** The host's pick of word categories (migration 027); absent means all of them. */
+  categories?: string[];
   /** A versus game's two teams, each with its own Guesser, feed and turn. */
   sides?: Partial<Record<Team, VersusSide>> | null;
   /** Duo only: clues the Knower may give each round. */
@@ -214,6 +216,12 @@ export async function setRoomPublic(code: string, isPublic: boolean): Promise<vo
 /** Host only, in the lobby: switch versus on (players split into two teams) or off. */
 export async function setVersus(code: string, on: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_versus', { p_code: code, p_on: on });
+  if (error) throw error;
+}
+
+/** Host only, in a friends' lobby: the categories to draw words from; null for all of them. */
+export async function setCategories(code: string, categories: string[] | null): Promise<void> {
+  const { error } = await supabase.rpc('set_categories', { p_code: code, p_categories: categories });
   if (error) throw error;
 }
 
