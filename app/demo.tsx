@@ -101,6 +101,11 @@ export default function DemoScreen() {
       <View style={styles.footer}>
         {done ? (
           <>
+            {from !== 'how-to-play' && (
+              <Text style={styles.soloHint}>
+                <Text style={styles.soloHintStrong}>On your own?</Text> Try Solo play: the game gives you the clues.
+              </Text>
+            )}
             <StickerButton label={from === 'how-to-play' ? 'Back to How to Play' : 'Let’s play'} onPress={leave} />
             <StickerButton label="Watch again" variant="card" height={52} fontSize={18} onPress={() => setRun((r) => r + 1)} />
           </>
@@ -187,6 +192,8 @@ const makeStyles = (p: Palette) =>
     celebration: { position: 'absolute', left: 0, right: 0, top: '45%', alignItems: 'center' },
     confetti: { position: 'absolute', fontSize: 30 },
     footer: { paddingHorizontal: spacing.screen, paddingTop: 10, paddingBottom: 16, gap: 10 },
+    soloHint: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 20, color: p.ink, textAlign: 'center' },
+    soloHintStrong: { fontFamily: fonts.black },
     progress: { alignItems: 'center', paddingVertical: 8 },
     track: {
       width: 180,
