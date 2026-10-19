@@ -426,6 +426,19 @@ export default function HomeScreen() {
                 loading={matching}
                 accessibilityLabel="Play online with other players"
               />
+
+              <StickerButton
+                label="Play solo"
+                icon="user"
+                variant="card"
+                fontSize={20}
+                onPress={() => {
+                  setError("");
+                  router.push("/game/solo");
+                }}
+                disabled={matching}
+                accessibilityLabel="Play solo: guess the word from clues"
+              />
             </>
           )}
 

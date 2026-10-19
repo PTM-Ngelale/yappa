@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { SOLO_RECENT_LIMIT, type SoloRunLength } from '../game/solo';
 import type { TipId } from '../game/tips';
 
 interface SettingsState {
@@ -14,12 +15,21 @@ interface SettingsState {
   tipsSeen: TipId[];
   /** Finished a first game: no more first-game tips. */
   firstGameDone: boolean;
+  /** Solo: rounds in a run, as last picked. */
+  soloLength: SoloRunLength;
+  /** Solo: the best score of a finished run, by its length. */
+  soloBests: Record<SoloRunLength, number>;
+  /** Solo: words from recent runs, newest last, so new runs don't repeat them. */
+  soloRecent: string[];
   toggleMusic: () => void;
   toggleSfx: () => void;
   markOnlineNoticeSeen: () => void;
   markDemoSeen: () => void;
   markTipSeen: (tip: TipId) => void;
   markFirstGameDone: () => void;
+  setSoloLength: (length: SoloRunLength) => void;
+  markSoloWordsPlayed: (ids: string[]) => void;
+  recordSoloScore: (length: SoloRunLength, score: number) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -37,6 +47,14 @@ export const useSettingsStore = create<SettingsState>()(
       markDemoSeen: () => set({ demoSeen: true }),
       markTipSeen: (tip) => set((s) => (s.tipsSeen.includes(tip) ? s : { tipsSeen: [...s.tipsSeen, tip] })),
       markFirstGameDone: () => set({ firstGameDone: true }),
+      soloLength: 10,
+      soloBests: { 5: 0, 10: 0 },
+      soloRecent: [],
+      setSoloLength: (length) => set({ soloLength: length }),
+      markSoloWordsPlayed: (ids) =>
+        set((s) => ({ soloRecent: [...s.soloRecent.filter((id) => !ids.includes(id)), ...ids].slice(-SOLO_RECENT_LIMIT) })),
+      recordSoloScore: (length, score) =>
+        set((s) => (score > s.soloBests[length] ? { soloBests: { ...s.soloBests, [length]: score } } : s)),
     }),
     {
       name: 'yappa-settings',
@@ -48,6 +66,9 @@ export const useSettingsStore = create<SettingsState>()(
         demoSeen: state.demoSeen,
         tipsSeen: state.tipsSeen,
         firstGameDone: state.firstGameDone,
+        soloLength: state.soloLength,
+        soloBests: state.soloBests,
+        soloRecent: state.soloRecent,
       }),
     }
   )
