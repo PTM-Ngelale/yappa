@@ -2,7 +2,9 @@
 // WebView or docs/captcha.html here. Same API as CaptchaHost.tsx. The widget only allows the
 // hostnames listed for it in Cloudflare, so the web app's domain (and localhost, to test)
 // must be added there.
+import { usePathname } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
+import { isSoloPath } from '../game/solo';
 import { StyleSheet, Text, View } from 'react-native';
 import { fonts, spacing, type, useStyles, type Palette } from '../theme';
 import { Sticker } from './ui';
@@ -141,16 +143,21 @@ export function CaptchaHost() {
     };
   }, [request]);
 
+  // Solo never signs in, so the box stays out of its way (its clue clock would run on behind
+  // it). The check waits for them back on Home; if it times out first, Create, Join and Play
+  // online ask again.
+  const shown = interactive && !isSoloPath(usePathname());
+
   if (!request) return null;
 
   return (
     <View
-      style={interactive ? styles.overlay : styles.hidden}
-      pointerEvents={interactive ? 'auto' : 'none'}
-      aria-hidden={!interactive}
+      style={shown ? styles.overlay : styles.hidden}
+      pointerEvents={shown ? 'auto' : 'none'}
+      aria-hidden={!shown}
     >
       <Sticker radius={24} offset={6} style={styles.cardWrap} contentStyle={styles.card}>
-        {interactive && (
+        {shown && (
           <>
             <Text style={styles.title} accessibilityRole="header">Quick check</Text>
             <Text style={styles.body}>Tap the box so we know you’re a real player.</Text>
