@@ -1,6 +1,8 @@
-// The word categories, as the server names them (the `words` table), with their emoji.
+// The word categories, as the server names them (the `words` table), with their icons.
 // Migration 023 filed the words into the first 8 and migration 028 added 3 more; each is
 // meant to narrow the Guesser's guess.
+import type { MaterialCommunityIcons } from '@expo/vector-icons';
+import type React from 'react';
 
 export const CATEGORIES = [
   'Animals',
@@ -17,21 +19,24 @@ export const CATEGORIES = [
   'Video Games',
 ] as const;
 
-const EMOJI: Record<string, string> = {
-  Animals: '🐾',
-  'Food & Drink': '🍲',
-  Sports: '⚽',
-  Music: '🎵',
-  'Around the House': '🏠',
-  'Tools & Gadgets': '🔧',
-  Buildings: '🏛️',
-  Nature: '🌿',
-  'Pop Culture': '🍿',
-  'Fairy Tales': '🧚',
-  'Video Games': '🎮',
+export type CategoryIconName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/** Material Design icons (bundled in @expo/vector-icons), so they look the same on every phone. */
+const ICONS: Record<string, CategoryIconName> = {
+  Animals: 'paw',
+  'Food & Drink': 'silverware-fork-knife',
+  Sports: 'soccer',
+  Music: 'music',
+  'Around the House': 'sofa',
+  'Tools & Gadgets': 'hammer-wrench',
+  Buildings: 'office-building',
+  Nature: 'pine-tree',
+  'Pop Culture': 'popcorn',
+  'Fairy Tales': 'castle',
+  'Video Games': 'gamepad-variant',
   // Before migration 023 (older games' history).
-  Objects: '🧸',
-  Places: '📍',
+  Objects: 'cube-outline',
+  Places: 'map-marker',
 };
 
 /** Categories that must stay on. Mirrors _category_minimum() in migration 027. */
@@ -53,8 +58,10 @@ export function toggleCategory(pick: readonly string[] | null | undefined, categ
   return next.length === CATEGORIES.length ? null : next;
 }
 
-/** "🐾 Animals". A category the app doesn't know yet shows without an emoji. */
-export function categoryLabel(category: string): string {
-  const emoji = EMOJI[category];
-  return emoji ? `${emoji} ${category}` : category;
+/** Categories to mark as new in the picker. Empty this once they're old news. */
+export const NEW_CATEGORIES: readonly string[] = ['Pop Culture', 'Fairy Tales', 'Video Games'];
+
+/** The category's icon, or null for one the app doesn't know yet. */
+export function categoryIcon(category: string): CategoryIconName | null {
+  return ICONS[category] ?? null;
 }

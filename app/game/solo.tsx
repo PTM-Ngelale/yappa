@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Animated, AppState, BackHandler, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { playSound } from '../../src/audio/sounds';
-import { CategoryPicker } from '../../src/components/CategoryPicker';
+import { CategoryScreen, CategorySummary } from '../../src/components/CategoryScreen';
 import { DescriptionFeed } from '../../src/components/DescriptionFeed';
 import { LeaveGameDialog } from '../../src/components/LeaveGame';
 import { Pressable } from '../../src/components/Pressable';
@@ -19,7 +19,7 @@ import {
   StickerButton,
   useShortScreen,
 } from '../../src/components/ui';
-import { categoryLabel } from '../../src/game/categories';
+import { CategoryName } from '../../src/components/CategoryName';
 import {
   drawSoloRun,
   isSoloAnswer,
@@ -27,7 +27,7 @@ import {
   SOLO_CLUES,
   SOLO_LAST_CHANCE_SECONDS,
   SOLO_RUN_LENGTHS,
-  soloMaxScore,
+  soloPercent,
   soloPoints,
   type SoloLadder,
   type SoloRunLength,
@@ -136,6 +136,7 @@ export default function SoloScreen() {
   const soloLength = useSettingsStore((s) => s.soloLength);
   const soloBests = useSettingsStore((s) => s.soloBests);
   const soloCategories = useSettingsStore((s) => s.soloCategories);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   // The best score before this run, so the summary can say whether it's a new best.
   const [bestBefore, setBestBefore] = useState(0);
   const { shakeAnim, shake } = useShakeAnimation();
@@ -310,7 +311,14 @@ export default function SoloScreen() {
           <Eyebrow>How many rounds?</Eyebrow>
           {picker}
           <Eyebrow>Categories</Eyebrow>
-          <CategoryPicker pick={soloCategories} onChange={(pick) => useSettingsStore.getState().setSoloCategories(pick)} />
+          <CategorySummary pick={soloCategories} onPress={() => setCategoriesOpen(true)} />
+          <CategoryScreen
+            visible={categoriesOpen}
+            pick={soloCategories}
+            note="Pick the kinds of words you want. Your choice is kept for next time."
+            onDone={(pick) => useSettingsStore.getState().setSoloCategories(pick)}
+            onClose={() => setCategoriesOpen(false)}
+          />
           <StickerButton label={`Start ${soloLength} rounds`} icon="play" onPress={startRun} />
         </ScrollView>
       </Screen>
@@ -318,6 +326,7 @@ export default function SoloScreen() {
   }
 
   if (phase === 'done') {
+    const length = run.length as SoloRunLength;
     const best = Math.max(bestBefore, total);
     return (
       <Screen>
@@ -328,12 +337,14 @@ export default function SoloScreen() {
           </View>
           <Sticker bg={p.hero} shadow={p.coral} radius={24} offset={5} contentStyle={styles.totalCard}>
             <Eyebrow style={{ color: p.heroAccent }}>Your score</Eyebrow>
-            <Text style={styles.total}>
-              {total}
-              <Text style={styles.totalOf}> / {soloMaxScore(run.length as SoloRunLength)}</Text>
+            <Text style={styles.total} accessibilityLabel={`${soloPercent(total, length)} percent`}>
+              {soloPercent(total, length)}
+              <Text style={styles.totalOf}>%</Text>
             </Text>
             <Text style={[styles.best, { color: p.heroAccent }]}>
-              {total > bestBefore && bestBefore > 0 ? 'New best score!' : `Best for ${run.length} rounds: ${best}`}
+              {total > bestBefore && bestBefore > 0
+                ? 'New best score!'
+                : `Best for ${length} rounds: ${soloPercent(best, length)}%`}
             </Text>
           </Sticker>
           <RunWords results={results} />
@@ -355,7 +366,6 @@ export default function SoloScreen() {
   const last = results[results.length - 1];
   const finalClue = shown === SOLO_CLUES;
   const secondsLeft = Math.max(0, Math.ceil((deadline - now) / 1000));
-  const label = categoryLabel(ladder.category);
 
   return (
     <Screen>
@@ -371,13 +381,12 @@ export default function SoloScreen() {
 
           <View style={styles.categoryBlock}>
             {!short && <Eyebrow>The category is</Eyebrow>}
-            <Text
-              style={[styles.category, short && styles.categoryCompact, label.length > 12 && styles.categoryLong]}
+            <CategoryName
+              category={ladder.category}
+              style={[styles.category, short && styles.categoryCompact, ladder.category.length > 9 && styles.categoryLong]}
               adjustsFontSizeToFit
               numberOfLines={1}
-            >
-              {label}
-            </Text>
+            />
           </View>
 
           {phase === 'result' && last ? (
@@ -547,13 +556,13 @@ function RoundsPicker({
             onPress={() => onChange(n)}
             accessibilityRole="radio"
             accessibilityState={{ checked: on }}
-            accessibilityLabel={`${n} rounds${bests[n] ? `, best score ${bests[n]}` : ''}`}
+            accessibilityLabel={`${n} rounds${bests[n] ? `, best score ${soloPercent(bests[n], n)} percent` : ''}`}
             style={[styles.option, on && styles.optionOn]}
           >
             <Text style={[styles.optionNum, { color: fg }]}>{n}</Text>
             <Text style={[styles.optionLabel, { color: fg }]}>rounds</Text>
             <Text style={[styles.optionBest, { color: on ? p.onBlue : p.muted }]}>
-              {bests[n] ? `Best ${bests[n]} / ${soloMaxScore(n)}` : n === 5 ? 'Quick game' : 'Full run'}
+              {bests[n] ? `Best ${soloPercent(bests[n], n)}%` : n === 5 ? 'Quick game' : 'Full run'}
             </Text>
           </Pressable>
         );

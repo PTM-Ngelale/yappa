@@ -10,7 +10,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { categoryLabel } from "../game/categories";
+import { CategoryName } from "../components/CategoryName";
 import { ClueBudget } from "../components/ClueBudget";
 import { DescriptionFeed } from "../components/DescriptionFeed";
 import { GameHeader, TipCard } from "../components/game";
@@ -65,7 +65,6 @@ export function GuesserScreen({
   const styles = useStyles(makeStyles);
   const p = useTheme();
   const short = useShortScreen();
-  const label = categoryLabel(category);
   const [guess, setGuess] = useState("");
   const [message, setMessage] = useState("");
   const [checking, setChecking] = useState(false);
@@ -136,18 +135,17 @@ export function GuesserScreen({
           {/* Category: the only hint the Guesser gets besides the description */}
           <View style={styles.categoryBlock}>
             {!short && <Eyebrow>The category is</Eyebrow>}
-            <Text
+            <CategoryName
+              category={category}
               style={[
                 styles.category,
                 short && styles.categoryCompact,
-                label.length > 12 && (short ? styles.categoryLongCompact : styles.categoryLong),
-                label.length > 16 && (short ? styles.categoryLongerCompact : styles.categoryLonger),
+                category.length > 9 && (short ? styles.categoryLongCompact : styles.categoryLong),
+                category.length > 13 && (short ? styles.categoryLongerCompact : styles.categoryLonger),
               ]}
               adjustsFontSizeToFit
               numberOfLines={1}
-            >
-              {label}
-            </Text>
+            />
           </View>
           {tip && !short && <TipCard text={tip.text} onDismiss={tip.onDismiss} />}
 

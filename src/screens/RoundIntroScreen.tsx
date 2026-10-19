@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
-import { categoryLabel } from '../game/categories';
+import { CategoryName } from '../components/CategoryName';
 import { ROUND_SECONDS } from '../game/config';
 import { listNames } from '../game/players';
 import { OffLimits } from '../components/game';
@@ -101,7 +101,7 @@ export function RoundIntroScreen({
                   word at a time{clueBudget ? `, ${clueBudget} at most` : ''}.
                 </Text>
                 <Eyebrow style={{ color: p.heroAccent }}>Category</Eyebrow>
-                <Text style={styles.category}>{categoryLabel(category)}</Text>
+                <CategoryName category={category} style={styles.category} containerStyle={{ alignSelf: 'center' }} />
                 <Text style={styles.blurb}>
                   {versus
                     ? `${rival} are after the same word. Guess anytime and get it first!`
