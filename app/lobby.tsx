@@ -1,8 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { playSound } from '../src/audio/sounds';
+import { LeaveGameDialog } from '../src/components/LeaveGame';
 import { Pressable } from '../src/components/Pressable';
 import { ReportSheet } from '../src/components/ReportSheet';
 import { SoundToggles } from '../src/components/SoundToggles';
@@ -156,6 +157,24 @@ export default function LobbyScreen() {
     resetGameStore();
   }
 
+  // Leaving with others in the room asks first: an accidental tap would give up the seat
+  // (and the host's role). Alone, there's nothing to lose.
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  function askLeave() {
+    if (players.length > 1) setLeaveOpen(true);
+    else handleLeave();
+  }
+  // Android back goes through the same check, and through leaveRoom(), rather than
+  // dropping out of the screen while still seated in the room.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!leaveOpen) askLeave();
+      return true;
+    });
+    return () => sub.remove();
+  });
+
   async function handleTogglePublic() {
     if (!roomCode) return;
     setTogglingPublic(true);
@@ -241,7 +260,7 @@ export default function LobbyScreen() {
     <Screen>
       <View style={styles.header}>
         <View style={styles.headerSide}>
-          <IconButton icon="arrow-left" onPress={handleLeave} accessibilityLabel="Leave lobby" />
+          <IconButton icon="arrow-left" onPress={askLeave} accessibilityLabel="Leave lobby" />
         </View>
         <Text style={styles.headerTitle} accessibilityRole="header">
           {isPublic ? 'Online lobby' : 'Lobby'}
@@ -475,6 +494,22 @@ export default function LobbyScreen() {
           onClose={() => setReportFor(null)}
         />
       )}
+      <LeaveGameDialog
+        visible={leaveOpen}
+        onLeave={() => {
+          setLeaveOpen(false);
+          handleLeave();
+        }}
+        onStay={() => setLeaveOpen(false)}
+        title="Leave the lobby?"
+        body={
+          isPublic
+            ? 'You’ll give up your place in this game.'
+            : `${isHost ? 'Someone else becomes the host. ' : ''}You can join again with code ${roomCode ?? ''} until the game starts.`
+        }
+        leaveLabel="Leave lobby"
+        stayLabel="Stay"
+      />
     </Screen>
   );
 }

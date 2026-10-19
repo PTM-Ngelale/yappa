@@ -21,21 +21,30 @@ export function LeaveGameDialog({
   visible,
   onLeave,
   onStay,
+  title = 'Leave the game?',
+  body = 'The game needs everyone who started it, so it ends for everyone.',
+  leaveLabel = 'Leave game',
+  stayLabel = 'Keep playing',
 }: {
   visible: boolean;
   onLeave: () => void;
   onStay: () => void;
+  title?: string;
+  /** What leaving means. Defaults to the multiplayer warning. */
+  body?: string;
+  leaveLabel?: string;
+  stayLabel?: string;
 }) {
   const styles = useStyles(makeStyles);
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onStay} statusBarTranslucent>
       <View style={styles.scrim}>
         <Sticker radius={24} offset={6} style={styles.stretch} contentStyle={styles.card}>
-          <Text style={styles.title} accessibilityRole="header">Leave the game?</Text>
-          <Text style={styles.body}>The game needs everyone who started it, so it ends for everyone.</Text>
-          <StickerButton label="Leave game" icon="log-out" height={56} fontSize={19} onPress={onLeave} />
+          <Text style={styles.title} accessibilityRole="header">{title}</Text>
+          <Text style={styles.body}>{body}</Text>
+          <StickerButton label={leaveLabel} icon="log-out" height={56} fontSize={19} onPress={onLeave} />
           <Pressable onPress={onStay} accessibilityRole="button" style={styles.stay}>
-            <Text style={styles.stayText}>Keep playing</Text>
+            <Text style={styles.stayText}>{stayLabel}</Text>
           </Pressable>
         </Sticker>
       </View>
