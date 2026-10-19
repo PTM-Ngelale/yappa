@@ -146,7 +146,9 @@ export function CaptchaHost() {
   // Solo never signs in, so the box stays out of its way (its clue clock would run on behind
   // it). The check waits for them back on Home; if it times out first, Create, Join and Play
   // online ask again.
-  const shown = interactive && !isSoloPath(usePathname());
+  // usePathname() first, on every render: hooks can't sit behind the && short-circuit.
+  const pathname = usePathname();
+  const shown = interactive && !isSoloPath(pathname);
 
   if (!request) return null;
 
