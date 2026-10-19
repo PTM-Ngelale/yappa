@@ -7,7 +7,8 @@ import { OffLimits } from '../src/components/game';
 import { PoweredBy } from '../src/components/PoweredBy';
 import { Eyebrow, IconButton, OUTLINE, Screen, Sticker, StickerButton } from '../src/components/ui';
 import { CategoryName } from '../src/components/CategoryName';
-import { CATEGORIES } from '../src/game/categories';
+import { CATEGORIES, MIN_CATEGORIES } from '../src/game/categories';
+import { SOLO_CLUE_SECONDS, SOLO_CLUES, SOLO_RUN_LENGTHS, soloPoints } from '../src/game/solo';
 import { DUO_CLUES, roundSecondsFor, TURN_SECONDS } from '../src/game/config';
 import { EXAMPLE_FEED, EXAMPLE_OFF_LIMITS, EXAMPLE_PLAYERS } from '../src/game/demo';
 import { roundsFor } from '../src/game/players';
@@ -33,10 +34,22 @@ export default function HowToPlayScreen() {
 
       <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
         <Text style={styles.tagline}>
-          For 2 to 6 players. The Knowers describe a secret word, one word at a time. The Guesser guesses it before time runs out.
+          Play with 2 to 6 friends, or on your own. Clues describe a secret word, one word at a time. Guess it before time runs out.
         </Text>
 
-        <Section title="How it works">
+        <Section title="Solo play">
+          <Text style={styles.bodyText}>
+            The game gives you the clues, one word at a time, from vague to obvious. A new one appears every{' '}
+            {SOLO_CLUE_SECONDS} seconds, or tap <Text style={styles.strong}>Next clue now</Text> for one sooner.
+          </Text>
+          <Text style={styles.bodyText}>
+            Guess early for more points: {soloPoints(1)} on the first clue, down to 1 on the last of the {SOLO_CLUES}.
+            Play {SOLO_RUN_LENGTHS.join(' or ')} rounds; your score is shown as a percentage of the most you could get, so you can
+            beat your best.
+          </Text>
+        </Section>
+
+        <Section title="Multi play: how it works">
           <Step number={1} label="Each round:" text="one Guesser, everyone else is a Knower. Everyone takes a turn guessing." />
           <Step number={2} label="Knowers:" text={`take turns adding one word each, any word that helps. No need for sentences. You get ${TURN_SECONDS} seconds per word.`} />
           <Step number={3} label="Off-limits:" text="each secret word comes with 3 to 5 words the Knowers can’t say, and harder words have more. The word’s own parts are out too (no “house” for Lighthouse)." />
@@ -102,6 +115,10 @@ export default function HowToPlayScreen() {
         </Section>
 
         <Section title="Categories">
+          <Text style={styles.bodyText}>
+            Pick the ones you like: on the Solo play start screen, or in the lobby if you’re the host of a game with friends.
+            At least {MIN_CATEGORIES} stay on. Online games use them all.
+          </Text>
           <View style={styles.categories}>
             {CATEGORIES.map((c) => (
               <View key={c} style={styles.categoryChip}>
