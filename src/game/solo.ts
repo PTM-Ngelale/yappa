@@ -46,6 +46,11 @@ export function soloMaxScore(length: SoloRunLength): number {
   return length * soloPoints(1);
 }
 
+/** A run's score as a whole percentage of the most it could score, so 5 and 10 rounds compare. */
+export function soloPercent(score: number, length: SoloRunLength): number {
+  return Math.round((score / soloMaxScore(length)) * 100);
+}
+
 function shuffle<T>(items: readonly T[]): T[] {
   const out = [...items];
   for (let i = out.length - 1; i > 0; i--) {

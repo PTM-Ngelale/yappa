@@ -5,8 +5,9 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { DescriptionFeed } from '../src/components/DescriptionFeed';
 import { OffLimits } from '../src/components/game';
 import { PoweredBy } from '../src/components/PoweredBy';
-import { Eyebrow, IconButton, OUTLINE, Pill, Screen, Sticker, StickerButton } from '../src/components/ui';
-import { CATEGORIES, categoryLabel } from '../src/game/categories';
+import { Eyebrow, IconButton, OUTLINE, Screen, Sticker, StickerButton } from '../src/components/ui';
+import { CategoryName } from '../src/components/CategoryName';
+import { CATEGORIES } from '../src/game/categories';
 import { DUO_CLUES, roundSecondsFor, TURN_SECONDS } from '../src/game/config';
 import { EXAMPLE_FEED, EXAMPLE_OFF_LIMITS, EXAMPLE_PLAYERS } from '../src/game/demo';
 import { roundsFor } from '../src/game/players';
@@ -103,7 +104,9 @@ export default function HowToPlayScreen() {
         <Section title="Categories">
           <View style={styles.categories}>
             {CATEGORIES.map((c) => (
-              <Pill key={c} label={categoryLabel(c)} size={14} />
+              <View key={c} style={styles.categoryChip}>
+                <CategoryName category={c} style={styles.categoryChipText} />
+              </View>
             ))}
           </View>
         </Section>
@@ -197,4 +200,13 @@ const makeStyles = (p: Palette) =>
     },
     stepBadgeText: { fontFamily: fonts.black, fontSize: 14, color: p.onYellow },
     categories: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    categoryChip: {
+      backgroundColor: p.card,
+      borderWidth: OUTLINE,
+      borderColor: p.line,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 4,
+    },
+    categoryChipText: { fontFamily: fonts.black, fontSize: 14, color: p.ink },
   });

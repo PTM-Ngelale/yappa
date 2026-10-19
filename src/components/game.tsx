@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { categoryLabel } from '../game/categories';
+import { CategoryName } from './CategoryName';
 import { fonts, type, useStyles, useTheme, type Palette } from '../theme';
 import { LeaveGameButton } from './LeaveGame';
 import { Pressable } from './Pressable';
@@ -95,7 +95,7 @@ export function SecretWordCard({
       <View style={styles.secretTop}>
         <Eyebrow style={{ color: p.heroAccent }}>Secret word</Eyebrow>
         <View style={[styles.category, { backgroundColor: p.heroAccent }]}>
-          <Text style={[styles.categoryText, { color: p.hero }]}>{categoryLabel(category)}</Text>
+          <CategoryName category={category} style={[styles.categoryText, { color: p.hero }]} />
         </View>
       </View>
       <Text style={[styles.secretWord, compact && styles.secretWordCompact]} adjustsFontSizeToFit numberOfLines={1}>

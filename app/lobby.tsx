@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { playSound } from '../src/audio/sounds';
 import { CategoryPicker } from '../src/components/CategoryPicker';
+import { CategoryScreen, CategorySummary } from '../src/components/CategoryScreen';
 import { LeaveGameDialog } from '../src/components/LeaveGame';
 import { Pressable } from '../src/components/Pressable';
 import { ReportSheet } from '../src/components/ReportSheet';
@@ -46,7 +47,7 @@ export default function LobbyScreen() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [versusBusy, setVersusBusy] = useState(false);
   const [teamError, setTeamError] = useState('');
-  const [categoriesBusy, setCategoriesBusy] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [categoriesError, setCategoriesError] = useState('');
 
   // Build local player list for display when Supabase isn't configured
@@ -214,18 +215,22 @@ export default function LobbyScreen() {
     }
   }
 
-  async function handleSetCategories(pick: string[] | null) {
-    if (!roomCode) return;
-    setCategoriesBusy(true);
+  /** Saves the host's pick; false (and an error on the categories screen) if it didn't go through. */
+  async function handleSetCategories(pick: string[] | null): Promise<boolean> {
+    if (!roomCode) return false;
     setCategoriesError('');
     try {
       const { setCategories } = await import('../src/supabase/room');
       await setCategories(roomCode, pick);
+      return true;
     } catch (e) {
       console.error(e);
-      setCategoriesError('Couldn’t change the categories. Check your connection.');
-    } finally {
-      setCategoriesBusy(false);
+      setCategoriesError(
+        errorText(e).includes('already started')
+          ? 'The game has already started.'
+          : 'Couldn’t change the categories. Check your connection and try again.',
+      );
+      return false;
     }
   }
 
@@ -454,15 +459,17 @@ export default function LobbyScreen() {
         {!isPublic && (
           <View style={styles.section}>
             <Eyebrow>{isHost ? 'Categories' : 'Categories the host picked'}</Eyebrow>
-            <CategoryPicker
-              pick={roomData?.categories}
-              onChange={isHost && roomData?.status === 'lobby' ? handleSetCategories : undefined}
-              disabled={categoriesBusy}
-            />
-            {categoriesError !== '' && (
-              <Text style={styles.teamError} accessibilityLiveRegion="assertive">
-                {categoriesError}
-              </Text>
+            {isHost ? (
+              <CategorySummary
+                pick={roomData?.categories}
+                onPress={() => {
+                  setCategoriesError('');
+                  setCategoriesOpen(true);
+                }}
+                disabled={roomData?.status !== 'lobby'}
+              />
+            ) : (
+              <CategoryPicker pick={roomData?.categories} />
             )}
           </View>
         )}
@@ -529,6 +536,14 @@ export default function LobbyScreen() {
           onClose={() => setReportFor(null)}
         />
       )}
+      <CategoryScreen
+        visible={categoriesOpen && isHost && roomData?.status === 'lobby'}
+        pick={roomData?.categories}
+        note="Everyone in the room plays words from these. Online games always use every category."
+        error={categoriesError}
+        onDone={handleSetCategories}
+        onClose={() => setCategoriesOpen(false)}
+      />
       <LeaveGameDialog
         visible={leaveOpen}
         onLeave={() => {
