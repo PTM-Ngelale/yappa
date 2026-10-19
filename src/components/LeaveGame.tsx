@@ -55,7 +55,8 @@ export function LeaveGameDialog({
 const makeStyles = (p: Palette) =>
   StyleSheet.create({
     scrim: { flex: 1, backgroundColor: p.scrim, justifyContent: 'center', padding: spacing.screen },
-    stretch: { alignSelf: 'stretch' },
+    // On a wide browser window, stay the width of the app's column rather than the window.
+    stretch: { alignSelf: 'stretch', maxWidth: 420, width: '100%', marginHorizontal: 'auto' },
     card: { padding: 20, gap: 12 },
     title: { fontFamily: fonts.black, fontSize: 26, color: p.ink },
     body: { ...type.body, color: p.ink },

@@ -14,6 +14,11 @@ export interface SoloLadder {
   answers: string[];
 }
 
+/** Whether `pathname` is the solo screen, which never needs to sign in. */
+export function isSoloPath(pathname: string): boolean {
+  return pathname.startsWith('/game/solo');
+}
+
 /** Clues in every ladder. */
 export const SOLO_CLUES = 8;
 /** A new clue appears this often unless the player asks for one sooner. */

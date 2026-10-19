@@ -2,7 +2,9 @@
 // so a WebView loads docs/captcha.html (GitHub Pages — its hostname is the one the widget
 // allows) and posts the token back. The WebView stays invisible unless Turnstile wants the
 // player to tap, which is rare; usually this finishes in a second or two with nothing shown.
+import { usePathname } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import { isSoloPath } from '../game/solo';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { fonts, spacing, type, useStyles, useTheme, type Palette } from '../theme';
@@ -101,6 +103,7 @@ export function CaptchaHost() {
   // Android web views that start out invisible can stay blank once shown, so when Turnstile
   // wants a tap the hidden page is swapped for a fresh one loaded in the visible card.
   const [interactive, setInteractive] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     notifyHost = (p) => {
@@ -113,6 +116,11 @@ export function CaptchaHost() {
       notifyHost = null;
     };
   }, []);
+
+  // Solo never signs in, so the box stays out of its way (its clue clock would run on behind
+  // it). The check waits for them back on Home; if it times out first, Create, Join and Play
+  // online ask again.
+  const shown = interactive && !isSoloPath(pathname);
 
   if (!request || Platform.OS === 'web') return null;
 
@@ -135,26 +143,26 @@ export function CaptchaHost() {
 
   return (
     <View
-      style={interactive ? styles.overlay : styles.hidden}
-      pointerEvents={interactive ? 'auto' : 'none'}
+      style={shown ? styles.overlay : styles.hidden}
+      pointerEvents={shown ? 'auto' : 'none'}
       onLayout={(e) => {
-        if (__DEV__ && interactive) {
+        if (__DEV__ && shown) {
           const { width, height } = e.nativeEvent.layout;
           console.log(`Captcha check ${request.id}: box shown (${Math.round(width)}x${Math.round(height)})`);
         }
       }}
-      accessibilityElementsHidden={!interactive}
-      importantForAccessibility={interactive ? 'auto' : 'no-hide-descendants'}
+      accessibilityElementsHidden={!shown}
+      importantForAccessibility={shown ? 'auto' : 'no-hide-descendants'}
     >
       <Sticker radius={24} offset={6} style={styles.cardWrap} contentStyle={styles.card}>
-        {interactive && (
+        {shown && (
           <>
             <Text style={styles.title} accessibilityRole="header">Quick check</Text>
             <Text style={styles.body}>Tap the box so we know you’re a real player.</Text>
           </>
         )}
         <WebView
-          key={`${request.id}-${interactive ? 'shown' : 'hidden'}`}
+          key={`${request.id}-${shown ? 'shown' : 'hidden'}`}
           source={{ uri: CAPTCHA_URL }}
           onMessage={onMessage}
           onLoadStart={() => setStage(request.id, 'page loading')}
