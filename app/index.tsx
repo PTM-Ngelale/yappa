@@ -37,8 +37,9 @@ export default function HomeScreen() {
   // The code an invite link filled in, so a join with it counts as "via link".
   const [linkCode, setLinkCode] = useState("");
   const [showJoin, setShowJoin] = useState(false);
-  // Home offers Play with friends and Play online; Play with friends opens Create game / Join with a code.
-  const [localPlay, setLocalPlay] = useState(false);
+  // Home offers Solo play and Multi play. Multi play opens Play with friends and Play online;
+  // Play with friends opens Create game / Join with a code.
+  const [menu, setMenu] = useState<"main" | "multi" | "friends">("main");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [matching, setMatching] = useState(false);
@@ -54,7 +55,7 @@ export default function HomeScreen() {
     if (code.length !== 4) return;
     setJoinCode(code);
     setLinkCode(code);
-    setLocalPlay(true);
+    setMenu("friends");
     setShowJoin(true);
   }, [room]);
 
@@ -67,18 +68,18 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsLoaded]);
 
-  // Android back steps out of Play with friends before leaving Home.
+  // Android back steps out a menu level (Play with friends, then Multi play) before leaving Home.
   useEffect(() => {
-    if (!localPlay || Platform.OS === "web") return;
+    if (menu === "main" || Platform.OS === "web") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      closeLocalPlay();
+      menuBack();
       return true;
     });
     return () => sub.remove();
-  }, [localPlay]);
+  }, [menu]);
 
-  function closeLocalPlay() {
-    setLocalPlay(false);
+  function menuBack() {
+    setMenu((m) => (m === "friends" ? "multi" : "main"));
     setShowJoin(false);
     setJoinCode("");
     setError("");
@@ -330,7 +331,7 @@ export default function HomeScreen() {
             </Text>
           )}
 
-          {localPlay ? (
+          {menu === "friends" && (
             <>
               <Text style={styles.sectionTitle} accessibilityRole="header">Play with friends</Text>
               <StickerButton
@@ -393,7 +394,7 @@ export default function HomeScreen() {
               )}
 
               <Pressable
-                onPress={closeLocalPlay}
+                onPress={menuBack}
                 accessibilityRole="button"
                 accessibilityLabel="Back to Play with friends or Play online"
                 style={styles.back}
@@ -401,21 +402,40 @@ export default function HomeScreen() {
                 <Text style={styles.cancelText}>Back</Text>
               </Pressable>
             </>
-          ) : (
+          )}
+
+          {menu === "main" && (
             <>
               <StickerButton
-                label="Play solo"
+                label="Solo play"
                 icon="user"
-                variant="card"
-                fontSize={20}
+                height={64}
+                fontSize={22}
                 onPress={() => {
                   setError("");
                   router.push("/game/solo");
                 }}
-                disabled={matching}
-                accessibilityLabel="Play solo: guess the word from clues"
+                accessibilityLabel="Solo play: guess the word from clues"
               />
 
+              <StickerButton
+                label="Multi play"
+                icon="users"
+                variant="blue"
+                height={64}
+                fontSize={22}
+                onPress={() => {
+                  setError("");
+                  setMenu("multi");
+                }}
+                accessibilityLabel="Multi play: play with friends or online"
+              />
+            </>
+          )}
+
+          {menu === "multi" && (
+            <>
+              <Text style={styles.sectionTitle} accessibilityRole="header">Multi play</Text>
               <StickerButton
                 label="Play with friends"
                 icon="users"
@@ -423,7 +443,7 @@ export default function HomeScreen() {
                 fontSize={22}
                 onPress={() => {
                   setError("");
-                  setLocalPlay(true);
+                  setMenu("friends");
                 }}
                 disabled={matching}
                 accessibilityLabel="Play with friends: create a game or join one with a code"
@@ -439,6 +459,15 @@ export default function HomeScreen() {
                 loading={matching}
                 accessibilityLabel="Play online with other players"
               />
+
+              <Pressable
+                onPress={menuBack}
+                accessibilityRole="button"
+                accessibilityLabel="Back to Solo play or Multi play"
+                style={styles.back}
+              >
+                <Text style={styles.cancelText}>Back</Text>
+              </Pressable>
             </>
           )}
 
