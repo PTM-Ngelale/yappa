@@ -1,5 +1,6 @@
 // The word categories, as the server names them (the `words` table), with their emoji.
-// Migration 023 filed the words into these 8; each is meant to narrow the Guesser's guess.
+// Migration 023 filed the words into the first 8 and migration 028 added 3 more; each is
+// meant to narrow the Guesser's guess.
 
 export const CATEGORIES = [
   'Animals',
@@ -10,6 +11,10 @@ export const CATEGORIES = [
   'Tools & Gadgets',
   'Buildings',
   'Nature',
+  // Migration 028.
+  'Pop Culture',
+  'Fairy Tales',
+  'Video Games',
 ] as const;
 
 const EMOJI: Record<string, string> = {
@@ -21,6 +26,9 @@ const EMOJI: Record<string, string> = {
   'Tools & Gadgets': '🔧',
   Buildings: '🏛️',
   Nature: '🌿',
+  'Pop Culture': '🍿',
+  'Fairy Tales': '🧚',
+  'Video Games': '🎮',
   // Before migration 023 (older games' history).
   Objects: '🧸',
   Places: '📍',

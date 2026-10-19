@@ -78,7 +78,7 @@ await db.query(`insert into rooms (code, data) values ('OLD1', $1)`, [{ hostUid:
 await applyMigrations((f) => f >= '004');
 const legacy = await room('OLD1');
 check(!('targetWord' in legacy) && !('gameWords' in legacy), 'legacy room data loses its answers');
-check((await db.query('select count(*)::int n from words')).rows[0].n === 318, '318 words after the 8-category deck');
+check((await db.query('select count(*)::int n from words')).rows[0].n === 438, '438 words after the 11-category deck (migration 028)');
 
 // --- Lobby -------------------------------------------------------------------------
 check(await fails(HOST, `insert into rooms (code, data) values ('ZZZZ', $1)`, [{ hostUid: HOST, players: { [HOST]: {} } }]), 'direct INSERT into rooms is rejected');
@@ -299,10 +299,10 @@ check((await db.query(`select count(distinct id)::int n, count(*)::int t from wo
 const wordList = (await db.query(`select id from words`)).rows.map((r) => r.id);
 check(wordList.includes('toothbrush') && !wordList.includes('sextant') && !wordList.includes('trampolining'), 'the reviewed word list swaps obscure words for familiar ones');
 const cards = (await db.query(`select category, difficulty, forbidden from words`)).rows;
-check(new Set(cards.map((w) => w.category)).size === 8, 'words are filed in 8 categories');
+check(new Set(cards.map((w) => w.category)).size === 11, 'words are filed in 11 categories');
 check(cards.every((w) => w.forbidden.length === { easy: 3, medium: 4, hard: 5 }[w.difficulty]), 'off-limits lists: 3 Easy, 4 Medium, 5 Hard');
 const hardBy = cards.filter((w) => w.difficulty === 'hard').reduce((m, w) => ((m[w.category] = (m[w.category] ?? 0) + 1), m), {});
-check(Object.values(hardBy).length === 8 && Object.values(hardBy).every((n) => n >= 8), 'every category has at least 8 Hard words');
+check(Object.values(hardBy).length === 11 && Object.values(hardBy).every((n) => n >= 8), 'every category has at least 8 Hard words');
 const meanings = (await db.query(`select word, meaning from words`)).rows;
 check(meanings.every((w) => w.meaning.length > 0 && w.meaning.length <= 120 && !w.meaning.toLowerCase().includes(w.word.toLowerCase())),
   'every word has a short meaning that does not use the word itself');
@@ -636,10 +636,15 @@ for (let i = 0; i < 20; i++) {
   for (const n of [9, 10]) {
     const cats = (await db.query(`select _draw_deck(null, $1) d`, [n])).rows[0].d.map((w) => w.category);
     const most = Math.max(...Object.values(cats.reduce((m, c) => ((m[c] = (m[c] ?? 0) + 1), m), {})));
-    if (cats.length !== n || cats.some((c, j) => j > 0 && c === cats[j - 1]) || new Set(cats).size !== 8 || most > 2) spread = false;
+    if (cats.length !== n || cats.some((c, j) => j > 0 && c === cats[j - 1]) || new Set(cats).size !== n || most > 1) spread = false;
   }
 }
-check(spread, 'decks of 9 and 10 play all 8 categories, never the same one twice in a row');
+// 11 categories since migration 028, so a 9 or 10 word deck needn't repeat one.
+check(spread, 'decks of 9 and 10 spread over the categories, never the same one twice');
+const newCats = (await db.query(`select array_agg(distinct category) a from words where category in ('Pop Culture', 'Fairy Tales', 'Video Games')`)).rows[0].a;
+check(newCats?.length === 3, 'Pop Culture, Fairy Tales and Video Games are in the word list');
+const popDeck = (await db.query(`select _draw_deck(null, 10, array['Pop Culture', 'Fairy Tales', 'Video Games']) d`)).rows[0].d;
+check(popDeck.length === 10 && tiers(popDeck) === 'eeeemmmhhh', 'the new categories alone make a full deck');
 
 const fails2 = async (uid, sql, params) => {
   try { await as(uid, sql, params); return ''; } catch (e) { return e.message; }
