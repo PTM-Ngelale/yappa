@@ -845,6 +845,39 @@ await as(HOST, `select end_game('VERS')`);
 for (const u of Object.keys(d.players)) await as(u, `select leave_room('VERS', $1)`, [u]);
 
 // --- Data retention (migration 008) -------------------------------------------------------
+// --- Picking categories (migration 027) -----------------------------------------------------
+const PICK = ['Animals', 'Music', 'Nature'];
+const deckCats = async (code) =>
+  (await db.query(`select words from game_decks where code = $1`, [code])).rows[0].words.map((w) => w.category);
+await as(HOST, `select create_room('CATS', $1)`, [player(HOST)]);
+for (const u of [P2, P3]) await as(u, `select join_room('CATS', $1)`, [player(u)]);
+check(await fails(P2, `select set_categories('CATS', $1)`, [PICK]), 'only the host picks categories');
+check((await fails2(HOST, `select set_categories('CATS', $1)`, [['Animals', 'Music']])).includes('at least 3'), 'at least 3 categories stay on');
+check((await fails2(HOST, `select set_categories('CATS', $1)`, [[...PICK, 'Spaceships']])).includes('unknown category'), 'an unknown category is turned down');
+await as(HOST, `select set_categories('CATS', $1)`, [['Nature', 'Animals', 'Music', 'Music']]);
+check((await room('CATS')).categories?.join() === PICK.join(), 'the pick is stored on the room, sorted, without repeats');
+await as(HOST, `select start_game('CATS', true)`);
+check((await deckCats('CATS')).every((c) => PICK.includes(c)), "the deck draws only from the room's categories");
+check(await fails(HOST, `select set_categories('CATS', null)`), 'categories cannot change once the game has started');
+await as(HOST, `select end_game('CATS')`);
+await as(HOST, `select reset_room_to_lobby('CATS')`);
+check((await room('CATS')).categories?.join() === PICK.join(), 'a rematch keeps the pick');
+await as(HOST, `select set_categories('CATS', null)`);
+check(!('categories' in (await room('CATS'))), 'null puts every category back');
+const ALL = (await db.query(`select array_agg(distinct category) a from words`)).rows[0].a;
+await as(HOST, `select set_categories('CATS', $1)`, [PICK]);
+await as(HOST, `select set_categories('CATS', $1)`, [ALL]);
+check(!('categories' in (await room('CATS'))), '…and so does picking every one');
+for (const u of [P2, P3, HOST]) await as(u, `select leave_room('CATS', $1)`, [u]);
+await as(HOST, `select create_room('CATP', $1)`, [player(HOST)]);
+await as(HOST, `select set_room_public('CATP', true)`);
+check((await fails2(HOST, `select set_categories('CATP', $1)`, [PICK])).includes('every category'), 'online rooms play every category');
+await as(HOST, `select leave_room('CATP', $1)`, [HOST]);
+const narrow = (await db.query(`select _draw_deck(null, 10, $1) d`, [PICK])).rows[0].d;
+check(narrow.length === 10 && tiers(narrow) === 'eeeemmmhhh' && narrow.every((w) => PICK.includes(w.category)), 'a 3-category deck keeps its Easy/Medium/Hard mix');
+const tools = (await db.query(`select _draw_deck(null, 30, array['Tools & Gadgets']) d`)).rows[0].d;
+check(tools.length === 30 && tools.filter((w) => w.category === 'Tools & Gadgets').length === 28, 'a category that runs out is topped up from others rather than a short deck');
+
 check(await fails(HOST, `select purge_expired_data()`), 'players cannot run purge_expired_data');
 await as(HOST, `select create_room('NEW1', $1)`, [player(HOST)]);
 await as(P2, `select create_room('STAL', $1)`, [player(P2)]);

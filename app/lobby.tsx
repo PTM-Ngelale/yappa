@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { BackHandler, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { playSound } from '../src/audio/sounds';
+import { CategoryPicker } from '../src/components/CategoryPicker';
 import { LeaveGameDialog } from '../src/components/LeaveGame';
 import { Pressable } from '../src/components/Pressable';
 import { ReportSheet } from '../src/components/ReportSheet';
@@ -45,6 +46,8 @@ export default function LobbyScreen() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [versusBusy, setVersusBusy] = useState(false);
   const [teamError, setTeamError] = useState('');
+  const [categoriesBusy, setCategoriesBusy] = useState(false);
+  const [categoriesError, setCategoriesError] = useState('');
 
   // Build local player list for display when Supabase isn't configured
   const localPlayer: RoomPlayer = {
@@ -208,6 +211,21 @@ export default function LobbyScreen() {
       );
     } finally {
       setVersusBusy(false);
+    }
+  }
+
+  async function handleSetCategories(pick: string[] | null) {
+    if (!roomCode) return;
+    setCategoriesBusy(true);
+    setCategoriesError('');
+    try {
+      const { setCategories } = await import('../src/supabase/room');
+      await setCategories(roomCode, pick);
+    } catch (e) {
+      console.error(e);
+      setCategoriesError('Couldn’t change the categories. Check your connection.');
+    } finally {
+      setCategoriesBusy(false);
     }
   }
 
@@ -431,6 +449,23 @@ export default function LobbyScreen() {
             </View>
           )}
         </View>
+
+        {/* Friends' rooms: the host picks the word categories; online rooms play them all. */}
+        {!isPublic && (
+          <View style={styles.section}>
+            <Eyebrow>{isHost ? 'Categories' : 'Categories the host picked'}</Eyebrow>
+            <CategoryPicker
+              pick={roomData?.categories}
+              onChange={isHost && roomData?.status === 'lobby' ? handleSetCategories : undefined}
+              disabled={categoriesBusy}
+            />
+            {categoriesError !== '' && (
+              <Text style={styles.teamError} accessibilityLiveRegion="assertive">
+                {categoriesError}
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Play online fills a room to 3, so it's offered only while there's a seat to fill */}
         {isHost && roomData?.status === 'lobby' && !versus && (isPublic || players.length < PUBLIC_PLAYERS) && (

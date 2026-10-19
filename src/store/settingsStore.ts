@@ -17,6 +17,8 @@ interface SettingsState {
   firstGameDone: boolean;
   /** Solo: rounds in a run, as last picked. */
   soloLength: SoloRunLength;
+  /** Solo: the categories to draw from, as last picked; null for all of them. */
+  soloCategories: string[] | null;
   /** Solo: the best score of a finished run, by its length. */
   soloBests: Record<SoloRunLength, number>;
   /** Solo: words from recent runs, newest last, so new runs don't repeat them. */
@@ -28,6 +30,7 @@ interface SettingsState {
   markTipSeen: (tip: TipId) => void;
   markFirstGameDone: () => void;
   setSoloLength: (length: SoloRunLength) => void;
+  setSoloCategories: (categories: string[] | null) => void;
   markSoloWordsPlayed: (ids: string[]) => void;
   recordSoloScore: (length: SoloRunLength, score: number) => void;
 }
@@ -51,6 +54,8 @@ export const useSettingsStore = create<SettingsState>()(
       soloBests: { 5: 0, 10: 0 },
       soloRecent: [],
       setSoloLength: (length) => set({ soloLength: length }),
+      soloCategories: null,
+      setSoloCategories: (categories) => set({ soloCategories: categories }),
       markSoloWordsPlayed: (ids) =>
         set((s) => ({ soloRecent: [...s.soloRecent.filter((id) => !ids.includes(id)), ...ids].slice(-SOLO_RECENT_LIMIT) })),
       recordSoloScore: (length, score) =>
@@ -67,6 +72,7 @@ export const useSettingsStore = create<SettingsState>()(
         tipsSeen: state.tipsSeen,
         firstGameDone: state.firstGameDone,
         soloLength: state.soloLength,
+        soloCategories: state.soloCategories,
         soloBests: state.soloBests,
         soloRecent: state.soloRecent,
       }),

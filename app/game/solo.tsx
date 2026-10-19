@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Animated, AppState, BackHandler, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { playSound } from '../../src/audio/sounds';
+import { CategoryPicker } from '../../src/components/CategoryPicker';
 import { DescriptionFeed } from '../../src/components/DescriptionFeed';
 import { LeaveGameDialog } from '../../src/components/LeaveGame';
 import { Pressable } from '../../src/components/Pressable';
@@ -61,6 +62,7 @@ type Action =
   | { type: 'giveUp' }
   | { type: 'next'; now: number }
   | { type: 'resume'; deadline: number }
+  | { type: 'setup' }
   | { type: 'newRun'; run: SoloLadder[]; now: number };
 
 const clueEntry = (text: string): FeedEntry => ({ kind: 'word', text, by: 'clue' });
@@ -113,6 +115,8 @@ function reducer(s: State, a: Action): State {
       return s.index + 1 < s.run.length ? startWord(s.run, s.index + 1, s.results, a.now) : { ...s, phase: 'done' };
     case 'resume':
       return s.phase === 'playing' ? { ...s, deadline: a.deadline } : s;
+    case 'setup':
+      return s.phase === 'done' ? SETUP : s;
     case 'newRun':
       return startWord(a.run, 0, [], a.now);
   }
@@ -131,6 +135,7 @@ export default function SoloScreen() {
   const [message, setMessage] = useState('');
   const soloLength = useSettingsStore((s) => s.soloLength);
   const soloBests = useSettingsStore((s) => s.soloBests);
+  const soloCategories = useSettingsStore((s) => s.soloCategories);
   // The best score before this run, so the summary can say whether it's a new best.
   const [bestBefore, setBestBefore] = useState(0);
   const { shakeAnim, shake } = useShakeAnimation();
@@ -257,11 +262,11 @@ export default function SoloScreen() {
   }
 
   function startRun() {
-    const { soloLength: length, soloBests: bests, soloRecent } = useSettingsStore.getState();
+    const { soloLength: length, soloBests: bests, soloRecent, soloCategories } = useSettingsStore.getState();
     setBestBefore(bests[length]);
     setMessage('');
     setGuess('');
-    dispatch({ type: 'newRun', run: drawSoloRun(length, soloRecent), now: Date.now() });
+    dispatch({ type: 'newRun', run: drawSoloRun(length, soloRecent, soloCategories), now: Date.now() });
   }
 
   const leave = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -304,6 +309,8 @@ export default function SoloScreen() {
           </Sticker>
           <Eyebrow>How many rounds?</Eyebrow>
           {picker}
+          <Eyebrow>Categories</Eyebrow>
+          <CategoryPicker pick={soloCategories} onChange={(pick) => useSettingsStore.getState().setSoloCategories(pick)} />
           <StickerButton label={`Start ${soloLength} rounds`} icon="play" onPress={startRun} />
         </ScrollView>
       </Screen>
@@ -330,9 +337,15 @@ export default function SoloScreen() {
             </Text>
           </Sticker>
           <RunWords results={results} />
-          <Eyebrow>Next run</Eyebrow>
-          {picker}
-          <StickerButton label={`Play ${soloLength} rounds`} icon="refresh-cw" onPress={startRun} />
+          <StickerButton label="Play again" icon="refresh-cw" onPress={startRun} />
+          <StickerButton
+            label="Change rounds or categories"
+            icon="sliders"
+            variant="card"
+            height={52}
+            fontSize={17}
+            onPress={() => dispatch({ type: 'setup' })}
+          />
           <StickerButton label="Home" variant="card" height={52} fontSize={18} onPress={() => router.replace('/')} />
         </ScrollView>
       </Screen>
