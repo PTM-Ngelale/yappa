@@ -19,7 +19,7 @@ const OFF_LIMITS = { easy: 3, medium: 4, hard: 5 };
 const ONE_WORD = /^\p{L}+(['’-]\p{L}+)*$/u;
 const PHRASE = /^\p{L}+([ '’-]\p{L}+)*$/u;
 // Mirrors src/game/categories.ts.
-const CATEGORIES = ['Animals', 'Food & Drink', 'Sports', 'Music', 'Around the House', 'Tools & Gadgets', 'Buildings', 'Nature'];
+const CATEGORIES = ['Animals', 'Food & Drink', 'Sports', 'Music', 'Around the House', 'Tools & Gadgets', 'Buildings', 'Nature', 'Pop Culture', 'Fairy Tales', 'Video Games'];
 
 if (!fs.existsSync(REVIEW_FILE)) {
   console.error(`No review file at ${path.relative(process.cwd(), REVIEW_FILE)}.`);
