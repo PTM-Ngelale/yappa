@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Yappa: Word Chain Party Game",
-  "short_name": "Yappa",
+  "name": "Yarnz: Word Chain Party Game",
+  "short_name": "Yarnz",
   "description": "A fast, loud word-chain party game for 2 to 5 friends. Chain words, lead the guesser to the secret word, beat the clock.",
   "start_url": "/",
   "scope": "/",

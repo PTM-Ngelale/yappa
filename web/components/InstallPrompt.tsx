@@ -1,5 +1,5 @@
 'use client';
-// Asks a phone visitor to add Yappa to their home screen when they open a link to it.
+// Asks a phone visitor to add Yarnz to their home screen when they open a link to it.
 // Android browsers hand us an offer to do it (captured early in app/(game)/layout.tsx), so it
 // takes one tap; iPhones can't be asked directly, so we show where Add to Home Screen is.
 // Never shown on computers, once installed, or mid-game (only on the Home screen), and "Not
@@ -60,7 +60,7 @@ export function InstallPrompt() {
       setOffer(window.__installPrompt);
       setKind('offer');
     };
-    window.addEventListener('yappa:installable', takeOffer);
+    window.addEventListener('yarnz:installable', takeOffer);
     // No install offer by now (iPhone, an in-app browser, Firefox): show the steps instead.
     const timer = setTimeout(() => {
       if (window.__installPrompt) takeOffer();
@@ -70,7 +70,7 @@ export function InstallPrompt() {
     window.addEventListener('appinstalled', onInstalled);
     return () => {
       clearTimeout(timer);
-      window.removeEventListener('yappa:installable', takeOffer);
+      window.removeEventListener('yarnz:installable', takeOffer);
       window.removeEventListener('appinstalled', onInstalled);
     };
     // Once per page load, on Home.
@@ -107,7 +107,7 @@ export function InstallPrompt() {
       >
         <img src="/icons/icon-192.png" alt="" className="install-icon" />
         <h2 id="install-title" className="install-title">
-          Add Yappa to your home screen?
+          Add Yarnz to your home screen?
         </h2>
         <p className="install-text">
           Then it’s one tap away, like an app, and opens full screen. It’s free and takes a second.

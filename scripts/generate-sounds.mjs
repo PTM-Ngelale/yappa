@@ -1,4 +1,4 @@
-// Synthesises Yappa's placeholder sound effects and music loops into assets/audio/*.wav.
+// Synthesises Yarnz's placeholder sound effects and music loops into assets/audio/*.wav.
 // Everything is generated from scratch (no samples), so there are no licensing concerns.
 // To use real audio instead, drop a file with the same name into assets/audio/ — or change
 // the require() paths in src/audio/sounds.ts — and don't re-run this script.

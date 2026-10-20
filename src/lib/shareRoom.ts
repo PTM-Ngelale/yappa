@@ -6,7 +6,7 @@ export type ShareResult = 'shared' | 'copied' | 'failed';
 /** Opens the system share sheet with the room code. */
 export async function shareRoom(roomCode: string): Promise<ShareResult> {
   try {
-    await Share.share({ message: `Join my Yappa game! Room code: ${roomCode}` });
+    await Share.share({ message: `Join my Yarnz game! Room code: ${roomCode}` });
     return 'shared';
   } catch (e) {
     console.error(e);

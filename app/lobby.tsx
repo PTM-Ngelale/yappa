@@ -205,7 +205,7 @@ export default function LobbyScreen() {
       const message = errorText(e);
       setTeamError(
         message.includes('update the app')
-          ? 'Someone needs to update Yappa to play versus.'
+          ? 'Someone needs to update Yarnz to play versus.'
           : message.includes('too many players')
             ? `A normal game seats ${MAX_PLAYERS}. Someone needs to leave first.`
             : 'Couldn’t switch. Check your connection.',
