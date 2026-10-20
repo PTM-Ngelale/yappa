@@ -1,4 +1,4 @@
-// "Sticker Party" palettes — see the Clue Line UI Redesign canvas (Direction A).
+// "Sticker Party" palettes — see the Yappa UI Redesign canvas (Direction A).
 // Screens read colours through useTheme() so light and dark follow the phone's setting.
 
 export interface Palette {

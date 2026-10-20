@@ -1,4 +1,4 @@
-// Clue Line icon: the sticker speech bubble with a line of three dots (the clues, one word at
+// Yappa icon: the sticker speech bubble with a line of three dots (the clues, one word at
 // a time), drawn as SVG and rendered to every size the app, store and website use.
 // Run from the repo root: node scripts/brand/icons.mjs
 import path from 'node:path';
