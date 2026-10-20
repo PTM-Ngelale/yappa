@@ -4,7 +4,7 @@
 // (no runtime import) so it loads under both Deno and Node.
 import type Anthropic from "npm:@anthropic-ai/sdk";
 
-export const JUDGE_MODEL = "claude-haiku-4-5";
+export const JUDGE_MODEL = "claude-haiku-5-5";
 
 // Guesses are short words/phrases. Anything else can't be a real answer, and rejecting it
 // up front keeps instruction-like text out of the prompt entirely.
@@ -29,8 +29,8 @@ async function verdict(
     {
       model: JUDGE_MODEL,
       max_tokens: 200,
-      // A referee should give the same ruling every time it sees the same words.
-      temperature: 0,
+      // No temperature: Claude Haiku 5.5 rejects anything but the default. The forced, strict
+      // boolean tool call keeps rulings consistent (and skips thinking, keeping calls quick).
       system,
       tools: [
         {
