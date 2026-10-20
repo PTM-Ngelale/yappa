@@ -44,8 +44,8 @@ await db.exec(`
   grant usage on schema realtime to anon, authenticated, service_role;
   grant select, insert on realtime.messages to anon, authenticated;
   grant usage on all sequences in schema realtime to anon, authenticated;
-  -- Supabase's default grants: table access is governed by RLS, functions are executable.
-  alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+  -- Supabase's default grants. New tables get none since 2026-10-30, so the migrations must
+  -- grant table access themselves (migration 030); functions are still executable by default.
   alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
   grant usage on schema public to anon, authenticated, service_role;
 `);
@@ -105,7 +105,7 @@ check(await fails(P2, `select start_game('ABCD')`), 'only the host can start');
 await as(P2, `select reset_room_to_lobby('ABCD')`);
 await as(HOST, `select start_game('ABCD')`);
 check((await room()).status === 'playing', 'the host can start');
-check((await as(HOST, `select * from words`)).rows.length === 0 && (await as(HOST, `select * from game_decks`)).rows.length === 0, 'the word list and deck are unreadable');
+check(await fails(HOST, `select * from words`) && await fails(HOST, `select * from game_decks`), 'the word list and deck are unreadable');
 
 // --- Play 9 rounds: describe it together (migration 013) ---------------------------------
 // Time is simulated by moving the clocks' start times back.
@@ -154,7 +154,7 @@ for (let round = 1; round <= 9; round++) {
     const state = (await as(guesser, `select clock_state('ABCD') s`)).rows[0].s;
     check(state.round === 1 && state.turnIndex === 0 && state.turnElapsedMs >= 0 && state.roundElapsedMs >= 0 && state.held === false, 'a player can read where both clocks stand');
     check(await fails(OUTSIDER, `select clock_state('ABCD')`), 'a non-member cannot read the clocks');
-    check((await db.query(`select * from turn_clocks`)).rows.length === 1 && (await as(HOST, `select * from turn_clocks`)).rows.length === 0, 'the clock table is unreadable to clients');
+    check((await db.query(`select * from turn_clocks`)).rows.length === 1 && await fails(HOST, `select * from turn_clocks`), 'the clock table is unreadable to clients');
 
     // A pause freezes both clocks and blocks moves; resuming shifts both start times on.
     await as(P2, `select pause_turn_clock('ABCD')`);
@@ -905,6 +905,15 @@ check(!users.includes(HOST), 'anonymous users idle for 30+ days are purged');
 check(users.includes(P2), '…but not if their session was refreshed recently');
 check(users.includes(P3), '…and not new anonymous users');
 check(users.includes(OUTSIDER), '…and never non-anonymous users');
+
+// --- Table grants (migration 030) ----------------------------------------------------
+const rejects = async (run) => { try { await run(); return false; } catch { return true; } };
+check((await as(P2, `select count(*)::int n from rooms`)).rows[0].n >= 0, 'players can read rooms (RLS picks the rows)');
+check(await rejects(() => as(P2, `truncate rooms`)), 'players cannot truncate rooms');
+check(await rejects(() => as(P2, `select count(*) from words`)), 'players cannot read the word list directly');
+check(await rejects(() => asAnon(`select count(*) from rooms`)), 'visitors who are not signed in cannot read rooms');
+check(await rejects(() => asAnon(`select _used_word_memory()`)), 'visitors cannot call the settings helpers');
+check((await as(null, `select count(*)::int n from round_secrets`)).rows[0].n >= 0, 'the service role reads round secrets');
 
 console.log(failures ? `\n${failures} failed, ${passed} passed` : `\nall ${passed} checks passed`);
 process.exit(failures ? 1 : 0);

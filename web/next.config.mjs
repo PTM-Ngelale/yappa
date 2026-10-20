@@ -28,6 +28,22 @@ const nextConfig = {
   async redirects() {
     return [{ source: '/join/:code', destination: '/?room=:code', permanent: false }];
   },
+  // No other site may frame the game (clickjacking), browsers mustn't guess content types,
+  // and links out send only our origin, never a page's full URL with its room code.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
+    ];
+  },
   transpilePackages: [
     'react-native-web',
     'react-native-safe-area-context',
