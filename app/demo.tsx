@@ -60,7 +60,7 @@ export default function DemoScreen() {
     <Screen>
       <View style={styles.header}>
         <Text style={styles.title} accessibilityRole="header">
-          How Clue Line works
+          How Yappa works
         </Text>
         {!done && (
           <Pressable onPress={leave} accessibilityRole="button" style={styles.skip}>

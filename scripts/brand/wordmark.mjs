@@ -1,4 +1,4 @@
-// Clue Line splash wordmark and Play Store feature graphic, drawn like the app's stickers.
+// Yappa splash wordmark and Play Store feature graphic, drawn like the app's stickers.
 // Run from the repo root: node scripts/brand/wordmark.mjs
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -43,7 +43,7 @@ const solidSticker = ({ text, fontSize, padding, border, shadow, radius, rotate,
 // Splash: the wordmark sticker alone on a transparent square (app.json paints the yellow).
 await save(
   h('div', { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontFamily: 'Bricolage' },
-    solidSticker({ text: 'Clue Line', fontSize: 172, padding: '18px 56px 34px', border: 16, shadow: 34, radius: 70, rotate: -4, letterSpacing: -6, align: 'center' }),
+    solidSticker({ text: 'Yappa', fontSize: 172, padding: '18px 56px 34px', border: 16, shadow: 34, radius: 70, rotate: -4, letterSpacing: -6, align: 'center' }),
   ),
   1024, 1024, 'assets/splash-icon.png',
 );
@@ -58,7 +58,7 @@ function promo(k) {
     h('div', { position: 'absolute', top: n(-130), left: n(-110), width: n(340), height: n(340), borderRadius: n(170), background: CORAL, border: `${n(5)}px solid ${INK}` }),
     h('div', { position: 'absolute', bottom: n(-130), right: n(-90), width: n(260), height: n(260), borderRadius: n(130), background: BLUE, border: `${n(5)}px solid ${INK}` }),
     h('div', { position: 'absolute', left: n(84), top: n(78), flexDirection: 'column', gap: n(34) },
-      solidSticker({ text: 'Clue Line', fontSize: n(112), padding: `${n(4)}px ${n(34)}px ${n(16)}px`, border: n(9), shadow: n(16), radius: n(38), rotate: -4, letterSpacing: n(-4) }),
+      solidSticker({ text: 'Yappa', fontSize: n(112), padding: `${n(4)}px ${n(34)}px ${n(16)}px`, border: n(9), shadow: n(16), radius: n(38), rotate: -4, letterSpacing: n(-4) }),
       h('div', { flexDirection: 'column', fontSize: n(36), fontWeight: 800, lineHeight: 1.18 },
         h('div', {}, 'Describe it together.'),
         h('div', {}, 'Guess the secret.'),

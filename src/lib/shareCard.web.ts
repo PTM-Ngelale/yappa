@@ -13,7 +13,7 @@ export async function shareCard(cardId: string, text: string): Promise<ShareResu
   const url = cardLink(cardId);
   if (typeof navigator.share === 'function') {
     try {
-      await navigator.share({ title: 'Clue Line', text, url });
+      await navigator.share({ title: 'Yappa', text, url });
       return 'shared';
     } catch (e) {
       // Closing the share sheet isn't an error worth reporting.

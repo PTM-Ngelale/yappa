@@ -482,7 +482,7 @@ export default function RoundScreen() {
               const won = history.filter((h) => h.outcome === 'won').length;
               // A game ended early is scored out of the rounds played, as on the card.
               const outOf = Math.min(history.length, roomData.maxRounds);
-              return await shareCard(cardId, `We scored ${won}/${outOf} on Clue Line! Can you beat it?`);
+              return await shareCard(cardId, `We scored ${won}/${outOf} on Yappa! Can you beat it?`);
             } catch (e) {
               console.error(e);
               return 'failed';
