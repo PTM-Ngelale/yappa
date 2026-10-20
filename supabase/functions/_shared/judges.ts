@@ -13,6 +13,8 @@ export const GUESS_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} '\-]{0,39}$/u;
 interface RequestOptions {
   timeout?: number;
   maxRetries?: number;
+  /** Judge with another model instead of JUDGE_MODEL (the eval compares models this way). */
+  model?: string;
 }
 
 /** Forces a single strict boolean verdict from the model; throws on API errors. */
@@ -23,11 +25,11 @@ async function verdict(
   toolDescription: string,
   system: string,
   prompt: string,
-  options: RequestOptions,
+  { model = JUDGE_MODEL, ...requestOptions }: RequestOptions,
 ): Promise<boolean | undefined> {
   const response = await client.messages.create(
     {
-      model: JUDGE_MODEL,
+      model,
       max_tokens: 200,
       // No temperature: Claude Haiku 5.5 rejects anything but the default. The forced, strict
       // boolean tool call keeps rulings consistent (and skips thinking, keeping calls quick).
@@ -51,7 +53,7 @@ async function verdict(
       tool_choice: { type: "tool", name: toolName },
       messages: [{ role: "user", content: prompt }],
     },
-    options,
+    requestOptions,
   );
   const toolUse = response.content.find(
     (block): block is Anthropic.ToolUseBlock => block.type === "tool_use",
