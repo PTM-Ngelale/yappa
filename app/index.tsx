@@ -297,7 +297,7 @@ export default function HomeScreen() {
                 numberOfLines={1}
                 adjustsFontSizeToFit
               >
-                Yappa
+                Yarnz
               </Text>
             </Sticker>
             <Text style={styles.tagline} maxFontSizeMultiplier={1.3}>Describe it together. Guess the secret. Beat the clock.</Text>

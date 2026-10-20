@@ -3,7 +3,7 @@ import React from 'react';
 import { ClientShell } from '../../components/ClientShell';
 import './globals.css';
 
-const TITLE = 'Yappa: Word Chain Party Game';
+const TITLE = 'Yarnz: Word Chain Party Game';
 const DESCRIPTION =
   'A fast, loud word-chain party game for 2 to 5 friends. Chain words, lead the guesser to the secret word, beat the clock.';
 
@@ -13,13 +13,13 @@ const SITE_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   : 'https://yappa-three.vercel.app';
 const OG_IMAGE = `${SITE_URL}/og.png`;
-const OG_IMAGE_ALT = 'Yappa: describe it together, guess the secret, beat the clock.';
+const OG_IMAGE_ALT = 'Yarnz: describe it together, guess the secret, beat the clock.';
 
 const INSTALL_SCRIPT = `
 window.addEventListener('beforeinstallprompt', function (e) {
   e.preventDefault();
   window.__installPrompt = e;
-  window.dispatchEvent(new Event('yappa:installable'));
+  window.dispatchEvent(new Event('yarnz:installable'));
 });
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); });
@@ -47,11 +47,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <title>{TITLE}</title>
         <meta name="description" content={DESCRIPTION} />
-        <meta name="application-name" content="Yappa" />
+        <meta name="application-name" content="Yarnz" />
         <meta property="og:title" content={TITLE} />
         <meta property="og:description" content={DESCRIPTION} />
         <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="Yappa" />
+        <meta property="og:site_name" content="Yarnz" />
         <meta property="og:url" content={SITE_URL} />
         <meta property="og:image" content={OG_IMAGE} />
         <meta property="og:image:type" content="image/png" />
@@ -63,18 +63,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="twitter:description" content={DESCRIPTION} />
         <meta name="twitter:image" content={OG_IMAGE} />
         <meta name="twitter:image:alt" content={OG_IMAGE_ALT} />
-        {/* Installable: "Add to Home Screen" opens it full screen with the Yappa icon. */}
+        {/* Installable: "Add to Home Screen" opens it full screen with the Yarnz icon. */}
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="Yappa" />
+        <meta name="apple-mobile-web-app-title" content="Yarnz" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         {/* Android browsers fire their install offer once, often before the game has loaded:
             keep it for the install prompt (components/InstallPrompt.tsx) to show later. */}
         <script dangerouslySetInnerHTML={{ __html: INSTALL_SCRIPT }} />
       </head>
       <body>
-        <noscript>You need to enable JavaScript to play Yappa.</noscript>
+        <noscript>You need to enable JavaScript to play Yarnz.</noscript>
         <div id="root">
           <ClientShell>{children}</ClientShell>
         </div>
