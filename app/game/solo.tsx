@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Animated, AppState, BackHandler, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -25,10 +25,14 @@ import {
   isSoloAnswer,
   SOLO_CLUE_SECONDS,
   SOLO_CLUES,
+  SOLO_FULL_POINTS_BY,
   SOLO_LAST_CHANCE_SECONDS,
+  SOLO_MAX_POINTS,
+  SOLO_MAX_STARS,
   SOLO_RUN_LENGTHS,
   soloPercent,
   soloPoints,
+  soloStars,
   type SoloLadder,
   type SoloRunLength,
 } from '../../src/game/solo';
@@ -304,9 +308,12 @@ export default function SoloScreen() {
             <Text style={styles.howText}>
               Clues appear one word at a time, from vague to obvious. Guess the secret word early for more points.
             </Text>
-            <Text style={styles.howSmall}>
-              {soloPoints(1)} points on the first clue, down to 1 on the last.
-            </Text>
+            <View style={styles.howStars}>
+              <Stars count={3} size={18} />
+              <Text style={styles.howSmall}>
+                By clue {SOLO_FULL_POINTS_BY}: full {SOLO_MAX_POINTS} points. Later clues score less.
+              </Text>
+            </View>
           </Sticker>
           <Eyebrow>How many rounds?</Eyebrow>
           {picker}
@@ -328,6 +335,7 @@ export default function SoloScreen() {
   if (phase === 'done') {
     const length = run.length as SoloRunLength;
     const best = Math.max(bestBefore, total);
+    const stars = results.reduce((sum, r) => sum + soloStars(r.cluesUsed), 0);
     return (
       <Screen>
         <ScrollView contentContainerStyle={styles.summary}>
@@ -341,10 +349,18 @@ export default function SoloScreen() {
               {soloPercent(total, length)}
               <Text style={styles.totalOf}>%</Text>
             </Text>
+            <View style={styles.starTotal}>
+              <MaterialCommunityIcons name="star" size={22} color={p.heroAccent} />
+              <Text style={[styles.starTotalText, { color: p.onHero }]}>
+                {stars} of {length * SOLO_MAX_STARS} stars
+              </Text>
+            </View>
             <Text style={[styles.best, { color: p.heroAccent }]}>
-              {total > bestBefore && bestBefore > 0
-                ? 'New best score!'
-                : `Best for ${length} rounds: ${soloPercent(best, length)}%`}
+              {stars === length * SOLO_MAX_STARS
+                ? `Perfect run! Every word by clue ${SOLO_FULL_POINTS_BY}.`
+                : total > bestBefore && bestBefore > 0
+                  ? 'New best score!'
+                  : `Best for ${length} rounds: ${soloPercent(best, length)}%`}
             </Text>
           </Sticker>
           <RunWords results={results} />
@@ -403,7 +419,10 @@ export default function SoloScreen() {
             <Sticker style={[styles.feedWrap, short && styles.feedWrapCompact]} radius={26} offset={6} contentStyle={styles.feedCard}>
               <View style={styles.feedTop}>
                 <Eyebrow>Clue {shown} of {SOLO_CLUES}</Eyebrow>
-                <Text style={styles.worth}>Worth {soloPoints(shown)} pts</Text>
+                <View style={styles.worthRow}>
+                  <Stars count={soloStars(shown)} size={16} />
+                  <Text style={styles.worth}>{soloPoints(shown)} pts</Text>
+                </View>
               </View>
               <DescriptionFeed entries={feed} players={players} large style={styles.flex} />
               <View style={styles.clock}>
@@ -469,7 +488,7 @@ export default function SoloScreen() {
                   onPress={() => dispatch({ type: 'reveal', now: Date.now() })}
                   disabled={finalClue}
                   accessibilityRole="button"
-                  accessibilityLabel={`Show the next clue now. The word will be worth ${soloPoints(shown + 1)} points.`}
+                  accessibilityLabel={`Show the next clue now. The word will be worth ${soloPoints(shown + 1)} points and ${soloStars(shown + 1)} stars.`}
                   style={[styles.helpButton, finalClue && styles.helpDisabled]}
                 >
                   <Feather name="plus" size={16} color={p.ink} />
@@ -512,6 +531,9 @@ function WordReveal({ result }: { result: WordResult }) {
         <Text style={styles.revealWord} adjustsFontSizeToFit numberOfLines={1}>
           {ladder.word}
         </Text>
+        {cluesUsed !== null && (
+          <Stars count={soloStars(cluesUsed)} size={30} fill={p.heroAccent} empty={p.heroAccent} />
+        )}
         <Text style={[styles.revealPts, { color: p.heroAccent }]}>
           {cluesUsed
             ? `+${soloPoints(cluesUsed)} points on clue ${cluesUsed}`
@@ -529,6 +551,34 @@ function WordReveal({ result }: { result: WordResult }) {
           );
         })}
       </View>
+    </View>
+  );
+}
+
+/**
+ * A word's stars, out of 3. On the cards they're yellow with the stickers' outline; on the dark
+ * hero card, `fill` and `empty` colour them instead.
+ */
+function Stars({ count, size = 20, fill, empty }: { count: number; size?: number; fill?: string; empty?: string }) {
+  const p = useTheme();
+  return (
+    <View
+      style={{ flexDirection: 'row', gap: size / 8 }}
+      accessible
+      accessibilityLabel={`${count} of ${SOLO_MAX_STARS} stars`}
+    >
+      {Array.from({ length: SOLO_MAX_STARS }, (_, i) =>
+        i < count ? (
+          <View key={i} style={{ width: size, height: size }}>
+            <MaterialCommunityIcons name="star" size={size} color={fill ?? p.yellow} />
+            {!fill && (
+              <MaterialCommunityIcons name="star-outline" size={size} color={p.line} style={StyleSheet.absoluteFill} />
+            )}
+          </View>
+        ) : (
+          <MaterialCommunityIcons key={i} name="star-outline" size={size} color={empty ?? p.muted} />
+        ),
+      )}
     </View>
   );
 }
@@ -580,6 +630,7 @@ function RunWords({ results }: { results: WordResult[] }) {
         <View key={r.ladder.id} style={[styles.resultRow, i > 0 && styles.resultDivider]}>
           <Text style={styles.resultNum}>{i + 1}</Text>
           <Text style={styles.resultWord} numberOfLines={1}>{r.ladder.word}</Text>
+          {r.cluesUsed ? <Stars count={soloStars(r.cluesUsed)} size={16} /> : null}
           <Text style={[styles.resultPts, !r.cluesUsed && styles.resultMissed]}>
             {r.cluesUsed ? `+${soloPoints(r.cluesUsed)}` : 'missed'}
           </Text>
@@ -595,7 +646,11 @@ const makeStyles = (p: Palette) =>
     earlier: { gap: 8 },
     howCard: { padding: 16, gap: 6 },
     howText: { ...type.bodyBold, color: p.ink },
-    howSmall: { ...type.small, color: p.muted },
+    howSmall: { ...type.small, color: p.muted, flexShrink: 1 },
+    howStars: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    worthRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    starTotal: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    starTotalText: { fontFamily: fonts.black, fontSize: 18 },
     picker: { flexDirection: 'row', gap: 12 },
     option: {
       flex: 1,

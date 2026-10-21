@@ -8,7 +8,14 @@ import { PoweredBy } from '../src/components/PoweredBy';
 import { Eyebrow, IconButton, OUTLINE, Screen, Sticker, StickerButton } from '../src/components/ui';
 import { CategoryName } from '../src/components/CategoryName';
 import { CATEGORIES, MIN_CATEGORIES } from '../src/game/categories';
-import { SOLO_CLUE_SECONDS, SOLO_CLUES, SOLO_RUN_LENGTHS, soloPoints } from '../src/game/solo';
+import {
+  SOLO_CLUE_SECONDS,
+  SOLO_CLUES,
+  SOLO_FULL_POINTS_BY,
+  SOLO_MAX_POINTS,
+  SOLO_RUN_LENGTHS,
+  soloPoints,
+} from '../src/game/solo';
 import { DUO_CLUES, roundSecondsFor, TURN_SECONDS } from '../src/game/config';
 import { EXAMPLE_FEED, EXAMPLE_OFF_LIMITS, EXAMPLE_PLAYERS } from '../src/game/demo';
 import { roundsFor } from '../src/game/players';
@@ -43,9 +50,10 @@ export default function HowToPlayScreen() {
             {SOLO_CLUE_SECONDS} seconds, or tap <Text style={styles.strong}>Next clue now</Text> for one sooner.
           </Text>
           <Text style={styles.bodyText}>
-            Guess early for more points: {soloPoints(1)} on the first clue, down to 1 on the last of the {SOLO_CLUES}.
-            Play {SOLO_RUN_LENGTHS.join(' or ')} rounds; your score is shown as a percentage of the most you could get, so you can
-            beat your best.
+            Guess early for more: get it by clue {SOLO_FULL_POINTS_BY} for the full {SOLO_MAX_POINTS} points and 3 stars. After
+            that it's {soloPoints(SOLO_FULL_POINTS_BY + 1)} points, then less, down to 1 on the last of the {SOLO_CLUES} clues (2
+            stars by clue 5, 1 star after). Play {SOLO_RUN_LENGTHS.join(' or ')} rounds; your score is shown as a percentage of the
+            most you could get, so you can beat your best. Every word by clue {SOLO_FULL_POINTS_BY} is a perfect run.
           </Text>
         </Section>
 
