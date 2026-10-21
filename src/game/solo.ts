@@ -36,14 +36,29 @@ const SOLO_RUN_MIX: Record<SoloRunLength, Record<SoloLadder['difficulty'], numbe
 /** How many recently played words a new run steers clear of. */
 export const SOLO_RECENT_LIMIT = 120;
 
-/** Points for getting it on `cluesShown`: 8 on the first clue, down to 1 on the last. */
+/** A word got by this clue scores in full: the first clues are too vague to guess from alone,
+ * so a perfect run means every word by clue 3, not lucky guesses on clue 1. */
+export const SOLO_FULL_POINTS_BY = 3;
+/** Points for a word got by SOLO_FULL_POINTS_BY. */
+export const SOLO_MAX_POINTS = 5;
+/** Stars for a word got by each of these clues: 3 by clue 3, 2 by clue 5, 1 by the last. */
+const SOLO_STARS_BY = [SOLO_FULL_POINTS_BY, 5, SOLO_CLUES];
+export const SOLO_MAX_STARS = SOLO_STARS_BY.length;
+
+/** Points for getting it on `cluesShown`: 5 up to clue 3, then 4, 3, 2, and 1 on clues 7 and 8. */
 export function soloPoints(cluesShown: number): number {
-  return SOLO_CLUES + 1 - cluesShown;
+  return Math.max(1, SOLO_MAX_POINTS - Math.max(0, cluesShown - SOLO_FULL_POINTS_BY));
+}
+
+/** Stars for a word got on `cluesUsed`, or 0 if they didn't get it. */
+export function soloStars(cluesUsed: number | null): number {
+  if (!cluesUsed) return 0;
+  return SOLO_STARS_BY.filter((by) => cluesUsed <= by).length;
 }
 
 /** The most a run of `length` rounds can score. */
 export function soloMaxScore(length: SoloRunLength): number {
-  return length * soloPoints(1);
+  return length * SOLO_MAX_POINTS;
 }
 
 /** A run's score as a whole percentage of the most it could score, so 5 and 10 rounds compare. */

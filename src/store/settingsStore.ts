@@ -64,6 +64,12 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'yappa-settings',
       storage: createJSONStorage(() => AsyncStorage),
+      // 1: solo scoring changed (5 points by clue 3, with stars), so older bests no longer compare.
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<SettingsState>;
+        return version < 1 ? { ...state, soloBests: { 5: 0, 10: 0 } } : state;
+      },
       partialize: (state) => ({
         musicOn: state.musicOn,
         sfxOn: state.sfxOn,
